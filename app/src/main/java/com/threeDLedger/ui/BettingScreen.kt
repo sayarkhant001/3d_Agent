@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -57,8 +58,7 @@ fun BettingScreen(
     var currentBetType by remember { mutableStateOf("ဒဲ့") }
     val betTypes = listOf("ဒဲ့", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
 
-    var expandedQuickAmount by remember { mutableStateOf(false) }
-    val quickAmounts = listOf("500", "1000", "5000", "10000")
+    val quickAmounts = listOf("100", "300", "500", "1000", "2000", "5000", "10000")
 
     fun addBets(numbers: List<String>) {
         val amount = tempAmount.toIntOrNull() ?: 0
@@ -267,24 +267,6 @@ fun BettingScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Box {
-                Row(modifier = Modifier.clickable { expandedQuickAmount = true }, verticalAlignment = Alignment.CenterVertically) {
-                    Text("အမြန်ထိုး ရွေးပါ", color = Color.White, fontSize = 16.sp)
-                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
-                }
-                DropdownMenu(expanded = expandedQuickAmount, onDismissRequest = { expandedQuickAmount = false }) {
-                    quickAmounts.forEach { amt ->
-                        DropdownMenuItem(
-                            text = { Text(amt) },
-                            onClick = {
-                                tempAmount = amt
-                                expandedQuickAmount = false
-                            }
-                        )
-                    }
-                }
-            }
-
             Text("စုစုပေါင်း = $totalAmount", color = Color.White, fontSize = 16.sp)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -352,12 +334,12 @@ fun BettingScreen(
             }
         }
 
-        // --- SCROLLABLE SHORTCUTS BAR ---
-        androidx.compose.foundation.lazy.LazyRow(
+        // --- SCROLLABLE BET TYPE SHORTCUTS BAR ---
+        LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(betTypes.size) { i ->
                 val type = betTypes[i]
@@ -368,9 +350,35 @@ fun BettingScreen(
                         containerColor = if (isSelected) primaryBlue else Color.LightGray,
                         contentColor = if (isSelected) Color.White else Color.Black
                     ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text(type, fontSize = 14.sp)
+                }
+            }
+        }
+
+        // --- QUICK BET AMOUNT BAR ---
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(quickAmounts.size) { i ->
+                val amt = quickAmounts[i]
+                val isSelected = tempAmount == amt
+                Button(
+                    onClick = { 
+                        tempAmount = amt
+                        focusedField = FocusField.AMOUNT
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) buttonOrange else buttonTeal,
+                        contentColor = Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(amt, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                 }
             }
         }
