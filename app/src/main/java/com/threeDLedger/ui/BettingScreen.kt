@@ -248,19 +248,8 @@ fun BettingScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("အကြိမ် : $currentBatch", fontSize = 18.sp, color = Color.Black)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Quick Paste button
-                Button(
-                    onClick = { pasteText = ""; showPasteDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = buttonTeal),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    Text("အမြန် ထိုးမည်", color = Color.White, fontSize = 13.sp)
-                }
-                IconButton(onClick = onNavigateBack) {
-                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
-                }
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
             }
         }
 
@@ -390,6 +379,18 @@ fun BettingScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
+            // Quick Bet button in summary bar (left side)
+            Button(
+                onClick = { pasteText = ""; showPasteDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color.White.copy(alpha = 0.2f),
+                    contentColor = Color.White
+                ),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text("အမြန်ထိုးရွေးပါ", color = Color.White, fontSize = 14.sp)
+            }
+
             Text("စုစုပေါင်း = $totalAmount", color = Color.White, fontSize = 16.sp)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
