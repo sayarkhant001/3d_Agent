@@ -4,8 +4,11 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.provider.Settings
+import android.util.Base64
 import com.example.network.ActivationRequest
 import com.example.network.NetworkClient
+import org.json.JSONObject
+import java.nio.charset.StandardCharsets
 
 class LicenseManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("license_prefs", Context.MODE_PRIVATE)
@@ -16,7 +19,30 @@ class LicenseManager(private val context: Context) {
     }
 
     fun isActivated(): Boolean {
-        return prefs.getString("jwt_token", null) != null
+        val token = prefs.getString("jwt_token", null) ?: return false
+        return !isTokenExpired(token)
+    }
+
+    private fun isTokenExpired(token: String): Boolean {
+        try {
+            val parts = token.split(".")
+            if (parts.size == 3) {
+                val payload = String(Base64.decode(parts[1], Base64.URL_SAFE), StandardCharsets.UTF_8)
+                val json = JSONObject(payload)
+                if (json.has("exp")) {
+                    val exp = json.getLong("exp") // JWT exp is in seconds
+                    val currentTime = System.currentTimeMillis() / 1000
+                    if (currentTime >= exp) {
+                        // Expired! Clear it from SharedPreferences.
+                        prefs.edit().remove("jwt_token").apply()
+                        return true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false // If decoding fails or no exp field, assume valid (lifetime)
     }
 
     suspend fun activateLicense(cdKey: String): Result<String> {

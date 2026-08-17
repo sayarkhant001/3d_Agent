@@ -23,7 +23,7 @@ fun NotificationPermissionHandler() {
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
-            FirebaseMessaging.getInstance().subscribeToTopic("3d_alerts")
+            try { FirebaseMessaging.getInstance().subscribeToTopic("3d_alerts") } catch (e: Exception) { e.printStackTrace() }
         }
     }
 
@@ -31,13 +31,13 @@ fun NotificationPermissionHandler() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val status = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             if (status == PackageManager.PERMISSION_GRANTED) {
-                FirebaseMessaging.getInstance().subscribeToTopic("3d_alerts")
+                try { FirebaseMessaging.getInstance().subscribeToTopic("3d_alerts") } catch (e: Exception) { e.printStackTrace() }
             } else {
                 showRationale = true
             }
         } else {
             // Android 12 and below don't require runtime permission for notifications
-            FirebaseMessaging.getInstance().subscribeToTopic("3d_alerts")
+            try { FirebaseMessaging.getInstance().subscribeToTopic("3d_alerts") } catch (e: Exception) { e.printStackTrace() }
         }
     }
 

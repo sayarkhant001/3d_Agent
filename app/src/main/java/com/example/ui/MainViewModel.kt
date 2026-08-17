@@ -210,11 +210,14 @@ var brakeLimit = MutableStateFlow(3000)
     }
 
 
+    private fun convertBurmeseToEnglishDigits(input: String): String { return input.map { char -> when (char) { '၀' -> '0'; '၁' -> '1'; '၂' -> '2'; '၃' -> '3'; '၄' -> '4'; '၅' -> '5'; '၆' -> '6'; '၇' -> '7'; '၈' -> '8'; '၉' -> '9'; else -> char } }.joinToString("") }
+
     fun parseBets(input: String): List<Bet> {
+        val convertedInput = convertBurmeseToEnglishDigits(input)
         val bets = mutableListOf<Bet>()
         
         // Remove 'ks' (case insensitive)
-        var text = input.replace(Regex("(?i)ks"), "")
+        var text = convertedInput.replace(Regex("(?i)ks"), "")
         // Remove spaces around separators
         text = text.replace(Regex("\\s*([.,/+\\-_=:])\\s*"), "$1")
         // Remove spaces around 'R' (case insensitive)

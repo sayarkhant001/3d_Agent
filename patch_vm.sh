@@ -1,6 +1,3 @@
 #!/bin/bash
-sed -i 's/fun addVoucherAndBets(customerId: Int, time: String, rawInput: String)/fun addVoucherAndBets(customerId: Int, time: String, rawInput: String, remark: String = "")/g' app/src/main/java/com/example/ui/MainViewModel.kt
-
-sed -i 's/val voucher = Voucher(customerId = customerId, batchNumber = currentBatch.value, date = date, time = time, totalAmount = totalAmount)/val voucher = Voucher(customerId = customerId, batchNumber = currentBatch.value, date = date, time = time, totalAmount = totalAmount, remark = remark)/g' app/src/main/java/com/example/ui/MainViewModel.kt
-
-sed -i 's/fun addVoucherWithBetList(customerId: Int, time: String, bets: List<Bet>)/fun addVoucherWithBetList(customerId: Int, time: String, bets: List<Bet>, remark: String = "")/g' app/src/main/java/com/example/ui/MainViewModel.kt
+sed -i 's/fun parseBets(input: String): List<Bet> {/private fun convertBurmeseToEnglishDigits(input: String): String { return input.map { char -> when (char) { '\''၀'\'' -> '\''0'\''; '\''၁'\'' -> '\''1'\''; '\''၂'\'' -> '\''2'\''; '\''၃'\'' -> '\''3'\''; '\''၄'\'' -> '\''4'\''; '\''၅'\'' -> '\''5'\''; '\''၆'\'' -> '\''6'\''; '\''၇'\'' -> '\''7'\''; '\''၈'\'' -> '\''8'\''; '\''၉'\'' -> '\''9'\''; else -> char } }.joinToString("") }\n\n    fun parseBets(input: String): List<Bet> {\n        val convertedInput = convertBurmeseToEnglishDigits(input)/g' app/src/main/java/com/example/ui/MainViewModel.kt
+sed -i 's/var text = input.replace/var text = convertedInput.replace/g' app/src/main/java/com/example/ui/MainViewModel.kt
