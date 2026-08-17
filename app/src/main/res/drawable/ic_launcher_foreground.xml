@@ -31,36 +31,30 @@
         android:fillAlpha="0.6"/>
 
     <!-- Page lines left -->
-    <line
-        android:x1="34" android:y1="50"
-        android:x2="50" android:y2="47"
+    <path
+        android:pathData="M34,50 L50,47"
         android:strokeColor="#9AA0B0"
         android:strokeWidth="1.2"/>
-    <line
-        android:x1="34" android:y1="56"
-        android:x2="50" android:y2="53"
+    <path
+        android:pathData="M34,56 L50,53"
         android:strokeColor="#9AA0B0"
         android:strokeWidth="1.2"/>
-    <line
-        android:x1="34" android:y1="62"
-        android:x2="50" android:y2="59"
+    <path
+        android:pathData="M34,62 L50,59"
         android:strokeColor="#9AA0B0"
         android:strokeWidth="1.2"/>
 
     <!-- Page lines right -->
-    <line
-        android:x1="58" android:y1="47"
-        android:x2="74" android:y2="50"
+    <path
+        android:pathData="M58,47 L74,50"
         android:strokeColor="#9AA0B0"
         android:strokeWidth="1.2"/>
-    <line
-        android:x1="58" android:y1="53"
-        android:x2="74" android:y2="56"
+    <path
+        android:pathData="M58,53 L74,56"
         android:strokeColor="#9AA0B0"
         android:strokeWidth="1.2"/>
-    <line
-        android:x1="58" android:y1="59"
-        android:x2="74" android:y2="62"
+    <path
+        android:pathData="M58,59 L74,62"
         android:strokeColor="#9AA0B0"
         android:strokeWidth="1.2"/>
 
