@@ -106,10 +106,8 @@ var brakeLimit = MutableStateFlow(3000)
 
             // Save as Voucher
             val existingCustomers = customers.value
-            var overflowCustomerId = existingCustomers.find { it.name == "တင်ကွက် (Overflows)" }?.id
-            if (overflowCustomerId == null) {
-                overflowCustomerId = repository.insertCustomer(Customer(name = "တင်ကွက် (Overflows)", commissionRate = 0.0, multiplier = 80)).toInt()
-            }
+            val overflowCustomerId = existingCustomers.find { it.name == "တင်ကွက် (Overflows)" }?.id
+                ?: repository.insertCustomer(Customer(name = "တင်ကွက် (Overflows)", commissionRate = 0.0, multiplier = 80)).toInt()
             
             val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
             val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
