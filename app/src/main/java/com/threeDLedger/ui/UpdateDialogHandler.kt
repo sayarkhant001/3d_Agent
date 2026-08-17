@@ -31,10 +31,12 @@ fun UpdateDialogHandler(owner: String, repo: String) {
         coroutineScope.launch {
             val info = GitHubUpdater.checkForUpdates(owner, repo)
             if (info != null) {
-                // simple string compare v1.0.1 vs v1.0.2
-                val cleanCurrent = currentVersion.replace("v", "")
-                val cleanFetched = info.version.replace("v", "")
-                if (cleanFetched != cleanCurrent) {
+                // info.version is like "build-45"
+                // currentVersion is like "1.0.45"
+                val fetchedRunNumber = info.version.substringAfterLast("-").toIntOrNull() ?: 0
+                val currentRunNumber = currentVersion.substringAfterLast(".").toIntOrNull() ?: 0
+                
+                if (fetchedRunNumber > currentRunNumber) {
                     updateInfo = info
                     showDialog = true
                 }
