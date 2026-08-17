@@ -1,14 +1,18 @@
 package com.example.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import com.example.logic.LicenseManager
 import kotlinx.serialization.Serializable
 
+@Serializable object ActivationRoute
 @Serializable object LockRoute
 @Serializable object HomeRoute
 @Serializable object CustomersRoute
@@ -28,11 +32,32 @@ fun AppNavigation(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController()
 ) {
+    val context = LocalContext.current
+    val licenseManager = remember { LicenseManager(context) }
+    
+    val startDestination: Any = if (!licenseManager.isActivated()) {
+        ActivationRoute
+    } else if (viewModel.appPassword.value.isNotEmpty()) {
+        LockRoute
+    } else {
+        HomeRoute
+    }
+
     NavHost(
         navController = navController,
-        startDestination = if (viewModel.appPassword.value.isNotEmpty()) LockRoute else HomeRoute,
+        startDestination = startDestination,
         modifier = modifier
     ) {
+        composable<ActivationRoute> {
+            ActivationScreen(
+                onActivated = {
+                    val nextDest = if (viewModel.appPassword.value.isNotEmpty()) LockRoute else HomeRoute
+                    navController.navigate(nextDest) {
+                        popUpTo(ActivationRoute) { inclusive = true }
+                    }
+                }
+            )
+        }
         composable<LockRoute> {
             LockScreen(viewModel, onUnlock = { navController.navigate(HomeRoute) { popUpTo(LockRoute) { inclusive = true } } })
         }
@@ -81,16 +106,13 @@ fun AppNavigation(
             )
         }
         
-        
         composable<OverflowRoute> {
-
             OverflowScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToExportHistory = { navController.navigate(ExportHistoryRoute) }
             )
         }
-
         composable<VouchersRoute> { backStackEntry ->
             val route = backStackEntry.toRoute<VouchersRoute>()
             VouchersScreen(
@@ -110,7 +132,6 @@ fun AppNavigation(
                 onNavigateBack = { navController.popBackStack() }
             )
         }
-
         composable<ExportHistoryRoute> {
             ExportHistoryScreen(
                 viewModel = viewModel,

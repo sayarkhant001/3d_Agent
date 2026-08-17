@@ -12,6 +12,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.AppDatabase
 import com.example.data.LotteryRepository
 import com.example.ui.AppNavigation
+import com.example.ui.NotificationPermissionHandler
+import com.example.ui.UpdateDialogHandler
 import com.example.ui.MainViewModel
 import com.example.ui.MainViewModelFactory
 import com.example.ui.theme.MyApplicationTheme
@@ -32,6 +34,9 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val prefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
                     val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(repository, prefs))
+                    
+                    NotificationPermissionHandler()
+                    UpdateDialogHandler(owner = "your_github_owner", repo = "your_github_repo")
                     AppNavigation(viewModel = viewModel)
                 }
             }

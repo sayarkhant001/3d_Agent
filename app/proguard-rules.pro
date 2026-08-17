@@ -42,3 +42,11 @@
 
 # Custom Data Classes (Licensing / Payload)
 # -keep class com.example.models.** { *; }
+
+# Networking Models
+-keep class com.example.network.** { *; }
+
+# Firebase Messaging & Database
+-keep class com.google.firebase.messaging.** { *; }
+-keep class com.google.firebase.database.** { *; }
+
