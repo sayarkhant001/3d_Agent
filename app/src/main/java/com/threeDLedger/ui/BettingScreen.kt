@@ -22,6 +22,55 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Bet
 import com.threeDLedger.logic.NumberGenerator
 
+// Myanmar digit to English digit converter
+fun String.myanmarToEnglish(): String {
+    val myanmarDigits = "၀၁၂၃၄၅၆၇၈၉"
+    val englishDigits = "0123456789"
+    return this.map { c ->
+        val idx = myanmarDigits.indexOf(c)
+        if (idx >= 0) englishDigits[idx] else c
+    }.joinToString("")
+}
+
+// Normalise a raw pasted line into a list of Bet objects
+// Supported formats (after Myanmar→English conversion):
+//   582=5000        → single bet
+//   747=1000R500    → normal bet + all permutations at R-amount
+//   747=1000r500    → same, case-insensitive
+//   582-5000  582:5000  582 5000  → alternate separators
+fun parsePastedLine(raw: String): List<Pair<String, Int>> {
+    val line = raw.trim().myanmarToEnglish()
+    if (line.isBlank()) return emptyList()
+
+    // Strip leading non-digit/non-letter noise (emoji, bullets, dashes)
+    val cleaned = line.trimStart { !it.isLetterOrDigit() }
+
+    // Regex: (3-digit number)(separator)(amount)(optional R/r amount)
+    val regex = Regex("""(\d{3})[=:\-\s]+(\d+)(?:[Rr](\d+))?""", RegexOption.IGNORE_CASE)
+    val match = regex.find(cleaned) ?: return emptyList()
+
+    val number = match.groupValues[1].padStart(3, '0')
+    val amount = match.groupValues[2].toIntOrNull() ?: return emptyList()
+    val rAmount = match.groupValues[3].toIntOrNull()
+
+    val results = mutableListOf<Pair<String, Int>>()
+    if (amount > 0) results.add(number to amount)
+
+    // R-suffix: generate all unique permutations of the number at rAmount
+    if (rAmount != null && rAmount > 0) {
+        val perms = NumberGenerator.permutations(number)
+        perms.forEach { perm ->
+            if (perm != number) results.add(perm to rAmount)
+        }
+        // Also include the original at rAmount if R is present (full permutation set)
+        results.add(number to rAmount)
+        // Remove duplicates, keeping last value for same key
+        return results.distinctBy { it.first }
+    }
+
+    return results
+}
+
 enum class FocusField { NUMBER, AMOUNT }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,6 +94,8 @@ fun BettingScreen(
     }
 
     var showDialog by remember { mutableStateOf(false) }
+    var showPasteDialog by remember { mutableStateOf(false) }
+    var pasteText by remember { mutableStateOf("") }
     
     val pendingBets = remember { mutableStateListOf<Bet>() }
     
@@ -105,6 +156,27 @@ fun BettingScreen(
         focusedField = FocusField.NUMBER
     }
     
+    fun addBetsFromPaste(text: String) {
+        val bannedList = viewModel.bannedNumbers.value.map { it.number }
+        var addedCount = 0
+        var bannedFound = false
+        text.lines().forEach { line ->
+            val parsed = parsePastedLine(line)
+            parsed.forEach { (num, amt) ->
+                if (amt > 0) {
+                    if (num in bannedList) {
+                        bannedFound = true
+                    } else {
+                        pendingBets.add(Bet(voucherId = 0, number = num, amount = amt))
+                        addedCount++
+                    }
+                }
+            }
+        }
+        if (bannedFound) android.widget.Toast.makeText(context, "ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေ၍ ဖယ်ထုတ်လိုက်ပါသည်", android.widget.Toast.LENGTH_SHORT).show()
+        if (addedCount > 0) android.widget.Toast.makeText(context, "$addedCount ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
     fun submit() {
         val num = tempNumber.toIntOrNull()
         val digits = tempNumber
@@ -176,9 +248,60 @@ fun BettingScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("အကြိမ် : $currentBatch", fontSize = 18.sp, color = Color.Black)
-            IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Quick Paste button
+                Button(
+                    onClick = { pasteText = ""; showPasteDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = buttonTeal),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Text("အမြန် ထိုးမည်", color = Color.White, fontSize = 13.sp)
+                }
+                IconButton(onClick = onNavigateBack) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
+                }
             }
+        }
+
+        // --- PASTE DIALOG ---
+        if (showPasteDialog) {
+            AlertDialog(
+                onDismissRequest = { showPasteDialog = false },
+                title = { Text("Quick Bet - Paste Numbers") },
+                text = {
+                    Column {
+                        Text(
+                            "ဂဏန်းများ paste လုပ်ပါ\nဥပမာ: 582=5000 သို့မဟုတ် 747=1000R500",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        OutlinedTextField(
+                            value = pasteText,
+                            onValueChange = { pasteText = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp),
+                            placeholder = { Text("582=5000\n452=2500\n747=1000R500\n...") },
+                            maxLines = 30
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            addBetsFromPaste(pasteText)
+                            showPasteDialog = false
+                            pasteText = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = buttonTeal)
+                    ) { Text("ထည့်မည်") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showPasteDialog = false }) { Text("မလုပ်တော့") }
+                }
+            )
         }
 
         // --- CUSTOMER ROW ---
