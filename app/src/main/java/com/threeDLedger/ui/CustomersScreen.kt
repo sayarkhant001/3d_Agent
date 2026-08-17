@@ -82,7 +82,9 @@ fun CustomersScreen(
             Spacer(modifier = Modifier.height(16.dp))
             
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-                val filteredCustomers = customers.filter { it.name.contains(searchQuery, ignoreCase = true) }
+                val filteredCustomers = customers
+                    .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                    .filter { it.name != "တင်ကွက် (Overflows)" }
                 items(filteredCustomers) { customer ->
                     
                     val customerVouchers = allVouchers.filter { it.customer.id == customer.id }
@@ -103,8 +105,21 @@ fun CustomersScreen(
                                     Text(text = "ကော် အိုင်ဒီ: ${customer.id}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                     Text(text = "အမည်: ${customer.name}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                 }
-                                IconButton(onClick = { onNavigateToBetting(customer.id) }) {
-                                    Icon(Icons.Default.Add, contentDescription = "Add Bet", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                                IconButton(
+                                    onClick = { onNavigateToBetting(customer.id) },
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.primary,
+                                            shape = androidx.compose.foundation.shape.CircleShape
+                                        )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "Add Bet",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(32.dp)
+                                    )
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
