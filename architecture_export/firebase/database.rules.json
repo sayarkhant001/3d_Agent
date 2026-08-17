@@ -1,0 +1,23 @@
+{
+  "rules": {
+    "3d_live_results": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "3d_lottery_status": {
+      ".read": true,
+      ".write": "auth != null"
+    },
+    "3d_lottery_config": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "3d_licenses": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "keys": {
+        ".indexOn": ["status", "claimed_by"]
+      }
+    }
+  }
+}

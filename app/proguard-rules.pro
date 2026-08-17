@@ -19,3 +19,26 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# MODULE 5: ProGuard Rules
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# Jetpack Compose
+-keep class androidx.compose.** { *; }
+
+# Retrofit / OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class retrofit2.** { *; }
+
+# Kotlin Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
+
+# Firebase
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# Custom Data Classes (Licensing / Payload)
+# -keep class com.example.models.** { *; }
