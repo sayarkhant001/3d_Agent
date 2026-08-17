@@ -10,6 +10,7 @@ data class Customer(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val commissionRate: Double = 0.0,
+    val multiplier: Int = 80,
     val paidAmount: Double = 0.0
 )
 
@@ -22,7 +23,9 @@ data class Voucher(
     val date: String,
     val time: String, // e.g. "15"
     val totalAmount: Int = 0,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isArchived: Boolean = false,
+    val remark: String = ""
 )
 
 @Entity(tableName = "bets")
@@ -40,7 +43,14 @@ data class ExportRecord(
     val batchNumber: Int,
     val type: String,
     val totalAmount: Int,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val isArchived: Boolean = false
+)
+
+@Entity(tableName = "banned_numbers")
+data class BannedNumber(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val number: String
 )
 
 @Entity(tableName = "exported_numbers")

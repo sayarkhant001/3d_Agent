@@ -20,6 +20,9 @@ fun WinnerScreen(
     onNavigateBack: () -> Unit
 ) {
     var winningNumber by remember { mutableStateOf("") }
+    val currentBatch = viewModel.currentBatch.collectAsStateWithLifecycle().value
+    var targetBatch by remember { mutableStateOf(currentBatch.toString()) }
+
     var exactMultiplier by remember { mutableStateOf("600") }
     var permutationMultiplier by remember { mutableStateOf("10") }
     
@@ -49,6 +52,13 @@ fun WinnerScreen(
                 .padding(16.dp)
         ) {
             OutlinedTextField(
+                value = targetBatch,
+                onValueChange = { targetBatch = it },
+                label = { Text("အကြိမ် (Batch No)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
                 value = winningNumber,
                 onValueChange = { winningNumber = it },
                 label = { Text("ပေါက်ဂဏန်း (Winning Number)") },
@@ -56,12 +66,26 @@ fun WinnerScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = targetBatch,
+                onValueChange = { targetBatch = it },
+                label = { Text("အကြိမ် (Batch No)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = exactMultiplier,
                     onValueChange = { exactMultiplier = it },
                     label = { Text("တိုက်ရိုက် အဆ (Exact)") },
                     modifier = Modifier.weight(1f)
                 )
+            OutlinedTextField(
+                value = targetBatch,
+                onValueChange = { targetBatch = it },
+                label = { Text("အကြိမ် (Batch No)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(
                     value = permutationMultiplier,
                     onValueChange = { permutationMultiplier = it },
@@ -74,6 +98,7 @@ fun WinnerScreen(
                 onClick = {
                     if (winningNumber.length == 3) {
                         val exact = exactMultiplier.toDoubleOrNull() ?: 0.0
+                        val targetBatchInt = targetBatch.toIntOrNull() ?: currentBatch
                         val perm = permutationMultiplier.toDoubleOrNull() ?: 0.0
                         
                         val permutations = com.example.logic.NumberGenerator.permutations(winningNumber).toSet()
@@ -97,7 +122,7 @@ fun WinnerScreen(
                             if (winAmount > 0) {
                                 val voucher = allVouchers.find { it.voucher.id == bet.voucherId }
                                 val customer = allCustomers.find { it.id == voucher?.customer?.id }
-                                if (voucher != null && customer != null) {
+                                if (voucher != null && customer != null && voucher.voucher.batchNumber == targetBatchInt) {
                                     winningBets.add(WinnerResult(customer.name, bet.number, bet.amount, winAmount))
                                 }
                             }

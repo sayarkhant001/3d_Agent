@@ -40,6 +40,35 @@ interface LotteryDao {
     @Query("SELECT * FROM customers ORDER BY name ASC")
     fun getAllCustomers(): Flow<List<Customer>>
 
+    @Query("SELECT * FROM banned_numbers")
+    fun getAllBannedNumbers(): Flow<List<BannedNumber>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBannedNumber(bannedNumber: BannedNumber)
+
+    @Delete
+    suspend fun deleteBannedNumber(bannedNumber: BannedNumber)
+
+    @Query("UPDATE vouchers SET isArchived = 1")
+    suspend fun archiveAllVouchers()
+    @Query("UPDATE export_records SET isArchived = 1")
+    suspend fun archiveAllExportRecords()
+
+
+    @Query("DELETE FROM vouchers WHERE batchNumber <= :thresholdBatch AND isArchived = 1")
+    suspend fun deleteOldArchives(thresholdBatch: Int)
+    @Query("DELETE FROM export_records WHERE batchNumber <= :thresholdBatch AND isArchived = 1")
+    suspend fun deleteOldExportArchives(thresholdBatch: Int)
+    @Query("DELETE FROM bets WHERE voucherId NOT IN (SELECT id FROM vouchers)")
+    suspend fun deleteOrphanedBets()
+    @Query("DELETE FROM exported_numbers WHERE exportRecordId NOT IN (SELECT id FROM export_records)")
+    suspend fun deleteOrphanedExportedNumbers()
+
+
+
+    @Update
+    suspend fun updateCustomer(customer: Customer)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCustomer(customer: Customer)
 
@@ -50,21 +79,26 @@ interface LotteryDao {
     suspend fun insertBets(bets: List<Bet>)
 
     @Transaction
-    @Query("SELECT * FROM vouchers ORDER BY timestamp DESC")
-    fun getAllVouchersWithCustomer(): Flow<List<VoucherWithCustomer>>
+    @Query("SELECT * FROM vouchers WHERE isArchived = 1 ORDER BY timestamp DESC")
+    fun getArchivedVouchersWithCustomer(): Flow<List<VoucherWithCustomer>>
 
     @Transaction
-    @Query("SELECT * FROM vouchers ORDER BY timestamp DESC")
+    @Query("SELECT * FROM vouchers WHERE isArchived = 0 ORDER BY timestamp DESC")
+    fun getAllVouchersWithCustomer(): Flow<List<VoucherWithCustomer>>
+
+
+    @Transaction
+    @Query("SELECT * FROM vouchers WHERE isArchived = 0 ORDER BY timestamp DESC")
     fun getAllVouchersWithBets(): Flow<List<VoucherWithBets>>
 
     @Transaction
     @Query("SELECT * FROM vouchers WHERE id = :voucherId")
     suspend fun getVoucherWithBets(voucherId: Int): VoucherWithBets?
     
-    @Query("SELECT * FROM bets")
+    @Query("SELECT bets.* FROM bets INNER JOIN vouchers ON bets.voucherId = vouchers.id WHERE vouchers.isArchived = 0")
     fun getAllBets(): Flow<List<Bet>>
     
-    @Query("SELECT number, SUM(amount) as totalAmount FROM bets GROUP BY number ORDER BY totalAmount DESC")
+    @Query("SELECT bets.number, SUM(bets.amount) as totalAmount FROM bets INNER JOIN vouchers ON bets.voucherId = vouchers.id WHERE vouchers.isArchived = 0 GROUP BY bets.number ORDER BY totalAmount DESC")
     fun getNumberExposures(): Flow<List<NumberExposure>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -74,6 +108,6 @@ interface LotteryDao {
     suspend fun insertExportedNumbers(numbers: List<ExportedNumber>)
 
     @Transaction
-    @Query("SELECT * FROM export_records ORDER BY timestamp DESC")
+    @Query("SELECT * FROM export_records WHERE isArchived = 0 ORDER BY timestamp DESC")
     fun getAllExportRecords(): Flow<List<ExportRecordWithNumbers>>
 }

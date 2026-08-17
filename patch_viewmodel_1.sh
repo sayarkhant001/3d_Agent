@@ -1,0 +1,6 @@
+#!/bin/bash
+sed -i '/val allExportRecords/i \    val bannedNumbers: StateFlow<List<BannedNumber>> = repository.allBannedNumbers\n        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())\n' app/src/main/java/com/example/ui/MainViewModel.kt
+
+sed -i '/val brakeLimit/i \    val appPassword = MutableStateFlow("")\n    val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")\n    val printerSettings = MutableStateFlow("")\n    val bannedNumberEvent = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>()\n' app/src/main/java/com/example/ui/MainViewModel.kt
+
+sed -i '/fun exportUnderBrake/i \    fun addBannedNumber(number: String) {\n        viewModelScope.launch {\n            repository.insertBannedNumber(BannedNumber(number = number))\n        }\n    }\n    fun deleteBannedNumber(bannedNumber: BannedNumber) {\n        viewModelScope.launch {\n            repository.deleteBannedNumber(bannedNumber)\n        }\n    }\n    fun resetAndArchive() {\n        viewModelScope.launch {\n            repository.archiveAndReset(currentBatch.value - 2)\n            currentBatch.value = currentBatch.value + 1\n        }\n    }\n' app/src/main/java/com/example/ui/MainViewModel.kt

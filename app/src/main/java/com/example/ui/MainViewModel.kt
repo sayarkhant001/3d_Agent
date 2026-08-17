@@ -19,7 +19,7 @@ data class LedgerExposure(
     val overflowAmount: Int
 )
 
-class MainViewModel(private val repository: LotteryRepository) : ViewModel() {
+class MainViewModel(private val repository: LotteryRepository, private val prefs: android.content.SharedPreferences) : ViewModel() {
 
     val customers: StateFlow<List<Customer>> = repository.allCustomers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -36,12 +36,24 @@ class MainViewModel(private val repository: LotteryRepository) : ViewModel() {
     val numberExposures: StateFlow<List<NumberExposure>> = repository.numberExposures
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         
+    val bannedNumbers: StateFlow<List<BannedNumber>> = repository.allBannedNumbers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val archivedVouchers: StateFlow<List<VoucherWithCustomer>> = repository.archivedVouchers
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val allExportRecords: StateFlow<List<ExportRecordWithNumbers>> = repository.allExportRecords
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         
     var currentBatch = MutableStateFlow(15)
-    var brakeLimit = MutableStateFlow(3000)
-
+                
+    
+    val appPassword = MutableStateFlow("")
+    val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
+    val printerSettings = MutableStateFlow("")
+    val bannedNumberEvent = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>()
+var brakeLimit = MutableStateFlow(3000)
+    
     val ledgerExposures: StateFlow<List<LedgerExposure>> = kotlinx.coroutines.flow.combine(
         vouchersWithBets,
         allExportRecords,
@@ -94,6 +106,44 @@ class MainViewModel(private val repository: LotteryRepository) : ViewModel() {
         }
     }
 
+    init {
+        appPassword.value = prefs.getString("appPassword", "") ?: ""
+        voucherFooterText.value = prefs.getString("voucherFooterText", "ထွက်လျော်မည်။") ?: "ထွက်လျော်မည်။"
+        printerSettings.value = prefs.getString("printerSettings", "") ?: ""
+    }
+
+    fun updateAppPassword(password: String) {
+        appPassword.value = password
+        prefs.edit().putString("appPassword", password).apply()
+    }
+
+    fun updateVoucherFooterText(text: String) {
+        voucherFooterText.value = text
+        prefs.edit().putString("voucherFooterText", text).apply()
+    }
+
+    fun updatePrinterSettings(text: String) {
+        printerSettings.value = text
+        prefs.edit().putString("printerSettings", text).apply()
+    }
+
+    fun addBannedNumber(number: String) {
+        viewModelScope.launch {
+            repository.insertBannedNumber(BannedNumber(number = number))
+        }
+    }
+    fun deleteBannedNumber(bannedNumber: BannedNumber) {
+        viewModelScope.launch {
+            repository.deleteBannedNumber(bannedNumber)
+        }
+    }
+    fun resetAndArchive() {
+        viewModelScope.launch {
+            repository.archiveAndReset(currentBatch.value - 2)
+            currentBatch.value = currentBatch.value + 1
+        }
+    }
+
     fun exportUnderBrake() {
         val currentExposures = ledgerExposures.value
         val toExport = currentExposures.filter { (it.netHeldAmount - it.overflowAmount) > 0 }
@@ -111,82 +161,131 @@ class MainViewModel(private val repository: LotteryRepository) : ViewModel() {
         }
     }
 
-    fun addCustomer(name: String, commissionRate: Double) {
+    fun updateCustomer(customer: Customer) {
         viewModelScope.launch {
-            repository.insertCustomer(Customer(name = name, commissionRate = commissionRate))
+            repository.updateCustomer(customer)
         }
     }
 
-    fun addVoucherAndBets(customerId: Int, time: String, rawInput: String) {
+    fun addCustomer(name: String, commissionRate: Double, multiplier: Int) {
+        viewModelScope.launch {
+            repository.insertCustomer(Customer(name = name, commissionRate = commissionRate, multiplier = multiplier))
+        }
+    }
+
+    fun addVoucherAndBets(customerId: Int, time: String, rawInput: String, remark: String = "") {
         viewModelScope.launch {
             val bets = parseBets(rawInput)
-            if (bets.isNotEmpty()) {
-                val totalAmount = bets.sumOf { it.amount }
+            val banned = bannedNumbers.value.map { it.number }
+            val validBets = bets.filter { it.number !in banned }
+            if (validBets.size < bets.size) {
+                bannedNumberEvent.emit(true)
+            }
+            if (validBets.isNotEmpty()) {
+                val totalAmount = validBets.sumOf { it.amount }
                 val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
                 val date = dateFormat.format(Date())
-                val voucher = Voucher(customerId = customerId, batchNumber = currentBatch.value, date = date, time = time, totalAmount = totalAmount)
-                repository.insertVoucherWithBets(voucher, bets)
+                val voucher = Voucher(customerId = customerId, batchNumber = currentBatch.value, date = date, time = time, totalAmount = totalAmount, remark = remark)
+                repository.insertVoucherWithBets(voucher, validBets)
             }
         }
     }
 
-    fun addVoucherWithBetList(customerId: Int, time: String, bets: List<Bet>) {
+
+    fun addVoucherWithBetList(customerId: Int, time: String, bets: List<Bet>, remark: String = "") {
         viewModelScope.launch {
-            if (bets.isNotEmpty()) {
-                val totalAmount = bets.sumOf { it.amount }
+            val banned = bannedNumbers.value.map { it.number }
+            val validBets = bets.filter { it.number !in banned }
+            if (validBets.size < bets.size) {
+                bannedNumberEvent.emit(true)
+            }
+            if (validBets.isNotEmpty()) {
+                val totalAmount = validBets.sumOf { it.amount }
                 val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
                 val date = dateFormat.format(Date())
-                val voucher = Voucher(customerId = customerId, batchNumber = currentBatch.value, date = date, time = time, totalAmount = totalAmount)
-                repository.insertVoucherWithBets(voucher, bets)
+                val voucher = Voucher(customerId = customerId, batchNumber = currentBatch.value, date = date, time = time, totalAmount = totalAmount, remark = remark)
+                repository.insertVoucherWithBets(voucher, validBets)
             }
         }
     }
+
 
     fun parseBets(input: String): List<Bet> {
         val bets = mutableListOf<Bet>()
         
-        // Remove spaces and 'Ks' (case insensitive) first
-        val cleanInput = input.replace(" ", "").replace(Regex("(?i)Ks"), "")
+        // Remove 'ks' (case insensitive)
+        var text = input.replace(Regex("(?i)ks"), "")
+        // Remove spaces around separators
+        text = text.replace(Regex("\\s*([.,/+\\-_=:])\\s*"), "$1")
+        // Remove spaces around 'R' (case insensitive)
+        text = text.replace(Regex("\\s*(?i)r\\s*"), "R")
+        // Split by remaining spaces
+        val blocks = text.split(Regex("\\s+"))
         
-        // Split input by newlines to process line by line
-        val lines = cleanInput.split("\n")
-        
-        for (line in lines) {
-            if (line.isBlank()) continue
+        for (block in blocks) {
+            if (block.isEmpty()) continue
             
-            // Normalize separators to '='
-            var normalizedLine = line.replace("_", "=").replace("-", "=").replace("/", "=").replace(",", "=")
+            var numbersStr = ""
+            var amount1Str = ""
+            var amount2Str = ""
             
-            // Handle R permutation (e.g. 434R1000)
-            if (normalizedLine.contains("R", ignoreCase = true)) {
-                val parts = normalizedLine.split(Regex("(?i)R"))
-                if (parts.size == 2) {
-                    val number = parts[0]
-                    val amount = parts[1].replace("=", "").toIntOrNull() ?: continue
-                    val permutations = com.example.logic.NumberGenerator.permutations(number)
-                    for (p in permutations) {
-                        bets.add(Bet(voucherId = 0, number = p, amount = amount))
+            val tailRegex = Regex("([-:/.,_=]+)?(\\d+)(?:R(\\d+))?$")
+            val match = tailRegex.find(block)
+            
+            if (match != null) {
+                if (match.range.first == 0) {
+                    val amt1 = match.groups[2]?.value ?: ""
+                    val amt2 = match.groups[3]?.value ?: ""
+                    if (amt2.isNotEmpty()) {
+                        numbersStr = amt1 + "R"
+                        amount1Str = amt2
+                    } else {
+                        numbersStr = amt1
                     }
+                } else {
+                    numbersStr = block.substring(0, match.range.first)
+                    amount1Str = match.groups[2]?.value ?: ""
+                    amount2Str = match.groups[3]?.value ?: ""
                 }
-            } else if (normalizedLine.contains("=")) {
-                val parts = normalizedLine.split("=")
-                if (parts.size == 2) {
-                    val numbersPart = parts[0]
-                    val amount = parts[1].toIntOrNull() ?: continue
+            } else {
+                numbersStr = block
+            }
+            
+            val amount = amount1Str.toIntOrNull() ?: continue
+            val rAmount = amount2Str.toIntOrNull()
+            
+            val chunks = numbersStr.split(Regex("[.,/+\\-_:]+"))
+            for (chunk in chunks) {
+                if (chunk.isEmpty()) continue
+                val hasR = chunk.endsWith("R")
+                val baseNum = if (hasR) chunk.dropLast(1) else chunk
+                
+                // Allow 2 or 3 digit numbers
+                if (baseNum.length in 2..3 && baseNum.all { it.isDigit() }) {
+                    // Base amount
+                    bets.add(Bet(voucherId = 0, number = baseNum, amount = amount))
                     
-                    // Split numbers by dot if they are multi-number bets (e.g. 434.502.601=1000)
-                    val numbers = numbersPart.split(".")
-                    for (n in numbers) {
-                        if (n.length == 3 && n.all { it.isDigit() }) {
-                            bets.add(Bet(voucherId = 0, number = n, amount = amount))
+                    if (rAmount != null && rAmount > 0) {
+                        // Global R amount for this block
+                        val perms = com.example.logic.NumberGenerator.permutations(baseNum)
+                        for (p in perms) {
+                            if (p != baseNum) {
+                                bets.add(Bet(voucherId = 0, number = p, amount = rAmount))
+                            }
+                        }
+                    } else if (hasR) {
+                        // R attached to this specific number, no global R amount
+                        val perms = com.example.logic.NumberGenerator.permutations(baseNum)
+                        for (p in perms) {
+                            if (p != baseNum) {
+                                bets.add(Bet(voucherId = 0, number = p, amount = amount))
+                            }
                         }
                     }
                 }
-            } else {
-                // Check if it's a direct format like 434-1000 where they just typed 4341000? 
-                // The regex logic should handle well enough.
             }
         }
+        
         return bets
     }
 

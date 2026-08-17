@@ -1,0 +1,4 @@
+#!/bin/bash
+sed -i '/fun addBets(numbers: List<String>) {/!b;n;c \
+        val amount = tempAmount.toIntOrNull() ?: 0\n        if (amount <= 0) return\n        val bannedList = viewModel.bannedNumbers.value.map { it.number }\n        var bannedFound = false\n        val validNumbers = numbers.filter { \n            if (it in bannedList) { bannedFound = true; false } else true \n        }\n        for (num in validNumbers) {\n            pendingBets.add(0, Bet(voucherId = 0, number = num, amount = amount))\n        }\n        if (bannedFound) {\n            android.widget.Toast.makeText(context, "ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေ၍ ဖယ်ထုတ်လိုက်ပါသည်", android.widget.Toast.LENGTH_SHORT).show()\n        }\n        tempNumber = "" // reset temp input\n        focusedField = FocusField.NUMBER
+' app/src/main/java/com/example/ui/BettingScreen.kt

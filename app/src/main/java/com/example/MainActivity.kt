@@ -30,7 +30,8 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(repository))
+                    val prefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                    val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(repository, prefs))
                     AppNavigation(viewModel = viewModel)
                 }
             }

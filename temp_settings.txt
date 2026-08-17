@@ -1,0 +1,88 @@
+@SuppressLint("MissingPermission")
+@Composable
+fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+    
+    var macAddress by remember { mutableStateOf(prefs.getString("printerMac", "") ?: "") }
+    var paperSize by remember { mutableStateOf(prefs.getString("paperSize", "58mm") ?: "58mm") }
+    
+    var pairedDevices by remember { mutableStateOf<List<android.bluetooth.BluetoothDevice>>(emptyList()) }
+    var isConnecting by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(Unit) {
+        try {
+            pairedDevices = com.example.logic.BluetoothPrinter.getPairedDevices()
+        } catch (e: Exception) {}
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("ပရင်တာ ဆက်တင်") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("စက္ကူ အရွယ်အစား ရွေးပါ", fontWeight = FontWeight.Bold)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { paperSize = "58mm" },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (paperSize == "58mm") MaterialTheme.colorScheme.primary else Color.Gray)
+                    ) { Text("58mm") }
+                    Button(
+                        onClick = { paperSize = "80mm" },
+                        colors = ButtonDefaults.buttonColors(containerColor = if (paperSize == "80mm") MaterialTheme.colorScheme.primary else Color.Gray)
+                    ) { Text("80mm") }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Bluetooth ပရင်တာ ရွေးပါ", fontWeight = FontWeight.Bold)
+                if (pairedDevices.isEmpty()) {
+                    Text("တွဲထားသော (Paired) ပရင်တာ မတွေ့ပါ", color = Color.Red)
+                } else {
+                    LazyColumn(modifier = Modifier.height(200.dp)) {
+                        items(pairedDevices.size) { i ->
+                            val device = pairedDevices[i]
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { macAddress = device.address }
+                                    .padding(8.dp)
+                                    .background(if (macAddress == device.address) MaterialTheme.colorScheme.primaryContainer else Color.Transparent),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(device.name ?: "Unknown", fontWeight = FontWeight.Bold)
+                                    Text(device.address, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        isConnecting = true
+                        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                            val success = com.example.logic.BluetoothPrinter.connect(macAddress)
+                            isConnecting = false
+                            android.widget.Toast.makeText(context, if (success) "ချိတ်ဆက်မှု အောင်မြင်ပါသည်" else "ချိတ်ဆက်မှု မအောင်မြင်ပါ", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = macAddress.isNotEmpty() && !isConnecting
+                ) {
+                    Text(if (isConnecting) "ချိတ်ဆက်နေသည်..." else "စမ်းသပ် ချိတ်ဆက်မည်")
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                prefs.edit().putString("printerMac", macAddress).putString("paperSize", paperSize).apply()
+                onDismiss()
+            }) { Text("သိမ်းမည်") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("မလုပ်တော့ပါ") }
+        }
+    )
+}

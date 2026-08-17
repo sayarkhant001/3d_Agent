@@ -1,28 +1,50 @@
 package com.example.ui
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.SimpleDateFormat
 import java.util.Date
+import android.content.Intent
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VouchersScreen(
     viewModel: MainViewModel,
+    initialCustomerId: Int? = null,
     onNavigateBack: () -> Unit
 ) {
     val vouchers by viewModel.vouchersWithCustomer.collectAsStateWithLifecycle()
     val allVouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
+    val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+    
+    val filteredVouchers = if (initialCustomerId != null) {
+        allVouchersWithBets.filter { it.voucher.customerId == initialCustomerId }
+    } else {
+        allVouchersWithBets
+    }
+
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -38,7 +60,7 @@ fun VouchersScreen(
         }
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
-            items(allVouchersWithBets) { voucherWithBets ->
+            items(filteredVouchers) { voucherWithBets ->
                 val customerName = vouchers.find { it.voucher.id == voucherWithBets.voucher.id }?.customer?.name ?: "Unknown"
                 
                 Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
@@ -63,7 +85,67 @@ fun VouchersScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Divider()
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text("စုစုပေါင်း: ${voucherWithBets.voucher.totalAmount} Ks", fontWeight = FontWeight.Bold)
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("စုစုပေါင်း: ${voucherWithBets.voucher.totalAmount} Ks", fontWeight = FontWeight.Bold)
+                            
+                            val remarkStr = if (voucherWithBets.voucher.remark.isNotEmpty()) " (${voucherWithBets.voucher.remark})" else ""
+                            val textToCopy = buildString {
+                                appendLine("========================")
+                                appendLine("      3D VOUCHER")
+                                appendLine("========================")
+                                appendLine(" အကြိမ် : ${voucherWithBets.voucher.batchNumber}")
+                                appendLine(" ရက်စွဲ : $dateString")
+                                appendLine(" ထိုးသူ : $customerName$remarkStr")
+                                appendLine(" ဘောင်ချာအမှတ် : ${voucherWithBets.voucher.id}")
+                                appendLine("------------------------")
+                                voucherWithBets.bets.forEach { bet ->
+                                    appendLine(" ${bet.number.padEnd(5)} = ${bet.amount}")
+                                }
+                                appendLine("------------------------")
+                                appendLine(" စုစုပေါင်း : ${voucherWithBets.voucher.totalAmount} Ks")
+                                appendLine("------------------------")
+                                appendLine(" $footerText")
+                                appendLine("========================")
+                                appendLine("      Thank You!      ")
+                                appendLine("========================")
+                            }
+                            
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                val coroutineScope = rememberCoroutineScope()
+                                IconButton(onClick = {
+                                    coroutineScope.launch { 
+                                        val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                        val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
+                                        val width = if (paperSize == "80mm") 576 else 384
+                                        val bitmap = com.example.logic.BluetoothPrinter.createBitmapFromText(textToCopy, width)
+                                        com.example.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
+                                    }
+                                }) {
+                                    Icon(Icons.Default.Print, contentDescription = "Print")
+                                }
+                                IconButton(onClick = {
+                                    val sendIntent: Intent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, textToCopy)
+                                        type = "text/plain"
+                                    }
+                                    val shareIntent = Intent.createChooser(sendIntent, null)
+                                    context.startActivity(shareIntent)
+                                }) {
+                                    Icon(Icons.Default.Share, contentDescription = "Share")
+                                }
+                                IconButton(onClick = {
+                                    clipboardManager.setText(AnnotatedString(textToCopy))
+                                }) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                                }
+                            }
+                        }
                     }
                 }
             }

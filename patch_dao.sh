@@ -1,0 +1,2 @@
+#!/bin/bash
+sed -i 's/@Insert(onConflict = OnConflictStrategy.REPLACE)\n    @Update\n    suspend fun updateCustomer(customer: Customer)\n    \n    suspend fun insertCustomer(customer: Customer)/@Update\n    suspend fun updateCustomer(customer: Customer)\n\n    @Insert(onConflict = OnConflictStrategy.REPLACE)\n    suspend fun insertCustomer(customer: Customer)/g' app/src/main/java/com/example/data/LotteryDao.kt
