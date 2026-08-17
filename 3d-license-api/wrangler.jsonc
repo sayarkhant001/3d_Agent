@@ -1,0 +1,23 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "3d-license-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-17",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+
+	// Environment variables (non-secret)
+	"vars": {
+		"FIREBASE_DB_URL": "https://d-ledger-8c1e4-default-rtdb.asia-southeast1.firebasedatabase.app"
+	}
+
+	// IMPORTANT: FIREBASE_AUTH_SECRET and JWT_SECRET must be set as secrets:
+	//   npx wrangler secret put FIREBASE_AUTH_SECRET
+	//   npx wrangler secret put JWT_SECRET
+}

@@ -1,0 +1,25 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "3d-scraper-worker",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-17",
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+
+	// Run every day at 3:30 PM Thailand time (08:30 UTC)
+	"triggers": {
+		"crons": ["30 8 * * *"]
+	},
+
+	// Non-secret environment variables
+	"vars": {
+		"FIREBASE_DB_URL": "https://d-ledger-8c1e4-default-rtdb.asia-southeast1.firebasedatabase.app",
+		"TELEGRAM_CHAT_ID": "5684146708"
+	}
+}
