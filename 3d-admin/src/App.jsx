@@ -86,8 +86,8 @@ function App() {
   };
 
   const generateKey = async () => {
-    // Generate secure 16-char hex key: XXXX-XXXX-XXXX-XXXX
-    const array = new Uint8Array(8);
+    // Generate secure 32-char hex key: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+    const array = new Uint8Array(16);
     window.crypto.getRandomValues(array);
     const key = Array.from(array, byte => byte.toString(16).padStart(2, '0').toUpperCase())
       .join('').match(/.{1,4}/g).join('-');

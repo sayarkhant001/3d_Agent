@@ -58,7 +58,7 @@ fun ActivationScreen(
                     cdKey = it.uppercase()
                     errorMessage = null 
                 },
-                label = { Text("CD-Key (XXXX-XXXX-XXXX-XXXX)") },
+                label = { Text("CD-Key (32-character key)") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 isError = errorMessage != null

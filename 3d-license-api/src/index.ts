@@ -126,10 +126,10 @@ export default {
       const body = await request.json() as { cd_key?: string; device_fingerprint?: string };
       const { cd_key, device_fingerprint } = body;
 
-      // 1. Validate format (XXXX-XXXX-XXXX-XXXX)
-      const keyRegex = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+      // 1. Validate format (XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX, 32 hex chars)
+      const keyRegex = /^[A-Z0-9]{4}(-[A-Z0-9]{4}){7}$/;
       if (!cd_key || !keyRegex.test(cd_key) || !device_fingerprint) {
-        return new Response(JSON.stringify({ error: 'Invalid request format' }), {
+        return new Response(JSON.stringify({ error: 'Invalid key format. Expected 32-character key.' }), {
           status: 400, headers: corsHeaders,
         });
       }

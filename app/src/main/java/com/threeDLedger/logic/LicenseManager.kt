@@ -55,10 +55,21 @@ class LicenseManager(private val context: Context) {
                 prefs.edit().putString("jwt_token", token).apply()
                 Result.success(token)
             } else {
-                Result.failure(Exception("Activation failed: ${response.code()}"))
+                val errorMsg = when (response.code()) {
+                    400 -> "Invalid CD-Key format. Please check and try again."
+                    404 -> "CD-Key not found. Please verify your key."
+                    403 -> "This CD-Key has already been used."
+                    500 -> "Server error. Please try again later."
+                    else -> "Activation failed. Please try again."
+                }
+                Result.failure(Exception(errorMsg))
             }
+        } catch (e: java.net.UnknownHostException) {
+            Result.failure(Exception("No internet connection. Please check your network."))
+        } catch (e: java.net.SocketTimeoutException) {
+            Result.failure(Exception("Connection timed out. Please try again."))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("Connection error. Please check your internet."))
         }
     }
 }
