@@ -12,9 +12,10 @@
 	},
 	"upload_source_maps": true,
 
-	// Run every day at 3:30 PM Thailand time (08:30 UTC)
+	// Run at 11:05 UTC (5:35 PM Myanmar time) to capture 4:30 PM Thai market close
+	// Also run at 05:35 UTC (12:05 PM Myanmar) for the morning session close
 	"triggers": {
-		"crons": ["30 8 * * *"]
+		"crons": ["35 5 * * 1-5", "5 11 * * 1-5"]
 	},
 
 	// Non-secret environment variables
