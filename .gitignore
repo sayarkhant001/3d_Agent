@@ -16,3 +16,10 @@
 local.properties
 .env
 debug.keystore
+
+# Firebase secrets - NEVER commit these
+*firebase-adminsdk*.json
+google-services.json
+app/google-services.json
+login.json
+body.json
