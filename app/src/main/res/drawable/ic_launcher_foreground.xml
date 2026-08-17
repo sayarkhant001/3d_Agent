@@ -59,9 +59,9 @@
         android:strokeWidth="1.2"/>
 
     <!-- Lottery ball left -->
-    <circle
+    <path
         android:fillColor="#D0D4E0"
-        android:cx="37" android:cy="43" android:r="5"/>
+        android:pathData="M 37,38 a 5,5 0 1,0 0,10 a 5,5 0 1,0 0,-10" />
     <path
         android:fillColor="#6C63FF"
         android:pathData="M34,40 A5,5 0 0,1 40,40 Z"/>
@@ -71,9 +71,9 @@
         android:fillAlpha="0.9"/>
 
     <!-- Lottery ball right -->
-    <circle
+    <path
         android:fillColor="#D0D4E0"
-        android:cx="71" android:cy="43" android:r="5"/>
+        android:pathData="M 71,38 a 5,5 0 1,0 0,10 a 5,5 0 1,0 0,-10" />
     <path
         android:fillColor="#E94560"
         android:pathData="M68,40 A5,5 0 0,1 74,40 Z"/>
