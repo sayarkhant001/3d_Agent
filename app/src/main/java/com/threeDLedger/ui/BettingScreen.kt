@@ -3,13 +3,11 @@ package com.threeDLedger.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,7 +34,7 @@ fun BettingScreen(
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     var selectedCustomer by remember { mutableStateOf<Int?>(initialCustomerId) }
-    var expanded by remember { mutableStateOf(false) }
+    var expandedCustomer by remember { mutableStateOf(false) }
     
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
@@ -52,11 +50,16 @@ fun BettingScreen(
     var focusedField by remember { mutableStateOf(FocusField.NUMBER) }
     var tempNumber by remember { mutableStateOf("") }
     var tempAmount by remember { mutableStateOf("1000") }
-    var tempRemark by remember { mutableStateOf("") }
+    var tempRemark by remember { mutableStateOf("") } // Maybe not needed in new layout but keep logic
     
-    var showPasteDialog by remember { mutableStateOf(false) }
-    var pasteText by remember { mutableStateOf("") }
-    
+    // Dropdown states
+    var expandedBetType by remember { mutableStateOf(false) }
+    var currentBetType by remember { mutableStateOf("ဒဲ့") }
+    val betTypes = listOf("ဒဲ့", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
+
+    var expandedQuickAmount by remember { mutableStateOf(false) }
+    val quickAmounts = listOf("500", "1000", "5000", "10000")
+
     fun addBets(numbers: List<String>) {
         val amount = tempAmount.toIntOrNull() ?: 0
         if (amount <= 0) return
@@ -66,7 +69,8 @@ fun BettingScreen(
             if (it in bannedList) { bannedFound = true; false } else true 
         }
         for (num in validNumbers) {
-            pendingBets.add(0, Bet(voucherId = 0, number = num, amount = amount))
+            // Append at end like normal list, or insert at 0
+            pendingBets.add(Bet(voucherId = 0, number = num, amount = amount))
         }
         if (bannedFound) {
             android.widget.Toast.makeText(context, "ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေ၍ ဖယ်ထုတ်လိုက်ပါသည်", android.widget.Toast.LENGTH_SHORT).show()
@@ -79,7 +83,11 @@ fun BettingScreen(
         if (focusedField == FocusField.NUMBER) {
             if (tempNumber.length < 3) tempNumber += txt
         } else {
-            tempAmount += txt
+            if (tempAmount == "0" || tempAmount.isEmpty()) {
+                tempAmount = txt
+            } else {
+                tempAmount += txt
+            }
         }
     }
     
@@ -93,15 +101,22 @@ fun BettingScreen(
     
     fun clearAll() {
         tempNumber = ""
-        tempAmount = ""
+        tempAmount = "1000"
         focusedField = FocusField.NUMBER
     }
     
     fun submit() {
-        if (tempNumber.length == 3) {
-            addBets(listOf(tempNumber))
-        } else if (pendingBets.isNotEmpty()) {
-            showDialog = true
+        val num = tempNumber.toIntOrNull()
+        val digits = tempNumber
+
+        if (tempNumber.isEmpty()) return
+
+        when (currentBetType) {
+            "ဒဲ့" -> if (digits.length == 3) addBets(listOf(digits))
+            "ထိပ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.head(num))
+            "လယ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.middle(num))
+            "ပိတ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.tail(num))
+            "အပါ" -> if (num != null && digits.length == 1) addBets(NumberGenerator.include(num))
         }
     }
 
@@ -109,10 +124,6 @@ fun BettingScreen(
         val num = tempNumber.toIntOrNull()
         val digits = tempNumber
         when (cmd) {
-            "ထိပ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.head(num))
-            "လယ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.middle(num))
-            "ပိတ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.tail(num))
-            "အပါ" -> if (num != null && digits.length == 1) addBets(NumberGenerator.include(num))
             "ရှေ့စီးရီး" -> if (digits.length == 2) addBets(NumberGenerator.frontSeries(digits[0].digitToInt(), digits[1].digitToInt()))
             "လယ်စီးရီး" -> if (digits.length == 2) addBets(NumberGenerator.middleSeries(digits[0].digitToInt(), digits[1].digitToInt()))
             "နောက်စီးရီး" -> if (digits.length == 2) addBets(NumberGenerator.backSeries(digits[0].digitToInt(), digits[1].digitToInt()))
@@ -122,205 +133,298 @@ fun BettingScreen(
             "နောက်ပူး" -> addBets(NumberGenerator.backDouble())
             "အခွ" -> addBets(NumberGenerator.cycle())
             "R" -> if (digits.length == 3) addBets(NumberGenerator.permutations(digits))
+            "/" -> backspace()
+            "ဖျက်" -> backspace()
+            "ရှင်းပါ" -> clearAll()
         }
     }
-    
-    val blueColor = MaterialTheme.colorScheme.primary
-    val darkTeal = MaterialTheme.colorScheme.tertiary
-    val greenColor = MaterialTheme.colorScheme.secondary
-    val orangeColor = MaterialTheme.colorScheme.error
 
-    Scaffold(
-        topBar = {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("အကြိမ် : $currentBatch", fontSize = 18.sp, color = Color.Black)
-                Row {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
-                    }
-                }
+    fun submitVoucher() {
+        if (selectedCustomer == null) {
+            expandedCustomer = true
+            android.widget.Toast.makeText(context, "ထိုးသူ ရွေးပါ", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (pendingBets.isEmpty()) return
+
+        val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+        viewModel.addVoucherWithBetList(selectedCustomer!!, time, pendingBets.toList(), tempRemark)
+        tempRemark = ""
+        pendingBets.clear()
+        clearAll()
+        android.widget.Toast.makeText(context, "ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+    }
+    
+    // Colors based on screenshot
+    val primaryBlue = Color(0xFF2196F3)
+    val buttonTeal = Color(0xFF00838F)
+    val buttonGreen = Color(0xFF2E7D32)
+    val buttonOrange = Color(0xFFEF6C00)
+    val borderColor = Color.LightGray
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // --- TOP BAR ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text("အကြိမ် : $currentBatch", fontSize = 18.sp, color = Color.Black)
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
             }
         }
-    ) { padding ->
-        Column(
+
+        // --- CUSTOMER ROW ---
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+                .fillMaxWidth()
+                .clickable { expandedCustomer = true }
+                .padding(horizontal = 16.dp, vertical = 4.dp), 
+            contentAlignment = Alignment.Center
         ) {
-            val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
-            if (bannedNumbers.isNotEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                ) {
-                    Text(
-                        text = "ပိတ်ထားသော ဂဏန်းများ: ${bannedNumbers.joinToString(", ") { it.number }}",
-                        modifier = Modifier.padding(8.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        fontWeight = FontWeight.Bold
+            Row {
+                Text("ထိုးသူ : ", color = Color.Black, fontSize = 16.sp)
+                Text(customers.find { it.id == selectedCustomer }?.name ?: "ကော်မရှင် ရွေးပါ", color = Color.Black, fontSize = 16.sp)
+                Text(" , ဘောင်ချာများ ကြည့်ရန် နှိပ်ပါ", color = Color.Red, fontSize = 16.sp, modifier = Modifier.clickable {
+                    selectedCustomer?.let { onNavigateToCustomerVouchers(it) }
+                })
+            }
+            DropdownMenu(expanded = expandedCustomer, onDismissRequest = { expandedCustomer = false }) {
+                customers.forEach { customer ->
+                    DropdownMenuItem(
+                        text = { Text(customer.name) },
+                        onClick = {
+                            selectedCustomer = customer.id
+                            expandedCustomer = false
+                        }
                     )
                 }
             }
+        }
 
-            OutlinedTextField(
-                value = tempRemark,
-                onValueChange = { tempRemark = it },
-                label = { Text("မှတ်ချက် (အမည်)") },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                singleLine = true
-            )
-
-            // Customer Selector Row
-            Box(modifier = Modifier.fillMaxWidth().clickable { expanded = true }.padding(horizontal = 16.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-                Row {
-                    Text("ထိုးသူ : ", color = Color.Black, fontSize = 16.sp)
-                    Text(customers.find { it.id == selectedCustomer }?.name ?: "ကော်မရှင် ရွေးပါ", color = Color.Black, fontSize = 16.sp)
-                    Text(" , ဘောင်ချာများ ကြည့်ရန် နှိပ်ပါ", color = Color.Red, fontSize = 16.sp, modifier = Modifier.clickable {
-                        selectedCustomer?.let { onNavigateToCustomerVouchers(it) }
-                    })
+        // --- LIST HEADER & LIST (Flexible height) ---
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp)
+                .border(1.dp, primaryBlue)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(primaryBlue)
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("စဉ်", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("|", color = Color.White)
+                Text("ဂဏန်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("|", color = Color.White)
+                Text("ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+            }
+            
+            // List
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                items(pendingBets.size) { i ->
+                    val bet = pendingBets[i]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp)
+                            .clickable {
+                                // Allow removing by tapping
+                                pendingBets.removeAt(i)
+                            },
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("${i + 1}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Black)
+                        Text("${bet.number}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Black)
+                        Text("${bet.amount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Black)
+                    }
+                    Divider(color = Color.LightGray)
                 }
-                DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    customers.forEach { customer ->
+            }
+        }
+
+        // --- SUMMARY & ACTION BAR ---
+        val totalAmount = pendingBets.sumOf { it.amount }
+        var isSwitchChecked by remember { mutableStateOf(false) }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .background(primaryBlue)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Box {
+                Row(modifier = Modifier.clickable { expandedQuickAmount = true }, verticalAlignment = Alignment.CenterVertically) {
+                    Text("အမြန်ထိုး ရွေးပါ", color = Color.White, fontSize = 16.sp)
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
+                }
+                DropdownMenu(expanded = expandedQuickAmount, onDismissRequest = { expandedQuickAmount = false }) {
+                    quickAmounts.forEach { amt ->
                         DropdownMenuItem(
-                            text = { Text(customer.name) },
+                            text = { Text(amt) },
                             onClick = {
-                                selectedCustomer = customer.id
-                                expanded = false
+                                tempAmount = amt
+                                expandedQuickAmount = false
                             }
                         )
                     }
                 }
             }
 
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Left Panel: Pending Bets
-                Column(modifier = Modifier.weight(1f).fillMaxHeight().border(1.dp, Color.LightGray)) {
-                    LazyColumn(modifier = Modifier.weight(1f).padding(8.dp)) {
-                        items(pendingBets.size) { i ->
-                            val bet = pendingBets[i]
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("${i + 1}. ${bet.number}", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                                Text("${bet.amount}", fontSize = 18.sp, color = darkTeal)
-                                IconButton(onClick = { pendingBets.removeAt(i) }, modifier = Modifier.size(24.dp)) {
-                                    Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Red)
-                                }
-                            }
-                        }
-                    }
-                    val total = pendingBets.sumOf { it.amount }
-                    Column(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(16.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("စုစုပေါင်း:", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text("$total", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = darkTeal)
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = {
-                                if (selectedCustomer == null) {
-                                    expanded = true
-                                    return@Button
-                                }
-                                val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-                                viewModel.addVoucherWithBetList(selectedCustomer!!, time, pendingBets, tempRemark)
-                                tempRemark = ""
-                                pendingBets.clear()
-                                tempNumber = ""
-                                tempAmount = "1000"
-                                android.widget.Toast.makeText(context, "ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.fillMaxWidth().height(56.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = greenColor),
-                            enabled = pendingBets.isNotEmpty() && selectedCustomer != null
-                        ) {
-                            Text("သိမ်းမည်", fontSize = 18.sp, color = Color.White)
-                        }
-                    }
-                }
+            Text("စုစုပေါင်း = $totalAmount", color = Color.White, fontSize = 16.sp)
 
-                // Right Panel: Numpad & Special
-                Column(modifier = Modifier.weight(1.5f).fillMaxHeight().padding(8.dp)) {
-                    // Input Displays
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Card(modifier = Modifier.weight(1f).height(64.dp).clickable { focusedField = FocusField.NUMBER },
-                            colors = CardDefaults.cardColors(containerColor = if (focusedField == FocusField.NUMBER) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (focusedField == FocusField.NUMBER) orangeColor else Color.LightGray)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(if (tempNumber.isEmpty()) "ဂဏန်း" else tempNumber, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("ထိုးရန်", color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(end = 4.dp))
+                Switch(
+                    checked = isSwitchChecked,
+                    onCheckedChange = { 
+                        if (it) {
+                            submitVoucher()
+                            // Revert switch automatically
+                            isSwitchChecked = false
                         }
-                        Card(modifier = Modifier.weight(1f).height(64.dp).clickable { focusedField = FocusField.AMOUNT },
-                            colors = CardDefaults.cardColors(containerColor = if (focusedField == FocusField.AMOUNT) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (focusedField == FocusField.AMOUNT) orangeColor else Color.LightGray)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(tempAmount, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = darkTeal)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = buttonGreen,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color.LightGray
+                    )
+                )
+            }
+        }
+
+        // --- INPUT BOXES ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Number Box
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clickable { focusedField = FocusField.NUMBER }
+                    .border(2.dp, if (focusedField == FocusField.NUMBER) buttonTeal else borderColor)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(if (tempNumber.isEmpty()) "ဂဏန်း" else tempNumber, color = Color.Gray, fontSize = 18.sp)
+            }
+            // Bet Type Box
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clickable { expandedBetType = true }
+                    .border(2.dp, buttonTeal)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(currentBetType, color = Color.Gray, fontSize = 18.sp)
+                DropdownMenu(expanded = expandedBetType, onDismissRequest = { expandedBetType = false }) {
+                    betTypes.forEach { type ->
+                        DropdownMenuItem(
+                            text = { Text(type) },
+                            onClick = {
+                                currentBetType = type
+                                expandedBetType = false
                             }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Quick Amounts
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf(500, 1000, 5000, 10000).forEach { amt ->
-                            Button(onClick = { tempAmount = amt.toString(); focusedField = FocusField.NUMBER }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = darkTeal), contentPadding = PaddingValues(0.dp)) {
-                                Text("$amt", fontSize = 14.sp)
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    // Main Keypad
-                    val specialKeys = listOf("ထိပ်", "လယ်", "ပိတ်", "အပါ", "ရှေ့စီးရီး", "လယ်စီးရီး", "နောက်စီးရီး", "ဘရိတ်", "ထွိုင်", "ရှေ့ပူး", "နောက်ပူး", "အခွ", "R")
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        // Numpad Grid
-                        Column(modifier = Modifier.weight(2f)) {
-                            val nums = listOf(
-                                listOf("1", "2", "3"),
-                                listOf("4", "5", "6"),
-                                listOf("7", "8", "9"),
-                                listOf("0", "00", "000")
-                            )
-                            nums.forEach { row ->
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    row.forEach { n ->
-                                        Button(onClick = { appendText(n) }, modifier = Modifier.weight(1f).aspectRatio(1.2f), colors = ButtonDefaults.buttonColors(containerColor = blueColor)) {
-                                            Text(n, fontSize = 20.sp)
-                                        }
-                                    }
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Button(onClick = { clearAll() }, modifier = Modifier.weight(1f).aspectRatio(1.2f), colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
-                                    Text("C", fontSize = 20.sp)
-                                }
-                                Button(onClick = { backspace() }, modifier = Modifier.weight(1f).aspectRatio(1.2f), colors = ButtonDefaults.buttonColors(containerColor = orangeColor)) {
-                                    Text("<-", fontSize = 20.sp)
-                                }
-                                Button(onClick = { submit() }, modifier = Modifier.weight(1f).aspectRatio(1.2f), colors = ButtonDefaults.buttonColors(containerColor = greenColor)) {
-                                    Text("OK", fontSize = 20.sp)
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        // Special Keys
-                        LazyColumn(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                            items(specialKeys.size) { i ->
-                                val key = specialKeys[i]
-                                Button(onClick = { handleSpecial(key) }, modifier = Modifier.fillMaxWidth().height(40.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer), contentPadding = PaddingValues(0.dp)) {
-                                    Text(key, fontSize = 12.sp)
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                            }
-                        }
+                        )
                     }
                 }
             }
+            // Amount Box
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clickable { focusedField = FocusField.AMOUNT }
+                    .border(2.dp, if (focusedField == FocusField.AMOUNT) buttonTeal else borderColor)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(tempAmount, color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
         }
+
+        // --- 5x5 KEYPAD ---
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            // Row 1
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                KeypadButton("ရှေ့စီးရီး", buttonGreen, Modifier.weight(1f)) { handleSpecial("ရှေ့စီးရီး") }
+                KeypadButton("လယ်စီးရီး", buttonGreen, Modifier.weight(1f)) { handleSpecial("လယ်စီးရီး") }
+                KeypadButton("နောက်စီးရီး", buttonGreen, Modifier.weight(1f)) { handleSpecial("နောက်စီးရီး") }
+                KeypadButton("ဘရိတ်", buttonGreen, Modifier.weight(1f)) { handleSpecial("ဘရိတ်") }
+                KeypadButton("ထွိုင်", buttonGreen, Modifier.weight(1f)) { handleSpecial("ထွိုင်") }
+            }
+            // Row 2
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                KeypadButton("ရှေ့ပူး", buttonGreen, Modifier.weight(1f)) { handleSpecial("ရှေ့ပူး") }
+                KeypadButton("1", buttonTeal, Modifier.weight(1f)) { appendText("1") }
+                KeypadButton("2", buttonTeal, Modifier.weight(1f)) { appendText("2") }
+                KeypadButton("3", buttonTeal, Modifier.weight(1f)) { appendText("3") }
+                KeypadButton("R", buttonGreen, Modifier.weight(1f)) { handleSpecial("R") }
+            }
+            // Row 3
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                KeypadButton("နောက်ပူး", buttonGreen, Modifier.weight(1f)) { handleSpecial("နောက်ပူး") }
+                KeypadButton("4", buttonTeal, Modifier.weight(1f)) { appendText("4") }
+                KeypadButton("5", buttonTeal, Modifier.weight(1f)) { appendText("5") }
+                KeypadButton("6", buttonTeal, Modifier.weight(1f)) { appendText("6") }
+                KeypadButton("/", buttonGreen, Modifier.weight(1f)) { handleSpecial("/") }
+            }
+            // Row 4
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                KeypadButton("အခွ", buttonGreen, Modifier.weight(1f)) { handleSpecial("အခွ") }
+                KeypadButton("7", buttonTeal, Modifier.weight(1f)) { appendText("7") }
+                KeypadButton("8", buttonTeal, Modifier.weight(1f)) { appendText("8") }
+                KeypadButton("9", buttonTeal, Modifier.weight(1f)) { appendText("9") }
+                KeypadButton("ဖျက်", buttonGreen, Modifier.weight(1f)) { handleSpecial("ဖျက်") }
+            }
+            // Row 5
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                KeypadButton("ရှင်းပါ", buttonOrange, Modifier.weight(1f)) { handleSpecial("ရှင်းပါ") }
+                KeypadButton("0", buttonTeal, Modifier.weight(1f)) { appendText("0") }
+                KeypadButton("00", buttonTeal, Modifier.weight(1f)) { appendText("00") }
+                KeypadButton("000", buttonTeal, Modifier.weight(1f)) { appendText("000") }
+                KeypadButton("OK", buttonOrange, Modifier.weight(1f)) { submit() }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+fun KeypadButton(text: String, bgColor: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.aspectRatio(1.3f), // Approximate square/rectangle
+        colors = ButtonDefaults.buttonColors(containerColor = bgColor, contentColor = Color.White),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp), // square corners like screenshot
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Text(text, fontSize = 16.sp, textAlign = TextAlign.Center)
     }
 }
