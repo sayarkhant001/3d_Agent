@@ -332,23 +332,11 @@ fun BettingScreen(
                 modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
-                    .clickable { expandedBetType = true }
                     .border(2.dp, buttonTeal)
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
                 Text(currentBetType, color = Color.Gray, fontSize = 18.sp)
-                DropdownMenu(expanded = expandedBetType, onDismissRequest = { expandedBetType = false }) {
-                    betTypes.forEach { type ->
-                        DropdownMenuItem(
-                            text = { Text(type) },
-                            onClick = {
-                                currentBetType = type
-                                expandedBetType = false
-                            }
-                        )
-                    }
-                }
             }
             // Amount Box
             Box(
@@ -361,6 +349,29 @@ fun BettingScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(tempAmount, color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // --- SCROLLABLE SHORTCUTS BAR ---
+        androidx.compose.foundation.lazy.LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(betTypes.size) { i ->
+                val type = betTypes[i]
+                val isSelected = currentBetType == type
+                Button(
+                    onClick = { currentBetType = type },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSelected) primaryBlue else Color.LightGray,
+                        contentColor = if (isSelected) Color.White else Color.Black
+                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(type, fontSize = 14.sp)
+                }
             }
         }
 
