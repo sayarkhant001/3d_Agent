@@ -33,7 +33,9 @@ function toBase64Url(str: string): string {
 }
 
 async function getFirebaseAccessToken(serviceAccountJson: string): Promise<string> {
-  const sa = JSON.parse(serviceAccountJson) as {
+  // Strip BOM and whitespace that may have been saved with the secret
+  const cleanJson = serviceAccountJson.replace(/^\uFEFF/, '').trim();
+  const sa = JSON.parse(cleanJson) as {
     client_email: string;
     private_key: string;
   };
