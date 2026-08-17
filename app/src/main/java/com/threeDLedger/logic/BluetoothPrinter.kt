@@ -120,4 +120,224 @@ object BluetoothPrinter {
         staticLayout.draw(canvas)
         return bitmap
     }
-}
+
+    /**
+     * Creates a structured voucher bitmap matching the designed layout:
+     *  ● Circle with batch number  │ "3D Voucher"  │ "ဘောင်ချာ No. သာ"
+     *  ─────────────────────────────────────────────
+     *  ရက်စွဲ : <date>
+     *  အမည် = <customerName>
+     *
+     *      <number> = <amount>   (each bet line, indented)
+     *
+     *  စုစုပေါင်း : <total> Ks
+     *  ─────────────────────────────────────────────
+     *  <footerText>
+     */
+    data class VoucherData(
+        val batchNumber: Int,
+        val voucherId: Int,
+        val date: String,
+        val customerName: String,
+        val bets: List<Pair<String, Int>>,  // number to amount
+        val totalAmount: Int,
+        val footerText: String
+    )
+
+    fun createVoucherBitmap(data: VoucherData, paperWidthMm: String = "58mm"): Bitmap {
+        val width = if (paperWidthMm == "80mm") 576 else 384
+        val pad = 14f
+
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        paint.color = Color.BLACK
+
+        val lineH    = 36f
+        val bigLineH = 54f
+        val circleR  = 42f
+        val headerH  = circleR * 2 + 20f
+        val betLineH = 32f
+        val footerPad = 28f
+        val zigzagH  = 18f
+
+        val totalHeight = (
+            footerPad +
+            headerH + 18f +          // header + gap
+            10f +                    // separator
+            lineH * 2 + 12f +        // date + name
+            betLineH * data.bets.size + 12f +
+            10f +                    // separator
+            bigLineH + 8f +          // total
+            10f +                    // separator
+            lineH + 12f +            // footer
+            zigzagH + footerPad      // zigzag + bottom pad
+        ).toInt()
+
+        val bitmap = Bitmap.createBitmap(width, totalHeight, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        canvas.drawColor(Color.WHITE)
+
+        // ══ OUTER DECORATIVE BORDER (double line) ══════════════
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.strokeWidth = 2.5f
+        paint.color = Color.BLACK
+        val bR = 8f
+        canvas.drawRoundRect(4f, 4f, width - 4f, totalHeight - 4f, bR, bR, paint)
+        paint.strokeWidth = 1f
+        canvas.drawRoundRect(8f, 8f, width - 8f, totalHeight - 8f, bR * 0.6f, bR * 0.6f, paint)
+        paint.style = android.graphics.Paint.Style.FILL
+
+        var y = footerPad
+
+        // ══ HEADER ══════════════════════════════════════════════
+        // Black filled circle with batch number
+        paint.color = Color.BLACK
+        val circleX = pad + 8f + circleR
+        val circleY = y + circleR
+        canvas.drawCircle(circleX, circleY, circleR, paint)
+
+        // Concentric ring effect
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.color = Color.WHITE
+        paint.strokeWidth = 2f
+        canvas.drawCircle(circleX, circleY, circleR - 6f, paint)
+        paint.style = android.graphics.Paint.Style.FILL
+
+        // Batch number
+        paint.color = Color.WHITE
+        paint.textSize = 40f
+        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        paint.textAlign = android.graphics.Paint.Align.CENTER
+        canvas.drawText("${data.batchNumber}", circleX, circleY + 14f, paint)
+
+        // Title: "3D Voucher"
+        paint.color = Color.BLACK
+        paint.textSize = 42f
+        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        paint.textAlign = android.graphics.Paint.Align.LEFT
+        val titleX = circleX + circleR + 14f
+        canvas.drawText("3D Voucher", titleX, circleY - 2f, paint)
+
+        // Subtitle with voucher number
+        paint.textSize = 21f
+        paint.typeface = android.graphics.Typeface.DEFAULT
+        canvas.drawText("ဘောင်ချာ No. ${data.voucherId}", titleX, circleY + 28f, paint)
+
+        y += headerH + 14f
+
+        // Helper: draw a diamond-decorated separator
+        fun drawSeparator(yPos: Float) {
+            paint.color = Color.BLACK
+            paint.strokeWidth = 1.2f
+            paint.style = android.graphics.Paint.Style.STROKE
+            val mid = width / 2f
+            val dSize = 5f
+            // left line
+            canvas.drawLine(pad + 8f, yPos, mid - dSize - 4f, yPos, paint)
+            // right line
+            canvas.drawLine(mid + dSize + 4f, yPos, width - pad - 8f, yPos, paint)
+            // diamond at centre
+            paint.style = android.graphics.Paint.Style.FILL
+            val path = android.graphics.Path().apply {
+                moveTo(mid, yPos - dSize)
+                lineTo(mid + dSize, yPos)
+                lineTo(mid, yPos + dSize)
+                lineTo(mid - dSize, yPos)
+                close()
+            }
+            canvas.drawPath(path, paint)
+            paint.style = android.graphics.Paint.Style.FILL
+        }
+
+        drawSeparator(y)
+        y += 14f
+
+        // ══ DATE + NAME ══════════════════════════════════════════
+        paint.textSize = 26f
+        paint.typeface = android.graphics.Typeface.DEFAULT
+        paint.textAlign = android.graphics.Paint.Align.LEFT
+        paint.color = Color.BLACK
+        canvas.drawText("ရက်စွဲ : ${data.date}", pad + 8f, y + lineH * 0.72f, paint)
+        y += lineH
+
+        canvas.drawText("အမည် = ${data.customerName}", pad + 8f, y + lineH * 0.72f, paint)
+        y += lineH + 12f
+
+        // ══ BET LIST ════════════════════════════════════════════
+        paint.textSize = 28f
+        paint.typeface = android.graphics.Typeface.MONOSPACE
+        val betIndent = pad + 24f
+        data.bets.forEachIndexed { idx, (number, amount) ->
+            canvas.drawText("$number  =  $amount", betIndent, y + betLineH * 0.72f, paint)
+            y += betLineH
+            // dotted line between bets (not after last)
+            if (idx < data.bets.size - 1) {
+                paint.style = android.graphics.Paint.Style.STROKE
+                paint.strokeWidth = 0.8f
+                paint.pathEffect = android.graphics.DashPathEffect(floatArrayOf(3f, 4f), 0f)
+                canvas.drawLine(betIndent, y - 2f, width - pad - 8f, y - 2f, paint)
+                paint.pathEffect = null
+                paint.style = android.graphics.Paint.Style.FILL
+            }
+        }
+        y += 12f
+
+        drawSeparator(y)
+        y += 14f
+
+        // ══ TOTAL ════════════════════════════════════════════════
+        // Shaded background band for total row
+        paint.color = Color.BLACK
+        val bandTop = y - 4f
+        val bandBot = y + bigLineH + 4f
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.strokeWidth = 1f
+        canvas.drawRoundRect(pad + 4f, bandTop, width - pad - 4f, bandBot, 4f, 4f, paint)
+        paint.style = android.graphics.Paint.Style.FILL
+
+        paint.textSize = 36f
+        paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        paint.textAlign = android.graphics.Paint.Align.LEFT
+        paint.color = Color.BLACK
+        canvas.drawText("စုစုပေါင်း", pad + 12f, y + bigLineH * 0.55f, paint)
+        paint.textAlign = android.graphics.Paint.Align.RIGHT
+        canvas.drawText("${data.totalAmount} Ks", width - pad - 12f, y + bigLineH * 0.55f, paint)
+        y += bigLineH + 8f
+
+        drawSeparator(y)
+        y += 14f
+
+        // ══ FOOTER ════════════════════════════════════════════════
+        paint.textSize = 26f
+        paint.typeface = android.graphics.Typeface.DEFAULT
+        paint.textAlign = android.graphics.Paint.Align.CENTER
+        paint.color = Color.BLACK
+        canvas.drawText(data.footerText, width / 2f, y + lineH * 0.72f, paint)
+        y += lineH + 12f
+
+        // ══ ZIGZAG CUT LINE ════════════════════════════════════════
+        paint.strokeWidth = 1.5f
+        paint.style = android.graphics.Paint.Style.STROKE
+        paint.color = Color.BLACK
+        val zigPath = android.graphics.Path()
+        val segW = 8f
+        var xz = pad + 8f
+        val zy = y + zigzagH / 2f
+        zigPath.moveTo(xz, zy)
+        var toggle = true
+        while (xz < width - pad - 8f) {
+            xz += segW
+            zigPath.lineTo(xz, if (toggle) zy - zigzagH / 2f else zy + zigzagH / 2f)
+            toggle = !toggle
+        }
+        canvas.drawPath(zigPath, paint)
+
+        // "✂ ─ ─ ─" label above zigzag
+        paint.style = android.graphics.Paint.Style.FILL
+        paint.textSize = 18f
+        paint.textAlign = android.graphics.Paint.Align.CENTER
+        canvas.drawText("✂  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─", width / 2f, y + 4f, paint)
+
+        return bitmap
+    }
+
+

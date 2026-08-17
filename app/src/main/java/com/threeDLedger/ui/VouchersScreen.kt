@@ -121,8 +121,16 @@ fun VouchersScreen(
                                     coroutineScope.launch { 
                                         val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
                                         val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
-                                        val width = if (paperSize == "80mm") 576 else 384
-                                        val bitmap = com.threeDLedger.logic.BluetoothPrinter.createBitmapFromText(textToCopy, width)
+                                        val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
+                                            batchNumber = voucherWithBets.voucher.batchNumber,
+                                            voucherId = voucherWithBets.voucher.id,
+                                            date = SimpleDateFormat("dd/MM/yyyy HH:mm").format(Date(voucherWithBets.voucher.timestamp)),
+                                            customerName = customerName,
+                                            bets = voucherWithBets.bets.map { it.number to it.amount },
+                                            totalAmount = voucherWithBets.voucher.totalAmount,
+                                            footerText = footerText
+                                        )
+                                        val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
                                         com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
                                     }
                                 }) {
