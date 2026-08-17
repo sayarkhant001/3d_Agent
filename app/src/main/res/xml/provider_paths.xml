@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-public-path name="downloads" path="Download/" />
+    <!-- Also map the 'Downloads' name in case it's localized or specific -->
+    <external-public-path name="downloads_alt" path="Downloads/" />
+</paths>

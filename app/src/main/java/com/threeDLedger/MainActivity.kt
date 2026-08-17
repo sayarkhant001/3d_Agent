@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
                     val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(repository, prefs))
                     
                     NotificationPermissionHandler()
-                    UpdateDialogHandler(owner = "your_github_owner", repo = "your_github_repo")
+                    UpdateDialogHandler(owner = "sayarkhant001", repo = "3d_Agent")
                     AppNavigation(viewModel = viewModel)
                 }
             }
