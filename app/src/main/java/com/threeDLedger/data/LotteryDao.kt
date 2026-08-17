@@ -70,7 +70,7 @@ interface LotteryDao {
     suspend fun updateCustomer(customer: Customer)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCustomer(customer: Customer)
+    suspend fun insertCustomer(customer: Customer): Long
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertVoucher(voucher: Voucher): Long

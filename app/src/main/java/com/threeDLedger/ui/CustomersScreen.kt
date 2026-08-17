@@ -92,7 +92,8 @@ fun CustomersScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp),
+                            .padding(bottom = 8.dp)
+                            .clickable { editingCustomer = customer },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -102,10 +103,7 @@ fun CustomersScreen(
                                     Text(text = "အမည်: ${customer.name}", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
                                 }
                                 IconButton(onClick = { onNavigateToBetting(customer.id) }) {
-                                    Icon(Icons.Default.Add, contentDescription = "Add Bet", tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(28.dp))
-                                }
-                                IconButton(onClick = { editingCustomer = customer }) {
-                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+                                    Icon(Icons.Default.Add, contentDescription = "Add Bet", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))

@@ -103,6 +103,31 @@ var brakeLimit = MutableStateFlow(3000)
                 ExportedNumber(exportRecordId = recordId, number = it.number, amount = it.overflowAmount)
             }
             repository.insertExportedNumbers(exportNumbers)
+
+            // Save as Voucher
+            val existingCustomers = customers.value
+            var overflowCustomerId = existingCustomers.find { it.name == "တင်ကွက် (Overflows)" }?.id
+            if (overflowCustomerId == null) {
+                overflowCustomerId = repository.insertCustomer(Customer(name = "တင်ကွက် (Overflows)", commissionRate = 0.0, multiplier = 80)).toInt()
+            }
+            
+            val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+            val date = dateFormat.format(Date())
+            val time = timeFormat.format(Date())
+            
+            val voucher = Voucher(
+                customerId = overflowCustomerId,
+                batchNumber = currentBatch.value,
+                date = date,
+                time = time,
+                totalAmount = totalAmount,
+                remark = "Overflow Export"
+            )
+            val overflowBets = toExport.map {
+                Bet(voucherId = 0, number = it.number, amount = it.overflowAmount)
+            }
+            repository.insertVoucherWithBets(voucher, overflowBets)
         }
     }
 

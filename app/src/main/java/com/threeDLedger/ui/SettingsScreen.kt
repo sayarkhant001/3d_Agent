@@ -223,10 +223,27 @@ fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     var pairedDevices by remember { mutableStateOf<List<android.bluetooth.BluetoothDevice>>(emptyList()) }
     var isConnecting by remember { mutableStateOf(false) }
     
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val allGranted = permissions.entries.all { it.value }
+        if (allGranted) {
+            try { pairedDevices = com.threeDLedger.logic.BluetoothPrinter.getPairedDevices() } catch (e: Exception) {}
+        }
+    }
+
     LaunchedEffect(Unit) {
-        try {
-            pairedDevices = com.threeDLedger.logic.BluetoothPrinter.getPairedDevices()
-        } catch (e: Exception) {}
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            val connectStatus = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_CONNECT)
+            val scanStatus = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.BLUETOOTH_SCAN)
+            if (connectStatus == android.content.pm.PackageManager.PERMISSION_GRANTED && scanStatus == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                try { pairedDevices = com.threeDLedger.logic.BluetoothPrinter.getPairedDevices() } catch (e: Exception) {}
+            } else {
+                permissionLauncher.launch(arrayOf(android.Manifest.permission.BLUETOOTH_CONNECT, android.Manifest.permission.BLUETOOTH_SCAN))
+            }
+        } else {
+            try { pairedDevices = com.threeDLedger.logic.BluetoothPrinter.getPairedDevices() } catch (e: Exception) {}
+        }
     }
 
     AlertDialog(

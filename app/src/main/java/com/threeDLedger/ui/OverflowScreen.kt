@@ -44,6 +44,9 @@ fun OverflowScreen(
     
     var showBrakeDialog by remember { mutableStateOf(false) }
 
+    var showOverflowCopiedDialog by remember { mutableStateOf(false) }
+    var overflowCopiedText by remember { mutableStateOf("") }
+
     if (showBrakeDialog) {
         var brakeInput by remember { mutableStateOf(brakeLimit.toString()) }
         AlertDialog(
@@ -61,6 +64,42 @@ fun OverflowScreen(
                     brakeInput.toIntOrNull()?.let { viewModel.brakeLimit.value = it }
                     showBrakeDialog = false
                 }) { Text("သိမ်းမည်") }
+            }
+        )
+    }
+
+    if (showOverflowCopiedDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                showOverflowCopiedDialog = false 
+                onNavigateToExportHistory() 
+            },
+            title = { Text("တင်ကွက်များ (Overflows)") },
+            text = { 
+                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    item { Text(overflowCopiedText) }
+                }
+            },
+            confirmButton = {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                Button(onClick = {
+                    val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("Overflows", overflowCopiedText)
+                    clipboardManager.setPrimaryClip(clip)
+                    android.widget.Toast.makeText(context, "Copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                    showOverflowCopiedDialog = false
+                    onNavigateToExportHistory()
+                }) {
+                    Text("Copy")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { 
+                    showOverflowCopiedDialog = false
+                    onNavigateToExportHistory() 
+                }) {
+                    Text("Skip")
+                }
             }
         )
     }
@@ -91,8 +130,15 @@ fun OverflowScreen(
                 }
                 Button(
                     onClick = { 
-                        viewModel.exportOverflow()
-                        onNavigateToExportHistory() 
+                        if (overflowExposures.isNotEmpty()) {
+                            val textBuilder = StringBuilder()
+                            overflowExposures.forEach {
+                                textBuilder.append("${it.number} = ${it.overflowAmount}\n")
+                            }
+                            overflowCopiedText = textBuilder.toString().trim()
+                            showOverflowCopiedDialog = true
+                            viewModel.exportOverflow()
+                        }
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = blueColor),

@@ -17,8 +17,8 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
         lotteryDao.updateCustomer(customer)
     }
 
-    suspend fun insertCustomer(customer: Customer) {
-        lotteryDao.insertCustomer(customer)
+    suspend fun insertCustomer(customer: Customer): Long {
+        return lotteryDao.insertCustomer(customer)
     }
 
     suspend fun insertVoucherWithBets(voucher: Voucher, bets: List<Bet>) {
