@@ -4,10 +4,119 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Glow effect behind book -->
     <path
-        android:fillColor="#0D47A1"
-        android:pathData="M10,10h88v88h-88z"/>
+        android:fillColor="#33F5CC7A"
+        android:pathData="M54,30 Q80,35 82,62 Q80,80 54,82 Q28,80 26,62 Q28,35 54,30Z" />
+
+    <!-- Book left page -->
+    <path
+        android:fillColor="#E8EAF0"
+        android:strokeColor="#C5C8D4"
+        android:strokeWidth="0.5"
+        android:pathData="M54,28 L28,40 L28,76 Q36,73 54,72 Z" />
+
+    <!-- Book right page -->
+    <path
+        android:fillColor="#F0F2F8"
+        android:strokeColor="#C5C8D4"
+        android:strokeWidth="0.5"
+        android:pathData="M54,28 L80,40 L80,76 Q72,73 54,72 Z" />
+
+    <!-- Book spine glow -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M34,44L54,24L74,44H60V84H48V44Z" />
+        android:pathData="M52,27 L56,27 L56,73 L52,73 Z"
+        android:fillAlpha="0.6"/>
+
+    <!-- Page lines left -->
+    <line
+        android:x1="34" android:y1="50"
+        android:x2="50" android:y2="47"
+        android:strokeColor="#9AA0B0"
+        android:strokeWidth="1.2"/>
+    <line
+        android:x1="34" android:y1="56"
+        android:x2="50" android:y2="53"
+        android:strokeColor="#9AA0B0"
+        android:strokeWidth="1.2"/>
+    <line
+        android:x1="34" android:y1="62"
+        android:x2="50" android:y2="59"
+        android:strokeColor="#9AA0B0"
+        android:strokeWidth="1.2"/>
+
+    <!-- Page lines right -->
+    <line
+        android:x1="58" android:y1="47"
+        android:x2="74" android:y2="50"
+        android:strokeColor="#9AA0B0"
+        android:strokeWidth="1.2"/>
+    <line
+        android:x1="58" android:y1="53"
+        android:x2="74" android:y2="56"
+        android:strokeColor="#9AA0B0"
+        android:strokeWidth="1.2"/>
+    <line
+        android:x1="58" android:y1="59"
+        android:x2="74" android:y2="62"
+        android:strokeColor="#9AA0B0"
+        android:strokeWidth="1.2"/>
+
+    <!-- Lottery ball left -->
+    <circle
+        android:fillColor="#D0D4E0"
+        android:cx="37" android:cy="43" android:r="5"/>
+    <path
+        android:fillColor="#6C63FF"
+        android:pathData="M34,40 A5,5 0 0,1 40,40 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,42 L38,42 L38,45 L36,45 Z"
+        android:fillAlpha="0.9"/>
+
+    <!-- Lottery ball right -->
+    <circle
+        android:fillColor="#D0D4E0"
+        android:cx="71" android:cy="43" android:r="5"/>
+    <path
+        android:fillColor="#E94560"
+        android:pathData="M68,40 A5,5 0 0,1 74,40 Z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,42 L72,42 L72,45 L70,45 Z"
+        android:fillAlpha="0.9"/>
+
+    <!-- "3D" text shadow -->
+    <path
+        android:fillColor="#1A2030"
+        android:pathData="M30,55 Q30,38 42,35 L42,72 Q34,72 30,65 Z"
+        android:fillAlpha="0.3"/>
+
+    <!-- "3" numeral -->
+    <path
+        android:fillColor="#F5A623"
+        android:pathData="
+            M33,44 Q33,41 36,41 L42,41 Q45,41 45,44 Q45,46.5 42,47.5 Q45,48.5 45,51 Q45,54 42,54 L36,54 Q33,54 33,51
+            M36,44 L42,44 Q43,44 43,44.8 Q43,45.8 42,46 L37,46
+            M37,49 L42,49 Q43,49 43,50 Q43,51.5 42,51.5 L36,51.5 Q35,51.5 35,51"
+        android:strokeColor="#E8940A"
+        android:strokeWidth="0.5"/>
+
+    <!-- "D" letter -->
+    <path
+        android:fillColor="#F5A623"
+        android:pathData="
+            M49,41 L54,41 Q63,41 63,47.5 Q63,54 54,54 L49,54 Z
+            M52,44 L54,44 Q60,44 60,47.5 Q60,51 54,51 L52,51 Z"
+        android:strokeColor="#E8940A"
+        android:strokeWidth="0.5"/>
+
+    <!-- Gold gradient overlay on 3D text for shine -->
+    <path
+        android:fillColor="#FFFDE7"
+        android:fillAlpha="0.25"
+        android:pathData="M33,41 L63,41 L63,47 L33,47 Z"/>
+
 </vector>
