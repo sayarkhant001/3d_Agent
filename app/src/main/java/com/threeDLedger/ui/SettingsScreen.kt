@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import kotlinx.coroutines.launch
 // Removed duplicate import
@@ -24,7 +25,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.utils.GitHubUpdater
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +41,18 @@ fun SettingsScreen(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var showPrinterDialog by remember { mutableStateOf(false) }
+
+    // Update check state
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var updateCheckStatus by remember { mutableStateOf("") }  // "", "checking", "uptodate", "available"
+    var updateInfoManual by remember { mutableStateOf<GitHubUpdater.UpdateInfo?>(null) }
+    var showManualUpdateDialog by remember { mutableStateOf(false) }
+
+    val currentVersion = remember {
+        try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }
+        catch (e: PackageManager.NameNotFoundException) { "?" }
+    }
 
     Scaffold(
         topBar = {
@@ -61,7 +76,124 @@ fun SettingsScreen(
             SettingsItem(icon = Icons.Default.Lock, text = "Change Password", onClick = { showPasswordDialog = true })
             SettingsItem(icon = Icons.Default.Delete, text = "Reset", onClick = { showResetDialog = true })
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Manual Update Check Card ─────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            "Update စစ်ဆေးရန်",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            "လက်ရှိ Version : $currentVersion",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (updateCheckStatus.isNotEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                when (updateCheckStatus) {
+                                    "checking"  -> "စစ်ဆေးနေသည်..."
+                                    "uptodate"  -> "✅ နောက်ဆုံး Version ဖြစ်နေပါသည်"
+                                    "available" -> "🔔 Update ရှိနေပါသည်! ↓ နှိပ်ပါ"
+                                    else        -> "❌ Network error — Internet စစ်ဆေးပါ"
+                                },
+                                fontSize = 11.sp,
+                                color = when (updateCheckStatus) {
+                                    "available" -> MaterialTheme.colorScheme.primary
+                                    "error"     -> MaterialTheme.colorScheme.error
+                                    else        -> MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            updateCheckStatus = "checking"
+                            coroutineScope.launch {
+                                val info = GitHubUpdater.checkForUpdates("sayarkhant001", "3d_Agent")
+                                if (info == null) {
+                                    updateCheckStatus = "error"
+                                } else {
+                                    val fetchedRun = info.version.trimStart('v')
+                                        .split(".", "-")
+                                        .lastOrNull { s -> s.all { c -> c.isDigit() } }
+                                        ?.toIntOrNull() ?: 0
+                                    val currentRun = currentVersion.trimStart('v')
+                                        .split(".", "-")
+                                        .lastOrNull { s -> s.all { c -> c.isDigit() } }
+                                        ?.toIntOrNull() ?: 0
+                                    if (fetchedRun > currentRun) {
+                                        updateInfoManual = info
+                                        updateCheckStatus = "available"
+                                        showManualUpdateDialog = true
+                                    } else {
+                                        updateCheckStatus = "uptodate"
+                                    }
+                                }
+                            }
+                        },
+                        enabled = updateCheckStatus != "checking",
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        if (updateCheckStatus == "checking") {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("စစ်ဆေး", fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            // Manual update install dialog
+            if (showManualUpdateDialog && updateInfoManual != null) {
+                val info = updateInfoManual!!
+                AlertDialog(
+                    onDismissRequest = { showManualUpdateDialog = false },
+                    icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    title = { Text("Update ${info.version} ရှိနေပါသည်", fontWeight = FontWeight.Bold) },
+                    text = { Text("ယခု Download လုပ်ပြီး Install လုပ်မည်လား?") },
+                    confirmButton = {
+                        Button(onClick = {
+                            showManualUpdateDialog = false
+                            coroutineScope.launch {
+                                if (!GitHubUpdater.canInstallUnknownApps(context)) {
+                                    GitHubUpdater.openInstallUnknownAppsSettings(context)
+                                } else {
+                                    val apk = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) {}
+                                    if (apk != null) GitHubUpdater.installApkFromCache(context, apk)
+                                    else android.widget.Toast.makeText(context, "Download မအောင်မြင်ပါ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }) { Text("Install လုပ်မည်") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showManualUpdateDialog = false }) { Text("နောက်မှ") }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
 
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
                 Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
