@@ -116,43 +116,22 @@ var brakeLimit = MutableStateFlow(3000)
 
         viewModelScope.launch {
             val totalAmount = toExport.sumOf { it.overflowAmount }
-            val record = ExportRecord(batchNumber = currentBatch.value, type = "ဘရိတ်ကျော်ငွေ (Overflow)", totalAmount = totalAmount)
+            val record = ExportRecord(
+                batchNumber = currentBatch.value,
+                type = "ဘရိတ်ကျော်ငွေ (Overflow)",
+                totalAmount = totalAmount
+            )
             val recordId = repository.insertExportRecord(record).toInt()
-            
-            val exportNumbers = toExport.map { 
+
+            val exportNumbers = toExport.map {
                 ExportedNumber(exportRecordId = recordId, number = it.number, amount = it.overflowAmount)
             }
             repository.insertExportedNumbers(exportNumbers)
-
-            // Save as Voucher
-            val existingCustomers = customers.value
-            val existingId = existingCustomers.find { it.name == "တင်ကွက် (Overflows)" }?.id
-            val overflowCustomerId: Int
-            if (existingId != null) {
-                overflowCustomerId = existingId
-            } else {
-                overflowCustomerId = repository.insertCustomer(Customer(name = "တင်ကွက် (Overflows)", commissionRate = 0.0, multiplier = 80)).toInt()
-            }
-            
-            val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-            val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-            val date = dateFormat.format(Date())
-            val time = timeFormat.format(Date())
-            
-            val voucher = Voucher(
-                customerId = overflowCustomerId,
-                batchNumber = currentBatch.value,
-                date = date,
-                time = time,
-                totalAmount = totalAmount,
-                remark = "Overflow Export"
-            )
-            val overflowBets = toExport.map {
-                Bet(voucherId = 0, number = it.number, amount = it.overflowAmount)
-            }
-            repository.insertVoucherWithBets(voucher, overflowBets)
+            // NOTE: Do NOT insert a Voucher here — that would inflate betMap and
+            // prevent overflowAmount from clearing after export.
         }
     }
+
 
     init {
         appPassword.value = prefs.getString("appPassword", "") ?: ""
