@@ -328,4 +328,4 @@ object BluetoothPrinter {
 
         return bitmap
     }
-
+}
