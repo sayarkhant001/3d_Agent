@@ -32,8 +32,6 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        env:
-          JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
         run: ./gradlew assembleDebug --no-daemon --no-configuration-cache
 
       - name: Find APK path
