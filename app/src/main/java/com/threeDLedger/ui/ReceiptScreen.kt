@@ -44,7 +44,7 @@ fun ReceiptScreen(
             Icon(
                 Icons.Filled.CheckCircle, 
                 contentDescription = "Success", 
-                tint = Color(0xFF1976D2),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(64.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
@@ -66,16 +66,16 @@ fun ReceiptScreen(
             
             // KBZ Pay mockup
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(64.dp).background(Color(0xFF1976D2), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                        Text("KBZ\nPay", color = Color.White, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Box(modifier = Modifier.size(64.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                        Text("KBZ\nPay", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Scan ဖတ်ပြီး ငွေပေးချေမှုကို အတည်ပြုပါ")
+                    Text("Scan ဖတ်ပြီး ငွေပေးချေပမှုကို အတည်ပြူပါ")
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))
@@ -86,7 +86,7 @@ fun ReceiptScreen(
 @Composable
 fun ReceiptRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = Color.Gray)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value)
     }
 }

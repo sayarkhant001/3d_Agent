@@ -117,7 +117,7 @@ fun CustomersScreen(
                                     Icon(
                                         Icons.Default.Add,
                                         contentDescription = "Add Bet",
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(32.dp)
                                     )
                                 }
@@ -164,7 +164,7 @@ fun AddCustomerFullScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             )
         },
         bottomBar = {
@@ -205,34 +205,34 @@ fun AddCustomerFullScreen(
                     .fillMaxWidth()
                     .height(200.dp)
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .background(Color(0xFFFFA000), shape = RoundedCornerShape(8.dp)),
+                    .background(MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Box(contentAlignment = Alignment.BottomEnd) {
                     Box(
                         modifier = Modifier
                             .size(120.dp)
-                            .background(Color(0xFFFFF3E0), shape = CircleShape),
+                            .background(MaterialTheme.colorScheme.primaryContainer, shape = CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Person,
                             contentDescription = null,
                             modifier = Modifier.size(100.dp),
-                            tint = Color(0xFFFFA000)
+                            tint = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                     Box(
                         modifier = Modifier
                             .size(36.dp)
-                            .background(Color.Gray, shape = CircleShape)
+                            .background(MaterialTheme.colorScheme.secondary, shape = CircleShape)
                             .padding(6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.CameraAlt,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            tint = MaterialTheme.colorScheme.onSecondary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -272,11 +272,11 @@ fun FormRow(label: String, value: String, readOnly: Boolean = false, placeholder
             textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface),
             modifier = Modifier
                 .weight(2.8f)
-                .background(Color.White, shape = RoundedCornerShape(4.dp))
+                .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(4.dp))
                 .padding(horizontal = 8.dp, vertical = 12.dp),
             decorationBox = { innerTextField ->
                 if (value.isEmpty() && placeholder.isNotEmpty()) {
-                    Text(text = placeholder, color = Color.Gray)
+                    Text(text = placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 innerTextField()
             }
@@ -305,7 +305,7 @@ fun EditCustomerFullScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             )
         },
         bottomBar = {

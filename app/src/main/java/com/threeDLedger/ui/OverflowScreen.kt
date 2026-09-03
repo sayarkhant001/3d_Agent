@@ -158,14 +158,14 @@ fun OverflowScreen(
                     ) {
                         Text(
                             "ဂဏန်း",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onTertiary,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f),
                             textAlign = TextAlign.Center
                         )
                         Text(
                             "ပမာဏ",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onTertiary,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f),
                             textAlign = TextAlign.Center
@@ -205,7 +205,7 @@ fun OverflowScreen(
                                 )
                             }
                             if (index < snapshot.items.lastIndex) {
-                                Divider(color = Color.LightGray, thickness = 0.5.dp)
+                                Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                             }
                         }
                     }
@@ -218,8 +218,8 @@ fun OverflowScreen(
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("စုစုပေါင်း", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("${snapshot.total} Ks", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
+                        Text("${snapshot.total} Ks", color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -255,9 +255,9 @@ fun OverflowScreen(
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                         ) {
-                            Icon(Icons.Default.Print, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.Print, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondary)
                             Spacer(Modifier.width(6.dp))
-                            Text("Print", color = Color.White)
+                            Text("Print", color = MaterialTheme.colorScheme.onSecondary)
                         }
 
                         // Copy button
@@ -271,9 +271,9 @@ fun OverflowScreen(
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = blueColor)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White)
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                             Spacer(Modifier.width(6.dp))
-                            Text("Copy", color = Color.White)
+                            Text("Copy", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
 
@@ -343,7 +343,7 @@ fun OverflowScreen(
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (overflowExposures.isNotEmpty()) blueColor else Color.Gray
+                        containerColor = if (overflowExposures.isNotEmpty()) blueColor else MaterialTheme.colorScheme.surfaceVariant
                     ),
                     shape = MaterialTheme.shapes.small
                 ) {
@@ -369,7 +369,7 @@ fun OverflowScreen(
                     fontSize = 16.sp,
                     modifier = Modifier
                         .clickable { showBrakeDialog = true }
-                        .background(Color.White.copy(alpha = 0.15f), MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f), MaterialTheme.shapes.small)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
             }
@@ -379,21 +379,21 @@ fun OverflowScreen(
                 // Left Table — All bets
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                        Text("ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("ပမာဏ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         items(allExposures) { exposure ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                                Text("${exposure.totalBetAmount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
+                                Text("${exposure.totalBetAmount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
                             }
-                            Divider(color = Color.LightGray, thickness = 0.5.dp)
+                            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                        Text("$totalAll", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("$totalAll", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
@@ -407,7 +407,7 @@ fun OverflowScreen(
                         if (overflowExposures.isEmpty()) {
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                    Text("ကျော်မှု မရှိပါ", color = Color.Gray, textAlign = TextAlign.Center)
+                                    Text("ကျော်မှု မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                                 }
                             }
                         }
@@ -432,14 +432,14 @@ fun OverflowScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-                            Divider(color = Color.LightGray, thickness = 0.5.dp)
+                            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
                     Row(modifier = Modifier.fillMaxWidth().background(
                         if (totalOverflow > 0) MaterialTheme.colorScheme.error else orangeColor
                     ).padding(8.dp)) {
-                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                        Text("$totalOverflow", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("$totalOverflow", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                 }
             }

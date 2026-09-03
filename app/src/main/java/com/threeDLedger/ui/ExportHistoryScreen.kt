@@ -55,7 +55,7 @@ fun ExportHistoryScreen(
                 modifier = Modifier.padding(padding).fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("မှတ်တမ်း မရှိသေးပါ", color = Color.Gray, fontSize = 16.sp)
+                Text("မှတ်တမ်း မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
             }
         } else {
             LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(12.dp)) {
@@ -141,19 +141,19 @@ private fun ExportRecordCard(
                 Column {
                     Text(
                         export.record.type,
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                     Text(
                         "အကြိမ် : ${export.record.batchNumber}",
-                        color = Color.White.copy(alpha = 0.85f),
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
                         fontSize = 12.sp
                     )
                 }
                 Text(
                     dateString,
-                    color = Color.White.copy(alpha = 0.8f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                     fontSize = 11.sp,
                     textAlign = TextAlign.End
                 )
@@ -216,7 +216,7 @@ private fun ExportRecordCard(
                             )
                         }
                         if (index < sortedNumbers.lastIndex) {
-                            Divider(color = Color.LightGray, thickness = 0.5.dp)
+                            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
                 }
@@ -231,13 +231,13 @@ private fun ExportRecordCard(
                 ) {
                     Text(
                         "စုစုပေါင်း (${sortedNumbers.size} ဂဏန်း)",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
                     Text(
                         "${export.record.totalAmount} Ks",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp
                     )
