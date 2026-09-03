@@ -34,14 +34,29 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --no-configuration-cache
 
+      - name: Dump KSP generated files on failure
+        if: failure()
+        run: |
+          echo "=== BluetoothPrinter.kt lines 325-335 ==="
+          sed -n '325,335p' app/src/main/java/com/threeDLedger/logic/BluetoothPrinter.kt | cat -A
+          echo "=== KSP generated Kotlin files ==="
+          find app/build/generated/ksp -name "*.kt" 2>/dev/null | head -20
+          echo "=== First 30 lines of each generated file ==="
+          find app/build/generated/ksp -name "*.kt" 2>/dev/null | while read f; do
+            echo "--- $f ---"
+            head -30 "$f" | cat -A
+          done
+
       - name: Find APK path
         id: apk
+        if: success()
         run: |
           APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
           echo "Found APK: $APK_PATH"
           echo "path=$APK_PATH" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
@@ -51,7 +66,7 @@ jobs:
       - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         continue-on-error: true
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && success()
         with:
           tag_name: build-${{ github.run_number }}
           name: "Build #${{ github.run_number }}"
