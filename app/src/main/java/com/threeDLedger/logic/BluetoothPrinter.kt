@@ -121,19 +121,8 @@ object BluetoothPrinter {
         return bitmap
     }
 
-    /**
-     * Creates a structured voucher bitmap matching the designed layout:
-     *  ● Circle with batch number  │ "3D Voucher"  │ "ဘောင်ချာ No. သာ"
-     *  ─────────────────────────────────────────────
-     *  ရက်စွဲ : <date>
-     *  အမည် = <customerName>
-     *
-     *      <number> = <amount>   (each bet line, indented)
-     *
-     *  စုစုပေါင်း : <total> Ks
-     *  ─────────────────────────────────────────────
-     *  <footerText>
-     */
+    // Creates a structured voucher bitmap with borders, circle header, bet lines, zigzag cut.
+    // Layout: circle+title | date+name | bets | total | footer | zigzag
     data class VoucherData(
         val batchNumber: Int,
         val voucherId: Int,
@@ -339,5 +328,4 @@ object BluetoothPrinter {
 
         return bitmap
     }
-
 
