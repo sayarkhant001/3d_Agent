@@ -48,13 +48,18 @@ fun OverflowScreen(
 
     // Sort exposures
     val overflowExposures = ledgerExposures.filter { it.overflowAmount > 0 }.sortedByDescending { it.overflowAmount }
-    // Left: only numbers with bets that are AT or BELOW the brake limit (non-zero)
-    // If brakeLimit == 0 (not configured), fall back to showing all non-zero bets
-    val brakedExposures = ledgerExposures.filter {
-        it.totalBetAmount > 0 && (brakeLimit <= 0 || it.totalBetAmount <= brakeLimit)
-    }.sortedByDescending { it.totalBetAmount }
 
-    val totalBraked = brakedExposures.sumOf { it.totalBetAmount }
+    // Left table: ALL numbers with any bet.
+    // Display amount = min(totalBetAmount, brakeLimit) — i.e. the "kept" portion capped at brake.
+    // If brake is 0 (not set), show full totalBetAmount.
+    val brakedExposures = ledgerExposures
+        .filter { it.totalBetAmount > 0 }
+        .sortedByDescending { it.totalBetAmount }
+
+    fun keptAmount(totalBetAmount: Int): Int =
+        if (brakeLimit > 0) minOf(totalBetAmount, brakeLimit) else totalBetAmount
+
+    val totalBraked = brakedExposures.sumOf { keptAmount(it.totalBetAmount) }
     val totalOverflow = overflowExposures.sumOf { it.overflowAmount }
 
     val orangeColor = MaterialTheme.colorScheme.tertiary
@@ -395,9 +400,22 @@ fun OverflowScreen(
                             }
                         }
                         items(brakedExposures) { exposure ->
+                            val kept = keptAmount(exposure.totalBetAmount)
+                            val isOverflowing = brakeLimit > 0 && exposure.totalBetAmount > brakeLimit
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
-                                Text("${exposure.totalBetAmount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    exposure.number,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "$kept",
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                )
                             }
                             Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
