@@ -165,7 +165,7 @@ object BluetoothPrinter {
         val canvas = android.graphics.Canvas(bitmap)
         canvas.drawColor(Color.WHITE)
 
-        // ══ OUTER DECORATIVE BORDER (double line) ══════════════
+        // ==
         paint.style = android.graphics.Paint.Style.STROKE
         paint.strokeWidth = 2.5f
         paint.color = Color.BLACK
@@ -177,7 +177,7 @@ object BluetoothPrinter {
 
         var y = footerPad
 
-        // ══ HEADER ══════════════════════════════════════════════
+        // ==
         // Black filled circle with batch number
         paint.color = Color.BLACK
         val circleX = pad + 8f + circleR
@@ -209,7 +209,7 @@ object BluetoothPrinter {
         // Subtitle with voucher number
         paint.textSize = 21f
         paint.typeface = android.graphics.Typeface.DEFAULT
-        canvas.drawText("ဘောင်ချာ No. ${data.voucherId}", titleX, circleY + 28f, paint)
+        canvas.drawText("Voucher No. ${data.voucherId}", titleX, circleY + 28f, paint)
 
         y += headerH + 14f
 
@@ -240,18 +240,18 @@ object BluetoothPrinter {
         drawSeparator(y)
         y += 14f
 
-        // ══ DATE + NAME ══════════════════════════════════════════
+        // ==
         paint.textSize = 26f
         paint.typeface = android.graphics.Typeface.DEFAULT
         paint.textAlign = android.graphics.Paint.Align.LEFT
         paint.color = Color.BLACK
-        canvas.drawText("ရက်စွဲ : ${data.date}", pad + 8f, y + lineH * 0.72f, paint)
+        canvas.drawText("Date: ${data.date}", pad + 8f, y + lineH * 0.72f, paint)
         y += lineH
 
-        canvas.drawText("အမည် = ${data.customerName}", pad + 8f, y + lineH * 0.72f, paint)
+        canvas.drawText("Name: ${data.customerName}", pad + 8f, y + lineH * 0.72f, paint)
         y += lineH + 12f
 
-        // ══ BET LIST ════════════════════════════════════════════
+        // ==
         paint.textSize = 28f
         paint.typeface = android.graphics.Typeface.MONOSPACE
         val betIndent = pad + 24f
@@ -273,7 +273,7 @@ object BluetoothPrinter {
         drawSeparator(y)
         y += 14f
 
-        // ══ TOTAL ════════════════════════════════════════════════
+        // ==
         // Shaded background band for total row
         paint.color = Color.BLACK
         val bandTop = y - 4f
@@ -287,7 +287,7 @@ object BluetoothPrinter {
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
         paint.textAlign = android.graphics.Paint.Align.LEFT
         paint.color = Color.BLACK
-        canvas.drawText("စုစုပေါင်း", pad + 12f, y + bigLineH * 0.55f, paint)
+        canvas.drawText("Total", pad + 12f, y + bigLineH * 0.55f, paint)
         paint.textAlign = android.graphics.Paint.Align.RIGHT
         canvas.drawText("${data.totalAmount} Ks", width - pad - 12f, y + bigLineH * 0.55f, paint)
         y += bigLineH + 8f
@@ -295,7 +295,7 @@ object BluetoothPrinter {
         drawSeparator(y)
         y += 14f
 
-        // ══ FOOTER ════════════════════════════════════════════════
+        // ==
         paint.textSize = 26f
         paint.typeface = android.graphics.Typeface.DEFAULT
         paint.textAlign = android.graphics.Paint.Align.CENTER
@@ -303,7 +303,7 @@ object BluetoothPrinter {
         canvas.drawText(data.footerText, width / 2f, y + lineH * 0.72f, paint)
         y += lineH + 12f
 
-        // ══ ZIGZAG CUT LINE ════════════════════════════════════════
+        // ==
         paint.strokeWidth = 1.5f
         paint.style = android.graphics.Paint.Style.STROKE
         paint.color = Color.BLACK
@@ -320,11 +320,11 @@ object BluetoothPrinter {
         }
         canvas.drawPath(zigPath, paint)
 
-        // "✂ ─ ─ ─" label above zigzag
+        // "--- cut ---" label above zigzag
         paint.style = android.graphics.Paint.Style.FILL
         paint.textSize = 18f
         paint.textAlign = android.graphics.Paint.Align.CENTER
-        canvas.drawText("✂  ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─", width / 2f, y + 4f, paint)
+        canvas.drawText("--- cut here ---", width / 2f, y + 4f, paint)
 
         return bitmap
     }
