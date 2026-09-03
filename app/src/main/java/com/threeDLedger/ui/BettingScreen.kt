@@ -254,29 +254,30 @@ fun BettingScreen(
         android.widget.Toast.makeText(context, "ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
     }
     
-    // Colors based on screenshot
-    val primaryBlue = Color(0xFF2196F3)
-    val buttonTeal = Color(0xFF00838F)
-    val buttonGreen = Color(0xFF2E7D32)
-    val buttonOrange = Color(0xFFEF6C00)
-    val borderColor = Color.LightGray
+    // Theme-aware color aliases (respond to Emerald-Gold palette)
+    val primaryBlue  = MaterialTheme.colorScheme.primary
+    val buttonTeal   = MaterialTheme.colorScheme.tertiary
+    val buttonGreen  = MaterialTheme.colorScheme.primaryContainer
+    val buttonOrange = MaterialTheme.colorScheme.secondary
+    val borderColor  = MaterialTheme.colorScheme.outline
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // --- TOP BAR ---
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.primaryContainer)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text("အကြိမ် : $currentBatch", fontSize = 18.sp, color = Color.Black)
+            Text("အကြိမ် : $currentBatch", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.Black, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
             }
         }
 
@@ -284,13 +285,23 @@ fun BettingScreen(
         if (showPasteDialog) {
             AlertDialog(
                 onDismissRequest = { showPasteDialog = false },
-                title = { Text("Quick Bet - Paste Numbers") },
+                title = { Text("အမြန်ထိုး — Paste", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "ဂဏန်းများ paste လုပ်ပါ\nဥပမာ: 582=5000 သို့မဟုတ် 747=1000R500",
+                            "ပံ့ပိုးသော ဖော်မတ်များ:",
                             fontSize = 12.sp,
-                            color = Color.Gray,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            "446=1000          (တစ်ကွက်တည်း)\n" +
+                            "235-615=3000       (ဂဏန်းများ-)\n" +
+                            "723-372-245-309=2000 (ဂဏန်းများ)\n" +
+                            "456=5000r1000      (R ပြောင်းပြန်)",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         OutlinedTextField(
@@ -299,7 +310,13 @@ fun BettingScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(220.dp),
-                            placeholder = { Text("582=5000\n452=2500\n747=1000R500\n...") },
+                            placeholder = {
+                                Text(
+                                    "446=1000\n235-615=3000\n723-372-245-309=2000\n813-724-648-247-369=5000\n456=5000r1000\n...",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            },
                             maxLines = 30
                         )
                     }
@@ -311,7 +328,7 @@ fun BettingScreen(
                             showPasteDialog = false
                             pasteText = ""
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = buttonTeal)
+                        colors = ButtonDefaults.buttonColors(containerColor = primaryBlue)
                     ) { Text("ထည့်မည်") }
                 },
                 dismissButton = {
@@ -363,11 +380,11 @@ fun BettingScreen(
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("စဉ်", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                Text("|", color = Color.White)
-                Text("ဂဏန်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                Text("|", color = Color.White)
-                Text("ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("စဉ်", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("|", color = MaterialTheme.colorScheme.onPrimary)
+                Text("ဂဏန်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("|", color = MaterialTheme.colorScheme.onPrimary)
+                Text("ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             }
             
             // List
@@ -384,11 +401,11 @@ fun BettingScreen(
                             },
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("${i + 1}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Black)
-                        Text("${bet.number}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Black)
-                        Text("${bet.amount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = Color.Black)
+                        Text("${i + 1}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
+                        Text("${bet.number}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("${bet.amount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    Divider(color = Color.LightGray)
+                    Divider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }
@@ -410,18 +427,18 @@ fun BettingScreen(
             Button(
                 onClick = { pasteText = ""; showPasteDialog = true },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.White.copy(alpha = 0.2f),
-                    contentColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f),
+                    contentColor = MaterialTheme.colorScheme.onPrimary
                 ),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text("အမြန်ထိုးရွေးပါ", color = Color.White, fontSize = 14.sp)
+                Text("အမြန်ထိုးရွေးပါ", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp)
             }
 
-            Text("စုစုပေါင်း = $totalAmount", color = Color.White, fontSize = 16.sp)
+            Text("စုစုပေါင်း = $totalAmount", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ထိုးရန်", color = Color.White, fontSize = 16.sp, modifier = Modifier.padding(end = 4.dp))
+                Text("ထိုးရန်", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, modifier = Modifier.padding(end = 4.dp))
                 Switch(
                     checked = isSwitchChecked,
                     onCheckedChange = { 
@@ -432,10 +449,10 @@ fun BettingScreen(
                         }
                     },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = buttonGreen,
-                        uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color.LightGray
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = MaterialTheme.colorScheme.secondary,
+                        uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        uncheckedTrackColor = MaterialTheme.colorScheme.outline
                     )
                 )
             }
@@ -455,10 +472,10 @@ fun BettingScreen(
                     .height(48.dp)
                     .clickable { focusedField = FocusField.NUMBER }
                     .border(2.dp, if (focusedField == FocusField.NUMBER) buttonTeal else borderColor)
-                    .background(Color.White),
+                    .background(MaterialTheme.colorScheme.surface),
                 contentAlignment = Alignment.Center
             ) {
-                Text(if (tempNumber.isEmpty()) "ဂဏန်း" else tempNumber, color = Color.Gray, fontSize = 18.sp)
+                Text(if (tempNumber.isEmpty()) "ဂဏန်း" else tempNumber, color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             // Bet Type Box
             Box(
@@ -498,8 +515,8 @@ fun BettingScreen(
                 Button(
                     onClick = { currentBetType = type },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isSelected) primaryBlue else Color.LightGray,
-                        contentColor = if (isSelected) Color.White else Color.Black
+                        containerColor = if (isSelected) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                     ),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
@@ -525,7 +542,7 @@ fun BettingScreen(
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isSelected) buttonOrange else buttonTeal,
-                        contentColor = Color.White
+                        contentColor = MaterialTheme.colorScheme.onSecondary
                     ),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
