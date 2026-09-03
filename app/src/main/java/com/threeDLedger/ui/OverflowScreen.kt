@@ -48,9 +48,13 @@ fun OverflowScreen(
 
     // Sort exposures
     val overflowExposures = ledgerExposures.filter { it.overflowAmount > 0 }.sortedByDescending { it.overflowAmount }
-    val allExposures = ledgerExposures.filter { it.totalBetAmount > 0 }.sortedByDescending { it.totalBetAmount }
+    // Left: only numbers with bets that are AT or BELOW the brake limit (non-zero)
+    // If brakeLimit == 0 (not configured), fall back to showing all non-zero bets
+    val brakedExposures = ledgerExposures.filter {
+        it.totalBetAmount > 0 && (brakeLimit <= 0 || it.totalBetAmount <= brakeLimit)
+    }.sortedByDescending { it.totalBetAmount }
 
-    val totalAll = allExposures.sumOf { it.totalBetAmount }
+    val totalBraked = brakedExposures.sumOf { it.totalBetAmount }
     val totalOverflow = overflowExposures.sumOf { it.overflowAmount }
 
     val orangeColor = MaterialTheme.colorScheme.tertiary
@@ -376,14 +380,21 @@ fun OverflowScreen(
 
             // Tables
             Row(modifier = Modifier.fillMaxSize().padding(4.dp)) {
-                // Left Table — All bets
+                // Left Table — Bets within brake limit (≤ brakeLimit, > 0)
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
                         Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                        Text("ပမာဏ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("ဘရိတ်အတ်ွင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
-                        items(allExposures) { exposure ->
+                        if (brakedExposures.isEmpty()) {
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("ထိုးမှု မရှိသောပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                        items(brakedExposures) { exposure ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                                 Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold)
                                 Text("${exposure.totalBetAmount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
@@ -393,15 +404,15 @@ fun OverflowScreen(
                     }
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
                         Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                        Text("$totalAll", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("$totalBraked", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 // Right Table — Overflow only
-                Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
-                        Text("ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.weight(1f).border(1.dp, MaterialTheme.colorScheme.error).padding(2.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error).padding(8.dp)) {
+                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (overflowExposures.isEmpty()) {
