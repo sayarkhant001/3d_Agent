@@ -45,10 +45,25 @@ fun UpdateDialogHandler(owner: String, repo: String) {
         coroutineScope.launch {
             val info = GitHubUpdater.checkForUpdates(owner, repo)
             if (info != null) {
-                // tag: "build-45" → run number 45
-                // versionName: "1.0.45" → run number 45
-                val fetchedRunNumber = info.version.substringAfterLast("-").toIntOrNull() ?: 0
-                val currentRunNumber = currentVersion.substringAfterLast(".").toIntOrNull() ?: 0
+                // Tag format: "v1.0.47" or "build-47"
+                // versionName format: "1.0.47" where 47 = GITHUB_RUN_NUMBER
+                // Extract the run number from the END of each version string
+                val fetchedRunNumber = info.version
+                    .trimStart('v')          // "v1.0.47" → "1.0.47"
+                    .split(".", "-")         // ["1","0","47"] or ["build","47"]
+                    .lastOrNull { it.all { c -> c.isDigit() } }
+                    ?.toIntOrNull() ?: 0
+
+                val currentRunNumber = currentVersion
+                    .trimStart('v')
+                    .split(".", "-")
+                    .lastOrNull { it.all { c -> c.isDigit() } }
+                    ?.toIntOrNull() ?: 0
+
+                android.util.Log.d("UpdateChecker",
+                    "tag=${info.version} fetchedRun=$fetchedRunNumber " +
+                    "currentVer=$currentVersion currentRun=$currentRunNumber")
+
                 if (fetchedRunNumber > currentRunNumber) {
                     updateInfo = info
                     showUpdateDialog = true
