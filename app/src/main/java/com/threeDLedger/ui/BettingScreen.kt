@@ -32,44 +32,71 @@ fun String.myanmarToEnglish(): String {
     }.joinToString("")
 }
 
-// Normalise a raw pasted line into a list of Bet objects
-// Supported formats (after Myanmar→English conversion):
-//   582=5000        → single bet
-//   747=1000R500    → normal bet + all permutations at R-amount
-//   747=1000r500    → same, case-insensitive
-//   582-5000  582:5000  582 5000  → alternate separators
+// Parse one line of pasted bet text into a list of (number, amount) pairs.
+// Handles ALL these real-world formats:
+//   723-372-245-309 = 2000      → 4 numbers at 2000
+//   446=1000                    → 1 number at 1000
+//   235-615 = 3000              → 2 numbers at 3000
+//   456=5000r1000               → 456 at 5000, permutations at 1000
+//   185-217-378-549 = 10000     → 4 numbers at 10000
+//   813-724-648-247-369 = 5000  → 5 numbers at 5000
 fun parsePastedLine(raw: String): List<Pair<String, Int>> {
+    // Convert Myanmar digits → English and trim
     val line = raw.trim().myanmarToEnglish()
     if (line.isBlank()) return emptyList()
 
-    // Strip leading non-digit/non-letter noise (emoji, bullets, dashes)
-    val cleaned = line.trimStart { !it.isLetterOrDigit() }
+    // Normalise: remove spaces around separators, normalise R
+    var text = line.replace(Regex("""\s*([=:\-/.,_])\s*"""), "$1")
+    text = text.replace(Regex("""\s*[Rr]\s*"""), "R")
 
-    // Regex: (3-digit number)(separator)(amount)(optional R/r amount)
-    val regex = Regex("""(\d{3})[=:\-\s]+(\d+)(?:[Rr](\d+))?""", RegexOption.IGNORE_CASE)
-    val match = regex.find(cleaned) ?: return emptyList()
+    // Find the AMOUNT at the end: (optional separator)(digits)(optional R digits)$
+    // e.g. "=2000", "=5000R1000", "-3000"
+    val tailRegex = Regex("""[=:\-/.,_]?(\d+)(?:R(\d+))?$""")
+    val tailMatch = tailRegex.find(text) ?: return emptyList()
 
-    val number = match.groupValues[1].padStart(3, '0')
-    val amount = match.groupValues[2].toIntOrNull() ?: return emptyList()
-    val rAmount = match.groupValues[3].toIntOrNull()
+    val amount = tailMatch.groupValues[1].toIntOrNull() ?: return emptyList()
+    val rAmount = tailMatch.groupValues[2].toIntOrNull() // may be null
+
+    // Everything BEFORE the tail match is the numbers section
+    val numbersStr = text.substring(0, tailMatch.range.first)
+    if (numbersStr.isBlank()) return emptyList()
+
+    // Split numbers by any separator character
+    val chunks = numbersStr.split(Regex("""[=:\-/.,_\s]+"""))
 
     val results = mutableListOf<Pair<String, Int>>()
-    if (amount > 0) results.add(number to amount)
+    for (chunk in chunks) {
+        if (chunk.isBlank()) continue
+        val hasR = chunk.endsWith("R", ignoreCase = true)
+        val baseNum = if (hasR) chunk.dropLast(1) else chunk
 
-    // R-suffix: generate all unique permutations of the number at rAmount
-    if (rAmount != null && rAmount > 0) {
-        val perms = NumberGenerator.permutations(number)
-        perms.forEach { perm ->
-            if (perm != number) results.add(perm to rAmount)
+        // Accept 2-digit or 3-digit numbers only
+        if (baseNum.length !in 2..3 || !baseNum.all { it.isDigit() }) continue
+
+        results.add(baseNum to amount)
+
+        when {
+            // Global R amount (e.g. 456=5000R1000 → permutations at 1000)
+            rAmount != null && rAmount > 0 -> {
+                NumberGenerator.permutations(baseNum).forEach { perm ->
+                    if (perm != baseNum) results.add(perm to rAmount)
+                }
+            }
+            // Number-local R marker (e.g. "456R=5000" → permutations at same amount)
+            hasR -> {
+                NumberGenerator.permutations(baseNum).forEach { perm ->
+                    if (perm != baseNum) results.add(perm to amount)
+                }
+            }
         }
-        // Also include the original at rAmount if R is present (full permutation set)
-        results.add(number to rAmount)
-        // Remove duplicates, keeping last value for same key
-        return results.distinctBy { it.first }
     }
 
-    return results
+    // De-duplicate: if the same number appears twice, sum amounts
+    val merged = linkedMapOf<String, Int>()
+    results.forEach { (num, amt) -> merged[num] = (merged[num] ?: 0) + amt }
+    return merged.entries.map { it.key to it.value }
 }
+
 
 enum class FocusField { NUMBER, AMOUNT }
 
