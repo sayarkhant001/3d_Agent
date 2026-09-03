@@ -53,6 +53,11 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     val printerSettings = MutableStateFlow("")
     val bannedNumberEvent = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>()
 var brakeLimit = MutableStateFlow(3000)
+
+    fun saveBrakeLimit(value: Int) {
+        brakeLimit.value = value
+        prefs.edit().putInt("brakeLimit", value).apply()
+    }
     
     val ledgerExposures: StateFlow<List<LedgerExposure>> = kotlinx.coroutines.flow.combine(
         vouchersWithBets,
@@ -63,6 +68,7 @@ var brakeLimit = MutableStateFlow(3000)
         val batchVouchers = vouchers.filter { it.voucher.batchNumber == batch }
         val batchExports = exports.filter { it.record.batchNumber == batch }
 
+        // Total bets per number (gross)
         val betMap = mutableMapOf<String, Int>()
         batchVouchers.forEach { vb ->
             vb.bets.forEach { bet ->
@@ -70,6 +76,7 @@ var brakeLimit = MutableStateFlow(3000)
             }
         }
 
+        // All exported amounts per number (both overflow and under-brake exports)
         val exportMap = mutableMapOf<String, Int>()
         batchExports.forEach { eb ->
             eb.numbers.forEach { num ->
@@ -77,11 +84,24 @@ var brakeLimit = MutableStateFlow(3000)
             }
         }
 
+        // Overflow-specific exported amounts per number
+        val overflowExportMap = mutableMapOf<String, Int>()
+        batchExports
+            .filter { it.record.type.contains("Overflow") }
+            .forEach { eb ->
+                eb.numbers.forEach { num ->
+                    overflowExportMap[num.number] = (overflowExportMap[num.number] ?: 0) + num.amount
+                }
+            }
+
         val results = mutableListOf<LedgerExposure>()
         betMap.forEach { (number, grossAmount) ->
             val exported = exportMap[number] ?: 0
             val netHeld = grossAmount - exported
-            val overflow = if (netHeld > brake) netHeld - brake else 0
+            // Remaining overflow = amount above brake that has NOT yet been exported to upper agent
+            val alreadyExportedOverflow = overflowExportMap[number] ?: 0
+            val rawOverflow = if (grossAmount > brake) grossAmount - brake else 0
+            val overflow = maxOf(0, rawOverflow - alreadyExportedOverflow)
             if (grossAmount > 0) {
                 results.add(LedgerExposure(number, grossAmount, exported, netHeld, overflow))
             }
@@ -138,6 +158,7 @@ var brakeLimit = MutableStateFlow(3000)
         appPassword.value = prefs.getString("appPassword", "") ?: ""
         voucherFooterText.value = prefs.getString("voucherFooterText", "ထွက်လျော်မည်။") ?: "ထွက်လျော်မည်။"
         printerSettings.value = prefs.getString("printerSettings", "") ?: ""
+        brakeLimit.value = prefs.getInt("brakeLimit", 3000)
     }
 
     fun updateAppPassword(password: String) {

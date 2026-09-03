@@ -6,20 +6,31 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,7 +42,10 @@ fun OverflowScreen(
     val ledgerExposures by viewModel.ledgerExposures.collectAsStateWithLifecycle()
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     val brakeLimit by viewModel.brakeLimit.collectAsStateWithLifecycle()
-    
+    val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
     // Sort exposures
     val overflowExposures = ledgerExposures.filter { it.overflowAmount > 0 }.sortedByDescending { it.overflowAmount }
     val allExposures = ledgerExposures.filter { it.totalBetAmount > 0 }.sortedByDescending { it.totalBetAmount }
@@ -41,12 +55,14 @@ fun OverflowScreen(
 
     val orangeColor = MaterialTheme.colorScheme.tertiary
     val blueColor = MaterialTheme.colorScheme.primary
-    
+
     var showBrakeDialog by remember { mutableStateOf(false) }
 
-    var showOverflowCopiedDialog by remember { mutableStateOf(false) }
-    var overflowCopiedText by remember { mutableStateOf("") }
+    // Overflow voucher dialog state — holds a snapshot taken at the moment "တင်မည်" was pressed
+    data class OverflowSnapshot(val items: List<Pair<String, Int>>, val total: Int, val timestamp: String, val batch: Int)
+    var overflowSnapshot by remember { mutableStateOf<OverflowSnapshot?>(null) }
 
+    // ── Brake Limit Dialog ──────────────────────────────────────────────────
     if (showBrakeDialog) {
         var brakeInput by remember { mutableStateOf(brakeLimit.toString()) }
         AlertDialog(
@@ -55,53 +71,238 @@ fun OverflowScreen(
             text = {
                 OutlinedTextField(
                     value = brakeInput,
-                    onValueChange = { brakeInput = it },
-                    label = { Text("ဘရိတ် (Brake Limit)") }
+                    onValueChange = { brakeInput = it.filter { c -> c.isDigit() } },
+                    label = { Text("ဘရိတ် (Brake Limit)") },
+                    singleLine = true
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    brakeInput.toIntOrNull()?.let { viewModel.brakeLimit.value = it }
+                    brakeInput.toIntOrNull()?.let { viewModel.saveBrakeLimit(it) }
                     showBrakeDialog = false
                 }) { Text("သိမ်းမည်") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBrakeDialog = false }) { Text("မလုပ်တော့") }
             }
         )
     }
 
-    if (showOverflowCopiedDialog) {
-        AlertDialog(
-            onDismissRequest = { 
-                showOverflowCopiedDialog = false 
-                onNavigateToExportHistory() 
+    // ── Overflow Voucher Dialog ─────────────────────────────────────────────
+    val snapshot = overflowSnapshot
+    if (snapshot != null) {
+        val voucherText = buildString {
+            appendLine("========================")
+            appendLine("      တင်ကွက် VOUCHER    ")
+            appendLine("========================")
+            appendLine(" အကြိမ်   : ${snapshot.batch}")
+            appendLine(" အချိန်   : ${snapshot.timestamp}")
+            appendLine("------------------------")
+            snapshot.items.forEach { (num, amt) ->
+                appendLine(" ${num.padEnd(5)} = $amt")
+            }
+            appendLine("------------------------")
+            appendLine(" စုစုပေါင်း : ${snapshot.total} Ks")
+            appendLine("========================")
+            appendLine("   *** Upper Agent ***  ")
+            appendLine("========================")
+        }
+
+        Dialog(
+            onDismissRequest = {
+                overflowSnapshot = null
+                onNavigateToExportHistory()
             },
-            title = { Text("တင်ကွက်များ (Overflows)") },
-            text = { 
-                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
-                    item { Text(overflowCopiedText) }
-                }
-            },
-            confirmButton = {
-                val context = androidx.compose.ui.platform.LocalContext.current
-                Button(onClick = {
-                    val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("Overflows", overflowCopiedText)
-                    clipboardManager.setPrimaryClip(clip)
-                    android.widget.Toast.makeText(context, "Copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
-                    showOverflowCopiedDialog = false
-                    onNavigateToExportHistory()
-                }) {
-                    Text("Copy")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { 
-                    showOverflowCopiedDialog = false
-                    onNavigateToExportHistory() 
-                }) {
-                    Text("Skip")
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .wrapContentHeight(),
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 8.dp
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // ── Title ──
+                    Text(
+                        "တင်ကွက် Voucher",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = blueColor,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(4.dp))
+
+                    // ── Header info ──
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(blueColor.copy(alpha = 0.1f), MaterialTheme.shapes.small)
+                            .padding(8.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("အကြိမ် : ${snapshot.batch}", fontWeight = FontWeight.SemiBold)
+                            Text(snapshot.timestamp, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // ── Divider header ──
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(orangeColor)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            "ဂဏန်း",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "ပမာဏ",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    // ── Number rows ──
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState())
+                            .border(1.dp, orangeColor.copy(alpha = 0.4f))
+                    ) {
+                        snapshot.items.forEachIndexed { index, (num, amt) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(if (index % 2 == 0) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    num,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    "$amt Ks",
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            if (index < snapshot.items.lastIndex) {
+                                Divider(color = Color.LightGray, thickness = 0.5.dp)
+                            }
+                        }
+                    }
+
+                    // ── Footer total ──
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(orangeColor)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("စုစုပေါင်း", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("${snapshot.total} Ks", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    // ── Action buttons ──
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Print button
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    try {
+                                        val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                        val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
+                                        val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
+                                            batchNumber = snapshot.batch,
+                                            voucherId = 0,
+                                            date = snapshot.timestamp,
+                                            customerName = "Upper Agent (တင်ကွက်)",
+                                            bets = snapshot.items,
+                                            totalAmount = snapshot.total,
+                                            footerText = "*** Upper Agent Overflow ***"
+                                        )
+                                        val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
+                                        com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(context, "ပရင်တာ error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                        ) {
+                            Icon(Icons.Default.Print, contentDescription = null, tint = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Print", color = Color.White)
+                        }
+
+                        // Copy button
+                        Button(
+                            onClick = {
+                                val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                val clip = android.content.ClipData.newPlainText("Overflow Voucher", voucherText)
+                                clipboardManager.setPrimaryClip(clip)
+                                android.widget.Toast.makeText(context, "Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = blueColor)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Copy", color = Color.White)
+                        }
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+
+                    // Close / go to history
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { overflowSnapshot = null },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("ပိတ်မည်")
+                        }
+                        TextButton(
+                            onClick = {
+                                overflowSnapshot = null
+                                onNavigateToExportHistory()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("မှတ်တမ်းကြည့်မည်")
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     Scaffold(
@@ -129,19 +330,21 @@ fun OverflowScreen(
                     Text("မှတ်တမ်းများ", color = MaterialTheme.colorScheme.onPrimary)
                 }
                 Button(
-                    onClick = { 
+                    onClick = {
                         if (overflowExposures.isNotEmpty()) {
-                            val textBuilder = StringBuilder()
-                            overflowExposures.forEach {
-                                textBuilder.append("${it.number} = ${it.overflowAmount}\n")
-                            }
-                            overflowCopiedText = textBuilder.toString().trim()
-                            showOverflowCopiedDialog = true
+                            // Snapshot BEFORE export so we can display what was sent
+                            val items = overflowExposures.map { it.number to it.overflowAmount }
+                            val total = overflowExposures.sumOf { it.overflowAmount }
+                            val ts = SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date())
+                            overflowSnapshot = OverflowSnapshot(items, total, ts, currentBatch)
+                            // Record export in DB — overflowAmount will recalculate to 0 reactively
                             viewModel.exportOverflow()
                         }
                     },
                     modifier = Modifier.weight(1f).height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = blueColor),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (overflowExposures.isNotEmpty()) blueColor else Color.Gray
+                    ),
                     shape = MaterialTheme.shapes.small
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
@@ -160,19 +363,26 @@ fun OverflowScreen(
             ) {
                 Text("အကြိမ် : $currentBatch", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp)
                 Spacer(modifier = Modifier.width(32.dp))
-                Text("ဘရိတ် : $brakeLimit", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, modifier = Modifier.clickable { showBrakeDialog = true }.padding(4.dp))
+                Text(
+                    "ဘရိတ် : $brakeLimit",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable { showBrakeDialog = true }
+                        .background(Color.White.copy(alpha = 0.15f), MaterialTheme.shapes.small)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                )
             }
 
             // Tables
             Row(modifier = Modifier.fillMaxSize().padding(4.dp)) {
-                // Left Table
+                // Left Table — All bets
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
-                    // Header
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                        Text("ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
-                    LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.onPrimary)) {
+                    LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         items(allExposures) { exposure ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                                 Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
@@ -181,33 +391,55 @@ fun OverflowScreen(
                             Divider(color = Color.LightGray, thickness = 0.5.dp)
                         }
                     }
-                    // Footer
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                        Text("$totalAll", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("$totalAll", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
-                // Right Table
+                // Right Table — Overflow only
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
-                    // Header
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                        Text("ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
-                    LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.onPrimary)) {
+                    LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
+                        if (overflowExposures.isEmpty()) {
+                            item {
+                                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text("ကျော်မှု မရှိပါ", color = Color.Gray, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
                         items(overflowExposures) { exposure ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                                Text("${exposure.overflowAmount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f))
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                Text(
+                                    exposure.number,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "${exposure.overflowAmount}",
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                             Divider(color = Color.LightGray, thickness = 0.5.dp)
                         }
                     }
-                    // Footer
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(8.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
-                        Text("$totalOverflow", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                    Row(modifier = Modifier.fillMaxWidth().background(
+                        if (totalOverflow > 0) MaterialTheme.colorScheme.error else orangeColor
+                    ).padding(8.dp)) {
+                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
+                        Text("$totalOverflow", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold)
                     }
                 }
             }
