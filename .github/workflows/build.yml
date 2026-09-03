@@ -34,19 +34,28 @@ jobs:
       - name: Build Debug APK
         env:
           JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
-        run: ./gradlew assembleDebug --no-daemon --no-configuration-cache --stacktrace
+        run: ./gradlew assembleDebug --no-daemon --no-configuration-cache --stacktrace 2>&1 | tee build_output.txt; grep -E "^e:|error:|FAILED|KSP" build_output.txt | head -40 || true
 
       - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build_output.txt
+          retention-days: 7
+
       - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         continue-on-error: true
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' && success()
         with:
           tag_name: build-${{ github.run_number }}
           name: "Build #${{ github.run_number }}"
