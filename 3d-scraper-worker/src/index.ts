@@ -1,10 +1,9 @@
 /**
  * MODULE 1: Scraper & Broadcaster
  * Fetches Myanmar 3D results from Thai Stock Exchange data
- * via thaistock2d.com API and pushes to Firebase.
- * 
- * Cron runs daily at 11:05 UTC (5:35 PM Myanmar time)
- * to capture the 4:30 PM closing result.
+ * via thaistock2d.com API and pushes to Firebase (authenticated via service account).
+ *
+ * Cron: weekdays at 05:35 UTC (12:05 PM MMT) and 11:05 UTC (5:35 PM MMT)
  */
 
 export interface Env {
@@ -26,28 +25,16 @@ interface LiveResult {
 
 interface LiveResponse {
   server_time: string;
-  live: {
-    set: string;
-    value: string;
-    time: string;
-    twod: string;
-    date: string;
-  };
+  live: { set: string; value: string; time: string; twod: string; date: string; };
   result: LiveResult[];
-  holiday: {
-    status: string;
-    date: string;
-    name: string;
-  };
+  holiday: { status: string; date: string; name: string; };
 }
 
 export default {
-  // Cron trigger handler
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(processDraw(env));
   },
 
-  // HTTP handler for manual testing
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'GET') {
       try {
@@ -56,9 +43,8 @@ export default {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (e: any) {
-        return new Response(JSON.stringify({ status: 'error', message: e.message, stack: e.stack }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
+        return new Response(JSON.stringify({ status: 'error', message: e.message }), {
+          status: 500, headers: { 'Content-Type': 'application/json' }
         });
       }
     }
@@ -66,165 +52,191 @@ export default {
   }
 };
 
+// ── Firebase Auth via Service Account ────────────────────────────────────────
+
+async function getFirebaseToken(env: Env): Promise<string> {
+  // Strip UTF-8 BOM if present (secret may have been saved with BOM)
+  const rawJson = env.GOOGLE_SERVICE_ACCOUNT_JSON.replace(/^\uFEFF/, '').trim();
+  const sa = JSON.parse(rawJson);
+  const now = Math.floor(Date.now() / 1000);
+
+  // Build JWT header + payload
+  const header  = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email'
+  };
+
+  const enc = (obj: object) =>
+    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const sigInput = `${enc(header)}.${enc(payload)}`;
+
+  // Import the RSA private key
+  const pemBody = sa.private_key
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '');
+  const keyDer = Uint8Array.from(atob(pemBody), c => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    'pkcs8', keyDer.buffer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false, ['sign']
+  );
+
+  // Sign
+  const sigBuf  = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(sigInput));
+  const sig     = btoa(String.fromCharCode(...new Uint8Array(sigBuf)))
+                    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const jwt     = `${sigInput}.${sig}`;
+
+  // Exchange JWT for access token
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+  });
+  const tokenData = await tokenRes.json() as { access_token: string };
+  return tokenData.access_token;
+}
+
+// ── Main Logic ────────────────────────────────────────────────────────────────
+
 async function processDraw(env: Env) {
-  // 1. Check admin control mode
-  const modeRes = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/mode.json`);
-  const mode = await modeRes.json();
-  if (mode === 'manual') return;
+  // 1. Get Firebase auth token
+  const token = await getFirebaseToken(env);
+  const authHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // 2. Fetch from thaistock2d.com API
+  // 2. Check admin mode (non-blocking)
+  try {
+    const modeRes = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/mode.json`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (modeRes.ok) {
+      const mode = await modeRes.json();
+      if (mode === 'manual') { console.log('Manual mode, skipping.'); return; }
+    }
+  } catch (_) {}
+
+  // 3. Fetch from thaistock2d.com
   const result = await fetchFromThaiStock();
-
   if (!result) {
-    // Alert via Telegram if fetch failed
-    await sendTelegramAlert(env, 
-      '⚠️ Failed to fetch 3D results from API. It may be a holiday or market is still open. Check manually.');
+    await sendTelegramAlert(env, '⚠️ No 3D result available. Market may still be open or holiday.');
     return;
   }
 
-  // 3. Get current data from Firebase for archiving
-  const currentResultsRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`);
-  const currentResults = await currentResultsRes.json() as Record<string, unknown> | null;
+  // 4. Get current Firebase data for archiving
+  let currentResults: Record<string, unknown> | null = null;
+  try {
+    const cr = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (cr.ok) currentResults = await cr.json() as any;
+  } catch (_) {}
 
-  // 4. Calculate next draw date (next business day)
+  // 5. Build update payload
   const nextDate = calculateNextDrawDate(result.date);
-
-  // 5. Build Firebase update payload
   const updates: Record<string, unknown> = {
-    '3d_live_results/winning_number': result.threeD,
+    '3d_live_results/winning_number':   result.threeD,
     '3d_live_results/target_draw_date': nextDate,
-    '3d_live_results/set_value': result.setValue,
-    '3d_live_results/trade_value': result.tradeValue,
-    '3d_live_results/twod': result.twoD,
-    '3d_live_results/result_date': result.date,
-    '3d_live_results/updated_at': new Date().toISOString(),
-    '3d_lottery_status/state': 'declared'
+    '3d_live_results/set_value':        result.setValue,
+    '3d_live_results/trade_value':      result.tradeValue,
+    '3d_live_results/twod':             result.twoD,
+    '3d_live_results/result_date':      result.date,
+    '3d_live_results/result_time':      result.session,
+    '3d_live_results/is_final':         result.isFinal,
+    '3d_live_results/updated_at':       new Date().toISOString(),
+    '3d_lottery_status/state':          result.isFinal ? 'declared' : 'interim',
   };
 
-  // Archive previous results
-  const anyResults = currentResults as any;
-  if (anyResults && anyResults.winning_number) {
-    updates['3d_live_results/previous_winning_number'] = anyResults.winning_number;
-    updates['3d_live_results/previous_draw_date'] = anyResults.result_date || anyResults.target_draw_date;
+  const anyRes = currentResults as any;
+  if (anyRes?.winning_number && anyRes?.is_final === true) {
+    updates['3d_live_results/previous_winning_number'] = anyRes.winning_number;
+    updates['3d_live_results/previous_draw_date']      = anyRes.result_date || anyRes.target_draw_date;
   }
 
-  // 6. Push to Firebase
-  await fetch(`${env.FIREBASE_DB_URL}/.json`, {
+  // 6. Write to Firebase (authenticated)
+  const patchRes = await fetch(`${env.FIREBASE_DB_URL}/.json`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders,
     body: JSON.stringify(updates)
   });
 
-  // 7. Send Telegram notification
-  await sendTelegramAlert(env, 
-    `✅ 3D Result for ${result.date}\n\n🎯 3D: ${result.threeD}\n📊 SET: ${result.setValue}\n💰 Value: ${result.tradeValue}\n🔢 2D: ${result.twoD}`
+  if (!patchRes.ok) {
+    const errText = await patchRes.text();
+    throw new Error(`Firebase PATCH failed: ${patchRes.status} ${errText}`);
+  }
+
+  // 7. Telegram
+  const label = result.isFinal ? '✅ FINAL' : '⏳ Interim';
+  await sendTelegramAlert(env,
+    `${label} 3D — ${result.date} (${result.session})\n\n🎯 3D: ${result.threeD}\n📊 SET: ${result.setValue}\n💰 Value: ${result.tradeValue}\n🔢 2D: ${result.twoD}`
   );
 }
 
+// Session priority order
+const SESSION_PRIORITY = ['16:30:00', '15:00:00', '12:00:00', '11:00:00'];
+const FINAL_SESSIONS   = new Set(['16:30:00', '15:00:00']);
+
 async function fetchFromThaiStock(): Promise<{
-  threeD: string;
-  twoD: string;
-  setValue: string;
-  tradeValue: string;
-  date: string;
+  threeD: string; twoD: string; setValue: string; tradeValue: string;
+  date: string; session: string; isFinal: boolean;
 } | null> {
   try {
-    const res = await fetch('https://api.thaistock2d.com/live', {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
-    });
+    const res  = await fetch('https://api.thaistock2d.com/live', { headers: { 'User-Agent': 'Mozilla/5.0' } });
     const data = await res.json() as LiveResponse;
 
-    // Check if it's a holiday
-    if (data.holiday && data.holiday.status === '1') {
-      return null;
+    if (data.holiday?.status === '1') return null;
+
+    // Best session with real data
+    let best: LiveResult | null = null;
+    for (const t of SESSION_PRIORITY) {
+      const r = data.result.find(r => r.open_time === t);
+      if (r?.history_id && r.set !== '--' && r.value !== '--') { best = r; break; }
     }
-
-    // Find the 4:30 PM (16:30) closing result - this is the official 3D result
-    const closingResult = data.result.find(r => r.open_time === '16:30:00');
-    
-    // Also try the 3:00 PM result as fallback (some days close earlier)
-    const afternoonResult = data.result.find(r => r.open_time === '15:00:00');
-
-    const finalResult = closingResult?.history_id ? closingResult : 
-                        afternoonResult?.history_id ? afternoonResult : null;
-
-    if (!finalResult || finalResult.set === '--' || !finalResult.history_id) {
-      // Market hasn't closed yet or no data
-      // Use the last available closing result
-      const latestWithData = data.result
-        .filter(r => r.history_id !== null && r.set !== '--')
-        .pop();
-      
-      if (!latestWithData) return null;
-
-      // Extract 3D from SET value (last 3 digits before decimal)
-      const threeD = extract3D(latestWithData.value);
-      
-      return {
-        threeD,
-        twoD: latestWithData.twod,
-        setValue: latestWithData.set,
-        tradeValue: latestWithData.value,
-        date: latestWithData.stock_date
-      };
+    if (!best) {
+      best = data.result.filter(r => r.history_id && r.set !== '--' && r.value !== '--').pop() ?? null;
     }
-
-    // Extract 3D from SET value (last 3 digits before decimal)
-    const threeD = extract3D(finalResult.value);
+    if (!best) return null;
 
     return {
-      threeD,
-      twoD: finalResult.twod,
-      setValue: finalResult.set,
-      tradeValue: finalResult.value,
-      date: finalResult.stock_date
+      threeD:     extract3D(best.value),
+      twoD:       best.twod,
+      setValue:   best.set,
+      tradeValue: best.value,
+      date:       best.stock_date,
+      session:    best.open_time.substring(0, 5),
+      isFinal:    FINAL_SESSIONS.has(best.open_time),
     };
   } catch (e) {
-    console.error('Failed to fetch from thaistock2d:', e);
+    console.error('fetchFromThaiStock error:', e);
     return null;
   }
 }
 
-/**
- * Extract 3D number from SET trade value
- * e.g., "44,153.28" → remove commas → "44153.28" → integer part "44153" → last 3 = "153"
- */
 function extract3D(value: string): string {
-  const cleanValue = value.replace(/,/g, '');
-  const intPart = cleanValue.split('.')[0];
-  return intPart.slice(-3).padStart(3, '0');
+  const clean = value.replace(/,/g, '');
+  return clean.split('.')[0].slice(-3).padStart(3, '0');
 }
 
 async function sendTelegramAlert(env: Env, message: string) {
   if (!env.TELEGRAM_BOT_TOKEN) return;
-  
   try {
-    const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-    await fetch(url, {
+    await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: env.TELEGRAM_CHAT_ID,
-        text: message,
-        parse_mode: 'HTML'
-      })
+      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: message })
     });
-  } catch (e) {
-    console.error('Telegram alert failed:', e);
-  }
+  } catch (_) {}
 }
 
-/**
- * Calculate next business day (skip weekends)
- */
 function calculateNextDrawDate(currentDate: string): string {
   const d = new Date(currentDate);
   d.setDate(d.getDate() + 1);
-  
-  // Skip Saturday (6) and Sunday (0)
-  while (d.getDay() === 0 || d.getDay() === 6) {
-    d.setDate(d.getDate() + 1);
-  }
-  
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
