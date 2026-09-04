@@ -418,8 +418,6 @@ fun BettingScreen(
             )
         }
 
-            )
-        }
 
         // --- CUSTOMER ROW ---
         Box(
