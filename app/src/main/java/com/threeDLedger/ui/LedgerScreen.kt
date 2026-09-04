@@ -368,8 +368,8 @@ private fun NumberTableRow(
             fontWeight = FontWeight.Bold,
             fontSize   = 18.sp,
             fontFamily = FontFamily.Monospace,
-            modifier   = Modifier.weight(1f),
-            textAlign  = TextAlign.Center
+            modifier   = Modifier.weight(1f).padding(end = 12.dp),
+            textAlign  = TextAlign.End
         )
     }
 }

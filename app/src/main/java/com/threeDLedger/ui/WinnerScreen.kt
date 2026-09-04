@@ -431,7 +431,8 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                 }
                 Text("%,.0f Ks".format(vs.totalPayout), fontWeight = FontWeight.Bold,
                     fontSize = 13.sp, fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary)
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(end = 8.dp))
             }
             Spacer(Modifier.height(8.dp))
             // Bet rows

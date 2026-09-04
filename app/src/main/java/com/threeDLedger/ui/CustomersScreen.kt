@@ -270,7 +270,8 @@ private fun CustomerCard(
                     )
                     Text(
                         "ကော် ($commPct%%): %,d".format(commCut),
-                        color = CDim, fontSize = 13.sp
+                        color = CDim, fontSize = 13.sp,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                 }
                 Row(
@@ -283,7 +284,8 @@ private fun CustomerCard(
                     )
                     Text(
                         "ပေးငွေ: %,d".format(customer.paidAmount.toInt()),
-                        color = CDim, fontSize = 13.sp
+                        color = CDim, fontSize = 13.sp,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                 }
                 Spacer(Modifier.height(4.dp))
@@ -605,7 +607,8 @@ fun AgentNumbersView(
                         "%,d Ks".format(totalAmount),
                         color = Color.White,
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                 }
                 Row(
@@ -616,7 +619,8 @@ fun AgentNumbersView(
                     Text(
                         "%,d Ks".format(commCut),
                         color = Color.White,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                 }
                 Row(
@@ -627,7 +631,8 @@ fun AgentNumbersView(
                     Text(
                         "%,d Ks".format(customer.paidAmount.toInt()),
                         color = Color.White,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                 }
                 HorizontalDivider(
@@ -648,7 +653,8 @@ fun AgentNumbersView(
                         "%,d Ks".format(netAmount),
                         color = CNet,
                         fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
                     )
                 }
             }
@@ -680,8 +686,8 @@ fun AgentNumbersView(
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp,
-                    modifier = Modifier.weight(1f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End
                 )
             }
 
@@ -722,8 +728,8 @@ fun AgentNumbersView(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                modifier = Modifier.weight(1f),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                modifier = Modifier.weight(1f).padding(end = 12.dp),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.End
                             )
                         }
                         HorizontalDivider(
