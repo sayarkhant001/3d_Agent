@@ -448,36 +448,81 @@ fun BettingScreen(
         }
 
         // --- BET LIST ---
+        val maxAmtB = if (pendingBets.isNotEmpty()) pendingBets.maxOf { it.amount } else 0
+        val amtWidthB = if (maxAmtB > 0) "%,d".format(maxAmtB).length else 5
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 8.dp)
-                .border(1.dp, primaryBlue)
+                .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
         ) {
+            // Header bar
             Row(
-                modifier = Modifier.fillMaxWidth().background(primaryBlue).padding(horizontal = 8.dp, vertical = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(primaryBlue, shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("စဉ်",   color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center, fontSize = 13.sp)
-                Text("|",   color = MaterialTheme.colorScheme.onPrimary)
-                Text("ဂဏန်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f),   textAlign = TextAlign.Center, fontSize = 13.sp)
-                Text("|",   color = MaterialTheme.colorScheme.onPrimary)
-                Text("ပမာဏ",  color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f),   textAlign = TextAlign.End,    fontSize = 13.sp)
+                Text("#", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, modifier = Modifier.width(22.dp))
+                Text("ဂဏန်း = ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text("(ဖျက်ရန် နှိပ်)", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f), fontSize = 10.sp)
             }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            // Bet rows
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp)
+                    )
+            ) {
                 items(pendingBets.size) { i ->
                     val bet = pendingBets[i]
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp)
-                            .clickable { pendingBets.removeAt(i) },
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { pendingBets.removeAt(i) }
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
                     ) {
-                        Text("${i + 1}", modifier = Modifier.weight(0.6f), textAlign = TextAlign.Center, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text(bet.number,  modifier = Modifier.weight(1f),   textAlign = TextAlign.Center, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                        Text("%,d".format(bet.amount), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.sp,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            ".",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(22.dp),
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                        Text(
+                            bet.number,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            letterSpacing = 1.5.sp
+                        )
+                        Text(
+                            " = ",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                        Text(
+                            "%,d".format(bet.amount).padStart(amtWidthB),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
+                        Text(
+                            " Ks",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        )
                     }
-                    Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                    Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), thickness = 0.5.dp)
                 }
             }
         }

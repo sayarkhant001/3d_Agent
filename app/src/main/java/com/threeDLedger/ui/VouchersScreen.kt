@@ -72,34 +72,77 @@ fun VouchersScreen(
                         Text("အချိန်: $dateString", style = MaterialTheme.typography.bodySmall)
                         
                         Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            voucherWithBets.bets.forEach { bet ->
+
+                        // === BET BOX — visually distinct, large text for readability ===
+                        val maxAmtV = voucherWithBets.bets.maxOfOrNull { it.amount } ?: 0
+                        val amtWidthV = "%,d".format(maxAmtV).length
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .border(
+                                    width = 2.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                )
+                                .background(
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            voucherWithBets.bets.forEachIndexed { idx, bet ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
                                 ) {
+                                    // Row number (small, grey)
+                                    Text(
+                                        ".",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.width(22.dp),
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                    // Number in primary color, bold, large
                                     Text(
                                         bet.number,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        letterSpacing = 2.sp
                                     )
+                                    // Separator
                                     Text(
-                                        "%,d".format(bet.amount),
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        modifier = Modifier.weight(1f)
+                                        " = ",
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                    // Amount right-padded to max width so = column aligns
+                                    Text(
+                                        "%,d".format(bet.amount).padStart(amtWidthV),
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                     )
                                     Text(
                                         " Ks",
+                                        fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodySmall
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                     )
                                 }
+                                if (idx < voucherWithBets.bets.size - 1)
+                                    Divider(
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                        thickness = 0.5.dp
+                                    )
                             }
                         }
-                        
+
                         Spacer(modifier = Modifier.height(8.dp))
                         Divider()
                         Spacer(modifier = Modifier.height(8.dp))
