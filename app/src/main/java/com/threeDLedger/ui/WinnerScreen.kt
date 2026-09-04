@@ -535,26 +535,118 @@ private fun MultiplierField(label: String, value: String, accent: Color, modifie
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = accent, focusedLabelColor = accent))
 }
 
-// ── Firebase fetch ────────────────────────────────────────────────────────────
+// ── Thai Lottery API fetch (GLO official primary → Rayriffy fallback) ────────
+//
+// 3D winning number = LAST 3 DIGITS of the Thai lottery first prize (6-digit number)
+// Draws are held on the 1st and 16th of each month at ~16:00 ICT.
+//
+// Primary : https://www.glo.or.th/api/lottery/getLatestLottery  (POST, official GLO)
+// Fallback: https://lotto.api.rayriffy.com/latest               (GET,  community)
 
 private suspend fun fetchWinningNumber(
-    onStart: () -> Unit,
+    onStart:  () -> Unit,
     onResult: (String?, Boolean, String) -> Unit,
-    onError: () -> Unit
+    onError:  () -> Unit
 ) {
-    onStart()
-    try {
-        com.google.firebase.database.FirebaseDatabase.getInstance()
-            .getReference("3d_live_results")
-            .get()
-            .addOnSuccessListener { snapshot ->
-                val num     = snapshot.child("winning_number").getValue(String::class.java)
-                val isFinal = snapshot.child("is_final").getValue(Boolean::class.java) ?: false
-                val session = snapshot.child("result_time").getValue(String::class.java) ?: ""
-                onResult(num, isFinal, session)
-            }
-            .addOnFailureListener { onError() }
-    } catch (e: Exception) {
-        e.printStackTrace(); onError()
+    onStart()  // called on Main dispatcher (LaunchedEffect is Main)
+
+    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        tryGloApi() ?: tryRayriffyApi()
+    }
+
+    if (result != null) {
+        val (num3d, date) = result
+        // Both APIs only publish once results are final — always isFinal = true
+        onResult(num3d, true, date)
+    } else {
+        onError()
     }
 }
+
+/** GLO official API — returns (last3digits, drawDate) or null */
+private fun tryGloApi(): Pair<String, String>? = try {
+    val client = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    val body = "{}".toByteArray()
+    val mediaType = okhttp3.MediaType.parse("application/json; charset=utf-8")
+    val requestBody = okhttp3.RequestBody.create(mediaType, body)
+
+    val request = okhttp3.Request.Builder()
+        .url("https://www.glo.or.th/api/lottery/getLatestLottery")
+        .post(requestBody)
+        .addHeader("Content-Type", "application/json")
+        .addHeader("Accept", "application/json")
+        .build()
+
+    val response = client.newCall(request).execute()
+    if (!response.isSuccessful) return null
+    val raw = response.body()?.string() ?: return null
+
+    val json = org.json.JSONObject(raw)
+    val resp = json.optJSONObject("response") ?: return null
+
+    // Draw date — may be under "period.date" or directly "date"
+    val date = resp.optJSONObject("period")?.optString("date", "")
+        ?: resp.optString("date", "")
+
+    // Prizes — array with first prize having id==1 or name containing "ที่ 1"
+    val prizes = resp.optJSONArray("prizes") ?: return null
+    var firstPrizeNum: String? = null
+    for (i in 0 until prizes.length()) {
+        val p = prizes.getJSONObject(i)
+        val id   = p.optString("id", "")
+        val name = p.optString("name", "")
+        if (id == "1" || id == "first" || name.contains("ที่ 1")) {
+            val numArr = p.optJSONArray("number")
+            firstPrizeNum = numArr?.optString(0, null)
+                ?: p.optString("number", null)
+            break
+        }
+    }
+
+    val full = firstPrizeNum ?: return null
+    if (full.length < 3) return null
+    Pair(full.takeLast(3), date)
+} catch (e: Exception) {
+    e.printStackTrace(); null
+}
+
+/** Rayriffy community API — returns (last3digits, drawDate) or null */
+private fun tryRayriffyApi(): Pair<String, String>? = try {
+    val client = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
+    val request = okhttp3.Request.Builder()
+        .url("https://lotto.api.rayriffy.com/latest")
+        .get()
+        .addHeader("Accept", "application/json")
+        .build()
+
+    val response = client.newCall(request).execute()
+    if (!response.isSuccessful) return null
+    val raw = response.body()?.string() ?: return null
+
+    val json = org.json.JSONObject(raw)
+    if (json.optString("status") != "ok") return null
+
+    val resp   = json.optJSONObject("response") ?: return null
+    val date   = resp.optString("date", "")
+    val prizes = resp.optJSONObject("prizes")   ?: return null
+    val first  = prizes.optJSONObject("first")  ?: return null
+
+    // "number" may be a JSONArray or a bare String
+    val full = first.optJSONArray("number")?.optString(0, null)
+        ?: first.optString("number", null)
+        ?: return null
+
+    if (full.length < 3) return null
+    Pair(full.takeLast(3), date)
+} catch (e: Exception) {
+    e.printStackTrace(); null
+}
+
