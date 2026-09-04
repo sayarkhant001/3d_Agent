@@ -4,23 +4,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,7 +33,7 @@ private fun categorize(number: String, winning: String): NumCat {
     return NumCat.NONE
 }
 
-// ── Colours — orange/amber matching screenshot ─────────────────────────────────
+// ── Colours ────────────────────────────────────────────────────────────────────
 private val OrangeHeader = Color(0xFFF57C00)
 private val OrangeRow    = Color(0xFFFFA000)
 private val OrangeFaint  = Color(0xFFFFF3E0)
@@ -55,8 +47,8 @@ fun LedgerScreen(
 ) {
     val ledgerExposures by viewModel.ledgerExposures.collectAsStateWithLifecycle()
     val currentBatch    by viewModel.currentBatch.collectAsStateWithLifecycle()
+    // Winning number comes exclusively from WinnerScreen via viewModel
     val savedWinner     by viewModel.winningNumber.collectAsStateWithLifecycle()
-    val keyboard        = LocalSoftwareKeyboardController.current
 
     // All bet numbers sorted ascending
     val allExposures = ledgerExposures
@@ -64,13 +56,10 @@ fun LedgerScreen(
         .sortedBy { it.number.toIntOrNull() ?: 0 }
     val totalAll = allExposures.sumOf { it.totalBetAmount }
 
-    // Winner input field state
-    var winInput by remember(savedWinner) { mutableStateOf(savedWinner) }
-
-    // After mode — only show when winner is declared (length == 3)
+    // After mode — only active when WinnerScreen has declared a winning number
     val isAfterMode = savedWinner.length == 3
 
-    // For after mode: filter + sort (EXACT → PERM → NEAR), only those actually bet
+    // After-mode rows: EXACT → PERMUTATION → NEAR, only those actually bet
     val relevantRows: List<Pair<LedgerExposure, NumCat>> =
         if (isAfterMode) {
             allExposures
@@ -79,10 +68,10 @@ fun LedgerScreen(
                 .sortedWith(
                     compareBy(
                         { when (it.second) {
-                            NumCat.EXACT        -> 0
-                            NumCat.PERMUTATION  -> 1
-                            NumCat.NEAR         -> 2
-                            else                -> 3
+                            NumCat.EXACT       -> 0
+                            NumCat.PERMUTATION -> 1
+                            NumCat.NEAR        -> 2
+                            else               -> 3
                         }},
                         { it.first.number.toIntOrNull() ?: 0 }
                     )
@@ -92,7 +81,9 @@ fun LedgerScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ဂဏန်းများ", color = Color.White, fontWeight = FontWeight.Bold) },
+                title = {
+                    Text("ဂဏန်းများ", color = Color.White, fontWeight = FontWeight.Bold)
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
@@ -108,132 +99,50 @@ fun LedgerScreen(
                 .fillMaxSize()
                 .background(OrangeFaint)
         ) {
-
-            // ── Sub-header: batch + winner display + input ─────────────────────
-            Column(
+            // ── Sub-header: batch number + winning number status ───────────────
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(OrangeHeader)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Batch number + declared winner chip
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Text(
+                    "အကြိမ် :",
+                    color = Color.White,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "$currentBatch",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Spacer(Modifier.width(20.dp))
+                if (isAfterMode) {
                     Text(
-                        "အကြိမ် :",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
+                        "ပေါက်ဂဏန်း :",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 13.sp
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "$currentBatch",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        savedWinner,
+                        color = Color(0xFFFFE57F),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 3.sp
                     )
-                    if (isAfterMode) {
-                        Spacer(Modifier.width(16.dp))
-                        Text(
-                            savedWinner,
-                            color = Color(0xFFFFE57F),   // amber-yellow — winner number
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 3.sp
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(6.dp))
-
-                // Winner input row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = winInput,
-                        onValueChange = { v ->
-                            winInput = v.filter { it.isDigit() }.take(3)
-                        },
-                        placeholder = {
-                            Text(
-                                "ပေါက်ဂဏန်း ထည့်ပါ",
-                                color = Color.White.copy(alpha = 0.55f),
-                                fontSize = 12.sp
-                            )
-                        },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number,
-                            imeAction = ImeAction.Done
-                        ),
-                        keyboardActions = KeyboardActions(onDone = {
-                            if (winInput.length == 3) {
-                                viewModel.saveWinningNumber(winInput)
-                                keyboard?.hide()
-                            }
-                        }),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor     = Color.White,
-                            unfocusedTextColor   = Color.White,
-                            focusedBorderColor   = Color.White,
-                            unfocusedBorderColor = Color.White.copy(alpha = 0.5f),
-                            cursorColor          = Color.White
-                        ),
-                        textStyle = LocalTextStyle.current.copy(
-                            fontSize    = 20.sp,
-                            fontWeight  = FontWeight.Bold,
-                            textAlign   = TextAlign.Center,
-                            fontFamily  = FontFamily.Monospace,
-                            color       = Color.White
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp)
+                } else {
+                    Text(
+                        "ပေါက်ဂဏန်း မသတ်မှတ်ရသေးပါ",
+                        color = Color.White.copy(alpha = 0.55f),
+                        fontSize = 13.sp
                     )
-
-                    // Confirm button
-                    Button(
-                        onClick = {
-                            if (winInput.length == 3) {
-                                viewModel.saveWinningNumber(winInput)
-                                keyboard?.hide()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (winInput.length == 3) Color.White
-                                             else Color.White.copy(alpha = 0.3f)
-                        ),
-                        contentPadding = PaddingValues(horizontal = 10.dp),
-                        modifier = Modifier.height(50.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.Check, "OK", tint = OrangeHeader, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("OK", color = OrangeHeader, fontWeight = FontWeight.Bold)
-                    }
-
-                    // Clear winner button (only visible in after mode)
-                    if (isAfterMode) {
-                        IconButton(
-                            onClick = {
-                                winInput = ""
-                                viewModel.saveWinningNumber("")
-                            },
-                            modifier = Modifier
-                                .size(50.dp)
-                                .background(Color.White.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                        ) {
-                            Icon(Icons.Default.Close, "Clear", tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                    }
                 }
             }
 
@@ -252,13 +161,14 @@ fun LedgerScreen(
                 Text(
                     "ပမာဏ",
                     color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    modifier = Modifier.weight(1f), textAlign = TextAlign.Center
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    textAlign = TextAlign.End
                 )
             }
 
             // ── Rows ──────────────────────────────────────────────────────────
             if (!isAfterMode) {
-                // BEFORE MODE — all bet numbers ascending
+                // BEFORE MODE — show all bet numbers
                 if (allExposures.isEmpty()) {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -274,8 +184,8 @@ fun LedgerScreen(
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(allExposures) { exposure ->
                             NumberTableRow(
-                                number = exposure.number,
-                                amount = exposure.totalBetAmount,
+                                number  = exposure.number,
+                                amount  = exposure.totalBetAmount,
                                 bgColor = OrangeRow,
                                 textColor = Color.White
                             )
@@ -284,7 +194,7 @@ fun LedgerScreen(
                     }
                 }
             } else {
-                // AFTER MODE — only exact / perm / near that were actually bet
+                // AFTER MODE — only ပေါက်သီး / တွတ် numbers that were actually bet
                 if (relevantRows.isEmpty()) {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -312,7 +222,7 @@ fun LedgerScreen(
                 }
             }
 
-            // ── Footer — always shows total of ALL bets ───────────────────────
+            // ── Footer — total of ALL bets ────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -330,7 +240,8 @@ fun LedgerScreen(
                     "%,d".format(totalAll),
                     color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp,
                     fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.weight(1f), textAlign = TextAlign.Center
+                    modifier = Modifier.weight(1f).padding(end = 12.dp),
+                    textAlign = TextAlign.End
                 )
             }
         }

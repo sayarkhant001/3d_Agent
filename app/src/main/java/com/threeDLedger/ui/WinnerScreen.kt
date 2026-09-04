@@ -80,7 +80,6 @@ fun WinnerScreen(
     var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher
 
     val allBets      by viewModel.allBets.collectAsStateWithLifecycle()
-    val allVouchers  by viewModel.vouchersWithCustomer.collectAsStateWithLifecycle()
     val allVWB       by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
     val allCustomers by viewModel.customers.collectAsStateWithLifecycle()
     var results      by remember { mutableStateOf<List<WinnerResult>>(emptyList()) }
@@ -99,9 +98,10 @@ fun WinnerScreen(
         val nM = nearMult.toDoubleOrNull()  ?: 0.0
 
         results = allBets.mapNotNull { bet ->
-            val voucher  = allVouchers.find { it.voucher.id == bet.voucherId } ?: return@mapNotNull null
-            if (voucher.voucher.batchNumber != batchInt) return@mapNotNull null
-            val customer = allCustomers.find { it.id == voucher.customer.id } ?: return@mapNotNull null
+            // Use allVWB (direct customerId field) to avoid @Relation null crash
+            val vWB = allVWB.find { it.voucher.id == bet.voucherId } ?: return@mapNotNull null
+            if (vWB.voucher.batchNumber != batchInt) return@mapNotNull null
+            val customer = allCustomers.find { it.id == vWB.voucher.customerId } ?: return@mapNotNull null
             val (win, wt) = when {
                 bet.number == winningNumber  -> Pair(bet.amount * eM, WinType.EXACT)
                 perms.contains(bet.number)   -> Pair(bet.amount * pM, WinType.PERMUTATION)
@@ -111,24 +111,12 @@ fun WinnerScreen(
             if (win <= 0) return@mapNotNull null
             WinnerResult(customer.name, customer.id, bet.voucherId, bet.number, bet.amount, win, wt)
         }.sortedWith(compareBy({ it.customerName }, { it.voucherId }))
+
+        // Share the winning number with LedgerScreen (Numbers page)
+        viewModel.saveWinningNumber(winningNumber)
     }
 
-    LaunchedEffect(winningNumber, targetBatch) { runCalc() }
-    LaunchedEffect(exactMult, permMult, nearMult) { runCalc() }
-    LaunchedEffect(allBets) { runCalc() }
-
-    LaunchedEffect(Unit) {
-        fetchWinningNumber(
-            onStart  = { isFetching = true; fetchStatus = "checking" },
-            onResult = { num, isFinal, session ->
-                if (!num.isNullOrEmpty()) winningNumber = num
-                isFinalResult = isFinal; resultSession = session
-                fetchStatus = if (num.isNullOrEmpty()) "error" else "ok"
-                isFetching = false
-            },
-            onError = { isFetching = false; fetchStatus = "error" }
-        )
-    }
+    // No auto-fetch / auto-recalc — results are frozen until user explicitly taps ပြန်တွက်မည်
 
     // Derived grouped data
     val agentSummaries: List<AgentWinSummary> = remember(results) {
@@ -197,6 +185,39 @@ fun WinnerScreen(
                 )}},
                 onRecalc = { runCalc() }
             )}
+
+            // ── Clear / Reset button — visible once winning number is set ─────
+            if (winningNumber.length == 3) {
+                item {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.saveWinningNumber("")   // clears for ALL pages
+                            winningNumber = ""
+                            results = emptyList()
+                            fetchStatus = ""
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.5.dp, MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "ပေါက်ဂဏန်း ဖျက်မည် — ထိုးဆက်နိုင်မည်",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
 
             // ── No results placeholder ─────────────────────────────────────────
             if (winningNumber.length == 3 && results.isEmpty()) {
