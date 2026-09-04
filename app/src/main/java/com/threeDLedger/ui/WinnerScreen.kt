@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -58,6 +58,29 @@ fun WinnerScreen(
     val allCustomers by viewModel.customers.collectAsStateWithLifecycle()
     var results      by remember { mutableStateOf<List<WinnerResult>>(emptyList()) }
     val coroutineScope = rememberCoroutineScope()
+
+    // Helper to run calculation
+    fun runCalc() {
+        if (winningNumber.length == 3) {
+            results = calculate(
+                winningNumber  = winningNumber,
+                targetBatchInt = targetBatch.toIntOrNull() ?: currentBatch,
+                exactMult      = exactMult.toDoubleOrNull() ?: 0.0,
+                permMult       = permMult.toDoubleOrNull() ?: 0.0,
+                nearMult       = nearMult.toDoubleOrNull() ?: 0.0,
+                allBets        = allBets,
+                allVouchers    = allVouchers,
+                allCustomers   = allCustomers
+            )
+        }
+    }
+
+    // Auto-calculate whenever winning number (or batch) changes to a valid 3-digit value
+    LaunchedEffect(winningNumber, targetBatch) { runCalc() }
+    // Also recalculate when multipliers change (so live feedback when user tweaks them)
+    LaunchedEffect(exactMult, permMult, nearMult) { runCalc() }
+    // Also recalculate when underlying bets data changes
+    LaunchedEffect(allBets) { runCalc() }
 
     // Auto-fetch on open
     LaunchedEffect(Unit) { fetchWinningNumber(
@@ -123,7 +146,13 @@ fun WinnerScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 OutlinedTextField(
                                     value = winningNumber,
-                                    onValueChange = { winningNumber = it; fetchStatus = "" },
+                                    onValueChange = { v ->
+                                        // Only allow digits, max 3
+                                        if (v.length <= 3 && v.all { it.isDigit() }) {
+                                            winningNumber = v
+                                            fetchStatus = ""
+                                        }
+                                    },
                                     label = { Text("ပေါက်ဂဏန်း") },
                                     leadingIcon = { Icon(Icons.Default.Star, null, tint = Color(0xFFFFD93D)) },
                                     modifier = Modifier.fillMaxWidth(),
@@ -194,29 +223,16 @@ fun WinnerScreen(
                             MultiplierField("အနီး (Near)", nearMult, Color(0xFF4ECDC4), Modifier.weight(1f)) { nearMult = it }
                         }
 
-                        // Calculate button
-                        Button(
-                            onClick = {
-                                if (winningNumber.length == 3) {
-                                    results = calculate(
-                                        winningNumber   = winningNumber,
-                                        targetBatchInt  = targetBatch.toIntOrNull() ?: currentBatch,
-                                        exactMult       = exactMult.toDoubleOrNull() ?: 0.0,
-                                        permMult        = permMult.toDoubleOrNull() ?: 0.0,
-                                        nearMult        = nearMult.toDoubleOrNull() ?: 0.0,
-                                        allBets         = allBets,
-                                        allVouchers     = allVouchers,
-                                        allCustomers    = allCustomers
-                                    )
-                                }
-                            },
+                        // Recalculate button (auto-calc fires on number/batch change; this is manual override for multiplier changes)
+                        OutlinedButton(
+                            onClick = { runCalc() },
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
                             enabled = winningNumber.length == 3
                         ) {
-                            Icon(Icons.Default.Calculate, null, Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("တွက်ချက်မည်", fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ပြန်တွက်မည် (Recalculate)", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
