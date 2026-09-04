@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -279,7 +280,7 @@ private fun AfterView(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(Orange)
-                .padding(horizontal = 12.dp, bottom = 10.dp),
+                .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Batch + declared winner chip
