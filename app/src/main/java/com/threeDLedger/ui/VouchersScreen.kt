@@ -151,6 +151,7 @@ fun VouchersScreen(
                                             voucherId = voucherWithBets.voucher.id,
                                             date = SimpleDateFormat("dd/MM/yyyy HH:mm").format(Date(voucherWithBets.voucher.timestamp)),
                                             customerName = customerName,
+                                            remark = voucherWithBets.voucher.remark,
                                             bets = voucherWithBets.bets.map { it.number to it.amount },
                                             totalAmount = voucherWithBets.voucher.totalAmount,
                                             footerText = footerText

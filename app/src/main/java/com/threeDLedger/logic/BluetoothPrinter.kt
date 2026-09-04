@@ -128,6 +128,7 @@ object BluetoothPrinter {
         val voucherId: Int,
         val date: String,
         val customerName: String,
+        val remark: String = "",
         val bets: List<Pair<String, Int>>,  // number to amount
         val totalAmount: Int,
         val footerText: String
@@ -153,6 +154,7 @@ object BluetoothPrinter {
             headerH + 18f +          // header + gap
             10f +                    // separator
             lineH * 2 + 12f +        // date + name
+            (if (data.remark.isNotBlank()) lineH else 0f) +  // remark line
             betLineH * data.bets.size + 12f +
             10f +                    // separator
             bigLineH + 8f +          // total
@@ -249,7 +251,14 @@ object BluetoothPrinter {
         y += lineH
 
         canvas.drawText("Name: ${data.customerName}", pad + 8f, y + lineH * 0.72f, paint)
-        y += lineH + 12f
+        y += lineH
+        if (data.remark.isNotBlank()) {
+            paint.textSize = 22f
+            canvas.drawText("မှတ်ချက်: ${data.remark}", pad + 8f, y + lineH * 0.72f, paint)
+            paint.textSize = 26f
+            y += lineH
+        }
+        y += 12f
 
         // ==
         paint.textSize = 28f
