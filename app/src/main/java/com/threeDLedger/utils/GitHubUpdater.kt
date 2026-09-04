@@ -85,33 +85,56 @@ object GitHubUpdater {
      * Download APK to internal cache (no storage permission needed on any API level).
      * Reports progress via [onProgress] (0–100).
      * Returns the local File on success, null on failure.
+     *
+     * Manually follows HTTP redirects so Content-Length is always captured from
+     * the final CDN URL (GitHub releases use 302 → S3 which can lose the header
+     * with automatic redirect handling on some JVM versions).
      */
     suspend fun downloadApkToCache(
         context: Context,
         url: String,
-        onProgress: (Int) -> Unit
+        onProgress: suspend (Int) -> Unit
     ): File? = withContext(Dispatchers.IO) {
         try {
-            val connection = URL(url).openConnection() as HttpURLConnection
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 60_000
-            connection.instanceFollowRedirects = true
-            connection.connect()
+            // ── Manually follow redirects to keep Content-Length ──────────────
+            var currentUrl = url
+            var connection: HttpURLConnection
+            var redirects = 0
+            while (true) {
+                connection = URL(currentUrl).openConnection() as HttpURLConnection
+                connection.connectTimeout = 15_000
+                connection.readTimeout = 120_000
+                connection.instanceFollowRedirects = false   // handle manually
+                connection.setRequestProperty("User-Agent", "3DLedger-App/1.0")
+                connection.connect()
 
-            val total = connection.contentLength
+                val code = connection.responseCode
+                if (code in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                        ?: break   // no location — give up
+                    connection.disconnect()
+                    currentUrl = location
+                    if (++redirects > 10) break   // safety guard
+                } else {
+                    break   // 200 (or error) — use this connection
+                }
+            }
+
+            val total = connection.contentLength   // -1 if unknown
             val outFile = File(context.cacheDir, "update.apk")
             if (outFile.exists()) outFile.delete()
 
             var downloaded = 0
             connection.inputStream.use { input ->
                 FileOutputStream(outFile).use { output ->
-                    val buffer = ByteArray(8 * 1024)
+                    val buffer = ByteArray(16 * 1024)
                     var bytes: Int
                     while (input.read(buffer).also { bytes = it } != -1) {
                         output.write(buffer, 0, bytes)
                         downloaded += bytes
                         if (total > 0) {
-                            onProgress((downloaded * 100 / total).coerceIn(0, 99))
+                            // onProgress runs on IO thread; callers switch to Main
+                            onProgress((downloaded * 100L / total).toInt().coerceIn(0, 99))
                         }
                     }
                 }

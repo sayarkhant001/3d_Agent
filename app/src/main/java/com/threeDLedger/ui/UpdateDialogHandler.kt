@@ -13,9 +13,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.threeDLedger.utils.GitHubUpdater
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun UpdateDialogHandler(owner: String, repo: String) {
@@ -30,6 +33,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
     var showProgressDialog by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableIntStateOf(0) }
     var downloadError by remember { mutableStateOf<String?>(null) }
+    var isInstalling by remember { mutableStateOf(false) }
 
     val currentVersion = remember {
         try {
@@ -78,19 +82,41 @@ fun UpdateDialogHandler(owner: String, repo: String) {
         showProgressDialog = true
         downloadProgress = 0
         downloadError = null
+        isInstalling = false
 
-        coroutineScope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             val apkFile = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) { progress ->
-                downloadProgress = progress
+                // onProgress is called on the IO thread — switch to Main to update state
+                withContext(Dispatchers.Main) {
+                    downloadProgress = progress
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                if (apkFile != null) {
+                    // Brief pause so user sees 100%, then trigger installer
+                    downloadProgress = 100
+                    delay(400)
+                    isInstalling = true
+                }
             }
 
             if (apkFile != null) {
-                // Small pause so user sees 100%
-                delay(300)
-                showProgressDialog = false
-                GitHubUpdater.installApkFromCache(context, apkFile)
+                delay(200)
+                // installApkFromCache needs Context only — safe to call from any thread
+                withContext(Dispatchers.Main) {
+                    GitHubUpdater.installApkFromCache(context, apkFile)
+                }
+                // Keep dialog open briefly so the system installer has time to appear
+                delay(1500)
+                withContext(Dispatchers.Main) {
+                    isInstalling = false
+                    showProgressDialog = false
+                }
             } else {
-                downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။"
+                withContext(Dispatchers.Main) {
+                    downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။"
+                }
             }
         }
     }
@@ -181,37 +207,67 @@ fun UpdateDialogHandler(owner: String, repo: String) {
 
         AlertDialog(
             onDismissRequest = { /* Not dismissible during download */ },
-            title = { Text("Download လုပ်နေသည်…", fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    if (isInstalling) "Install လုပ်နေသည်…" else "Download လုပ်နေသည်…",
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    LinearProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        if (downloadProgress < 100) "$downloadProgress%" else "ပြီးပါပြီ၊ Installer ဖွင့်နေသည်…",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    // Show error if download failed
                     if (downloadError != null) {
+                        // ── Error state ──
                         Text(
                             downloadError!!,
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
+                            style = MaterialTheme.typography.bodyMedium
                         )
-                        TextButton(onClick = {
-                            showProgressDialog = false
-                            downloadError = null
-                        }) {
+                        Spacer(Modifier.height(4.dp))
+                        Button(
+                            onClick = {
+                                showProgressDialog = false
+                                downloadError = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text("ပိတ်မည်")
                         }
+                    } else if (isInstalling) {
+                        // ── Installing spinner ──
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(48.dp),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "Installer ဖွင့်နေသည်…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        // ── Download progress bar ──
+                        LinearProgressIndicator(
+                            progress = { animatedProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Text(
+                            "$downloadProgress%",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "ကျေးဇူးပြု၍ စောင့်ပါ…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             },

@@ -5,112 +5,127 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Glow effect behind book -->
+    <!-- ══════════════════════════════════════════
+         Outer ambient glow ring
+         ══════════════════════════════════════════ -->
     <path
-        android:fillColor="#33F5CC7A"
-        android:pathData="M54,30 Q80,35 82,62 Q80,80 54,82 Q28,80 26,62 Q28,35 54,30Z" />
+        android:fillColor="#28F5A623"
+        android:pathData="M54,18 A36,36 0 1,1 54,90 A36,36 0 1,1 54,18Z" />
 
-    <!-- Book left page -->
+    <!-- ══════════════════════════════════════════
+         Main circle card — dark glass panel
+         ══════════════════════════════════════════ -->
     <path
-        android:fillColor="#E8EAF0"
-        android:strokeColor="#C5C8D4"
-        android:strokeWidth="0.5"
-        android:pathData="M54,28 L28,40 L28,76 Q36,73 54,72 Z" />
+        android:fillColor="#1A2744"
+        android:pathData="M54,22 A32,32 0 1,1 54,86 A32,32 0 1,1 54,22Z" />
 
-    <!-- Book right page -->
+    <!-- Circle inner highlight rim (top-left arc shimmer) -->
     <path
-        android:fillColor="#F0F2F8"
-        android:strokeColor="#C5C8D4"
-        android:strokeWidth="0.5"
-        android:pathData="M54,28 L80,40 L80,76 Q72,73 54,72 Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#40F5A623"
+        android:strokeWidth="1.2"
+        android:pathData="M54,22 A32,32 0 0,1 86,54" />
 
-    <!-- Book spine glow -->
+    <!-- ══════════════════════════════════════════
+         Bold "3" — clean geometric
+         ══════════════════════════════════════════ -->
+    <!-- Shadow layer -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M52,27 L56,27 L56,73 L52,73 Z"
-        android:fillAlpha="0.6"/>
-
-    <!-- Page lines left -->
-    <path
-        android:pathData="M34,50 L50,47"
-        android:strokeColor="#9AA0B0"
-        android:strokeWidth="1.2"/>
-    <path
-        android:pathData="M34,56 L50,53"
-        android:strokeColor="#9AA0B0"
-        android:strokeWidth="1.2"/>
-    <path
-        android:pathData="M34,62 L50,59"
-        android:strokeColor="#9AA0B0"
-        android:strokeWidth="1.2"/>
-
-    <!-- Page lines right -->
-    <path
-        android:pathData="M58,47 L74,50"
-        android:strokeColor="#9AA0B0"
-        android:strokeWidth="1.2"/>
-    <path
-        android:pathData="M58,53 L74,56"
-        android:strokeColor="#9AA0B0"
-        android:strokeWidth="1.2"/>
-    <path
-        android:pathData="M58,59 L74,62"
-        android:strokeColor="#9AA0B0"
-        android:strokeWidth="1.2"/>
-
-    <!-- Lottery ball left -->
-    <path
-        android:fillColor="#D0D4E0"
-        android:pathData="M 37,38 a 5,5 0 1,0 0,10 a 5,5 0 1,0 0,-10" />
-    <path
-        android:fillColor="#6C63FF"
-        android:pathData="M34,40 A5,5 0 0,1 40,40 Z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M36,42 L38,42 L38,45 L36,45 Z"
-        android:fillAlpha="0.9"/>
-
-    <!-- Lottery ball right -->
-    <path
-        android:fillColor="#D0D4E0"
-        android:pathData="M 71,38 a 5,5 0 1,0 0,10 a 5,5 0 1,0 0,-10" />
-    <path
-        android:fillColor="#E94560"
-        android:pathData="M68,40 A5,5 0 0,1 74,40 Z"/>
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M70,42 L72,42 L72,45 L70,45 Z"
-        android:fillAlpha="0.9"/>
-
-    <!-- "3D" text shadow -->
-    <path
-        android:fillColor="#1A2030"
-        android:pathData="M30,55 Q30,38 42,35 L42,72 Q34,72 30,65 Z"
-        android:fillAlpha="0.3"/>
-
-    <!-- "3" numeral -->
+        android:fillColor="#CC000000"
+        android:fillAlpha="0.4"
+        android:pathData="
+            M29.5,43.5 Q29.5,38.5 34.5,38.5 L45,38.5 Q50,38.5 50,43.5
+            Q50,47 46.5,48.5 Q50,50 50,53.5 Q50,59 45,59 L34.5,59
+            Q29.5,59 29.5,54.5 L33.5,54.5 Q33.5,55.5 34.5,55.5 L45,55.5
+            Q46,55.5 46,53.5 Q46,51.5 45,51.5 L36,51.5 L36,48 L45,48
+            Q46,48 46,46 Q46,42.5 45,42.5 L34.5,42.5
+            Q33.5,42.5 33.5,43.5 Z" />
+    <!-- Gold fill -->
     <path
         android:fillColor="#F5A623"
         android:pathData="
-            M33,44 Q33,41 36,41 L42,41 Q45,41 45,44 Q45,46.5 42,47.5 Q45,48.5 45,51 Q45,54 42,54 L36,54 Q33,54 33,51
-            M36,44 L42,44 Q43,44 43,44.8 Q43,45.8 42,46 L37,46
-            M37,49 L42,49 Q43,49 43,50 Q43,51.5 42,51.5 L36,51.5 Q35,51.5 35,51"
-        android:strokeColor="#E8940A"
-        android:strokeWidth="0.5"/>
+            M28,42 Q28,37 33,37 L44.5,37 Q49.5,37 49.5,42
+            Q49.5,45.5 46,47 Q49.5,48.5 49.5,52 Q49.5,57.5 44.5,57.5 L33,57.5
+            Q28,57.5 28,53 L32,53 Q32,54 33,54 L44.5,54
+            Q45.5,54 45.5,52 Q45.5,50 44.5,50 L35.5,50 L35.5,46.5 L44.5,46.5
+            Q45.5,46.5 45.5,44.5 Q45.5,41 44.5,41 L33,41
+            Q32,41 32,42 Z" />
+    <!-- Shine highlight on "3" -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.22"
+        android:pathData="M29,37 L50,37 L50,44 L29,44 Z" />
 
-    <!-- "D" letter -->
+    <!-- ══════════════════════════════════════════
+         Bold "D" — clean geometric
+         ══════════════════════════════════════════ -->
+    <!-- Shadow layer -->
+    <path
+        android:fillColor="#CC000000"
+        android:fillAlpha="0.4"
+        android:pathData="
+            M52.5,38.5 L64,38.5 Q77,38.5 77,48.5 Q77,59 64,59 L52.5,59 Z
+            M56.5,42.5 L64,42.5 Q73,42.5 73,48.5 Q73,55 64,55 L56.5,55 Z" />
+    <!-- Gold fill -->
     <path
         android:fillColor="#F5A623"
         android:pathData="
-            M49,41 L54,41 Q63,41 63,47.5 Q63,54 54,54 L49,54 Z
-            M52,44 L54,44 Q60,44 60,47.5 Q60,51 54,51 L52,51 Z"
-        android:strokeColor="#E8940A"
-        android:strokeWidth="0.5"/>
-
-    <!-- Gold gradient overlay on 3D text for shine -->
+            M51,37 L62.5,37 Q75.5,37 75.5,47 Q75.5,57.5 62.5,57.5 L51,57.5 Z
+            M55,41 L62.5,41 Q71.5,41 71.5,47 Q71.5,53.5 62.5,53.5 L55,53.5 Z" />
+    <!-- Shine highlight on "D" -->
     <path
-        android:fillColor="#FFFDE7"
-        android:fillAlpha="0.25"
-        android:pathData="M33,41 L63,41 L63,47 L33,47 Z"/>
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.22"
+        android:pathData="M51,37 L76,37 L76,44 L51,44 Z" />
+
+    <!-- ══════════════════════════════════════════
+         Three lottery number dots (bottom accent)
+         ══════════════════════════════════════════ -->
+    <!-- Dot 1 -->
+    <path
+        android:fillColor="#F5A623"
+        android:pathData="M40,65 A4,4 0 1,1 40,73 A4,4 0 1,1 40,65Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.35"
+        android:pathData="M38.5,66.2 A2,1.5 0 0,1 42,66.2Z" />
+
+    <!-- Dot 2 (center, slightly larger, brighter) -->
+    <path
+        android:fillColor="#FFB83F"
+        android:pathData="M50.5,65 A4,4 0 1,1 50.5,73 A4,4 0 1,1 50.5,65Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.45"
+        android:pathData="M49,66.2 A2,1.5 0 0,1 52.5,66.2Z" />
+
+    <!-- Dot 3 -->
+    <path
+        android:fillColor="#F5A623"
+        android:pathData="M61,65 A4,4 0 1,1 61,73 A4,4 0 1,1 61,65Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.35"
+        android:pathData="M59.5,66.2 A2,1.5 0 0,1 63,66.2Z" />
+
+    <!-- ══════════════════════════════════════════
+         "LEDGER" micro-label below dots
+         ══════════════════════════════════════════ -->
+    <path
+        android:fillColor="#F5A623"
+        android:fillAlpha="0.7"
+        android:pathData="
+            M34,77 L35,77 L35,80 L38,80 L38,81 L34,81 Z
+            M39.5,77 L40.5,77 L40.5,78.8 L42.5,78.8 L42.5,77 L43.5,77 L43.5,81 L42.5,81 L42.5,79.7 L40.5,79.7 L40.5,81 L39.5,81 Z
+            M44.5,77 L47.5,77 Q48.5,77 48.5,78.5 Q48.5,79.2 48,79.5 L48.8,81 L47.7,81 L47,79.8 L45.5,79.8 L45.5,81 L44.5,81 Z
+            M45.5,77.9 L45.5,79 L47,79 Q47.5,79 47.5,78.5 Q47.5,77.9 47,77.9 Z
+            M50,77 L53.8,77 L53.8,77.9 L51,77.9 L51,78.6 L53.3,78.6 L53.3,79.5 L51,79.5 L51,80.1 L53.8,80.1 L53.8,81 L50,81 Z
+            M55,77 L58.5,77 Q59.5,77 59.5,78 Q59.5,78.7 59,79 Q59.8,79.3 59.8,80.2 Q59.8,81 58.5,81 L55,81 Z
+            M56,77.9 L56,78.7 L58,78.7 Q58.5,78.7 58.5,78.3 Q58.5,77.9 58,77.9 Z
+            M56,79.5 L56,80.1 L58.3,80.1 Q58.8,80.1 58.8,79.8 Q58.8,79.5 58.3,79.5 Z
+            M60.5,77 L61.5,77 L61.5,80.1 L64,80.1 L64,81 L60.5,81 Z
+            M65,77 L68.5,77 Q69.5,77 69.5,78.5 L69.5,79.5 Q69.5,81 68.5,81 L65,81 Z
+            M66,77.9 L66,80.1 L68,80.1 Q68.5,80.1 68.5,79.5 L68.5,78.5 Q68.5,77.9 68,77.9 Z
+            M70.5,77 L74.3,77 L74.3,77.9 L71.5,77.9 L71.5,78.6 L73.8,78.6 L73.8,79.5 L71.5,79.5 L71.5,80.1 L74.3,80.1 L74.3,81 L70.5,81 Z" />
 
 </vector>

@@ -48,6 +48,11 @@ fun SettingsScreen(
     var updateCheckStatus by remember { mutableStateOf("") }  // "", "checking", "uptodate", "available"
     var updateInfoManual by remember { mutableStateOf<GitHubUpdater.UpdateInfo?>(null) }
     var showManualUpdateDialog by remember { mutableStateOf(false) }
+    // Download progress state
+    var showDownloadDialog by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableIntStateOf(0) }
+    var downloadError by remember { mutableStateOf<String?>(null) }
+    var isInstalling by remember { mutableStateOf(false) }
 
     val currentVersion = remember {
         try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }
@@ -175,13 +180,40 @@ fun SettingsScreen(
                     confirmButton = {
                         Button(onClick = {
                             showManualUpdateDialog = false
-                            coroutineScope.launch {
-                                if (!GitHubUpdater.canInstallUnknownApps(context)) {
-                                    GitHubUpdater.openInstallUnknownAppsSettings(context)
-                                } else {
-                                    val apk = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) {}
-                                    if (apk != null) GitHubUpdater.installApkFromCache(context, apk)
-                                    else android.widget.Toast.makeText(context, "Download မအောင်မြင်ပါ", android.widget.Toast.LENGTH_SHORT).show()
+                            if (!GitHubUpdater.canInstallUnknownApps(context)) {
+                                GitHubUpdater.openInstallUnknownAppsSettings(context)
+                            } else {
+                                // Start download with progress dialog
+                                showDownloadDialog = true
+                                downloadProgress = 0
+                                downloadError = null
+                                isInstalling = false
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                    val apk = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) { progress ->
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            downloadProgress = progress
+                                        }
+                                    }
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        if (apk != null) {
+                                            downloadProgress = 100
+                                            kotlinx.coroutines.delay(400)
+                                            isInstalling = true
+                                        } else {
+                                            downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။"
+                                        }
+                                    }
+                                    if (apk != null) {
+                                        kotlinx.coroutines.delay(200)
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            GitHubUpdater.installApkFromCache(context, apk)
+                                        }
+                                        kotlinx.coroutines.delay(1500)
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            isInstalling = false
+                                            showDownloadDialog = false
+                                        }
+                                    }
                                 }
                             }
                         }) { Text("Install လုပ်မည်") }
@@ -189,6 +221,75 @@ fun SettingsScreen(
                     dismissButton = {
                         TextButton(onClick = { showManualUpdateDialog = false }) { Text("နောက်မှ") }
                     }
+                )
+            }
+
+            // Download progress dialog (manual update)
+            if (showDownloadDialog) {
+                val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+                    targetValue = downloadProgress / 100f,
+                    label = "manual_download_progress"
+                )
+                AlertDialog(
+                    onDismissRequest = { /* Not dismissible during download */ },
+                    title = {
+                        Text(
+                            if (isInstalling) "Install လုပ်နေသည်…" else "Download လုပ်နေသည်…",
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    text = {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            if (downloadError != null) {
+                                Text(
+                                    downloadError!!,
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Button(
+                                    onClick = {
+                                        showDownloadDialog = false
+                                        downloadError = null
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("ပိတ်မည်") }
+                            } else if (isInstalling) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(48.dp),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "Installer ဖွင့်နေသည်…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                LinearProgressIndicator(
+                                    progress = { animatedProgress },
+                                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                Text(
+                                    "$downloadProgress%",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 20.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    "ကျေးဇူးပြု၍ စောင့်ပါ…",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    confirmButton = {}
                 )
             }
 
