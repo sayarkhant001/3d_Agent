@@ -78,7 +78,9 @@ fun CustomersScreen(
         betsForCustomer.forEach { bet ->
             numberMap[bet.number] = (numberMap[bet.number] ?: 0) + bet.amount
         }
-        val sortedNumbers = numberMap.entries.sortedBy { it.key.toIntOrNull() ?: 0 }
+        val sortedNumbers: List<Pair<String, Int>> = numberMap.entries
+            .sortedBy { it.key.toIntOrNull() ?: 0 }
+            .map { it.key to it.value }
 
         AgentBetsView(
             customerName   = c.name,
@@ -267,7 +269,7 @@ private fun AgentBetsView(
     netAmount     : Int,
     paidAmount    : Int,
     commissionRate: Double,
-    sortedNumbers : List<Map.Entry<String, Int>>,
+    sortedNumbers : List<Pair<String, Int>>,
     onBack        : () -> Unit
 ) {
     val context         = LocalContext.current
@@ -279,7 +281,7 @@ private fun AgentBetsView(
     val OrangeRow = Color(0xFFFFF3E0)
 
     // Build printable/shareable text
-    val maxAmt = sortedNumbers.maxOfOrNull { it.value } ?: 0
+    val maxAmt = sortedNumbers.maxOfOrNull { it.second } ?: 0
     val amtW   = "%,d".format(maxAmt).length.coerceAtLeast(6)
     val shareText = buildString {
         appendLine("========================")
@@ -322,7 +324,7 @@ private fun AgentBetsView(
                             try {
                                 val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
                                 val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
-                                val bets = sortedNumbers.map { it.key to it.value }
+                                val bets = sortedNumbers.map { (num, amt) -> num to amt }
                                 val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
                                     batchNumber  = batchNumber,
                                     voucherId    = 0,
