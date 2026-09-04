@@ -98,46 +98,52 @@ fun VouchersScreen(
                         ) {
                             voucherWithBets.bets.forEachIndexed { idx, bet ->
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Start
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    // Row number (small, grey)
+                                    // Row number
                                     Text(
                                         "${idx + 1}.",
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.width(22.dp),
+                                        modifier = Modifier.width(24.dp),
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                     )
-                                    // Number in primary color, bold, large
+                                    // Number
                                     Text(
                                         bet.number,
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        letterSpacing = 2.sp
+                                        letterSpacing = 2.sp,
+                                        modifier = Modifier.width(54.dp)
                                     )
                                     // Separator
                                     Text(
-                                        " = ",
+                                        "=",
                                         fontSize = 18.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        modifier = Modifier.padding(horizontal = 6.dp)
                                     )
-                                    // Amount right-padded to max width so = column aligns
+                                    // Amount right-aligned, with breathing room from right
                                     Text(
-                                        "%,d".format(bet.amount).padStart(amtWidthV),
+                                        "%,d".format(bet.amount),
                                         fontSize = 20.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.weight(1f).padding(end = 6.dp)
                                     )
+                                    // Ks label
                                     Text(
-                                        " Ks",
-                                        fontSize = 13.sp,
+                                        "Ks",
+                                        fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        modifier = Modifier.width(30.dp).padding(end = 4.dp)
                                     )
                                 }
                                 if (idx < voucherWithBets.bets.size - 1)
