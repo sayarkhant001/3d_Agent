@@ -130,6 +130,23 @@ fun BettingScreen(
 
     var currentBetType  by remember { mutableStateOf("ဒဲ့") }
 
+    var showPasteDialog by remember { mutableStateOf(false) }
+    var pasteText       by remember { mutableStateOf("") }
+    var isParsing       by remember { mutableStateOf(false) }
+    var parseProgress   by remember { mutableStateOf(0f) }
+    var parseStatus     by remember { mutableStateOf("") }
+
+    val pendingBets = remember { mutableStateListOf<Bet>() }
+
+    var focusedField by remember { mutableStateOf(FocusField.NUMBER) }
+    var tempNumber   by remember { mutableStateOf("") }
+    var tempAmount   by remember { mutableStateOf("1000") }
+    var tempRemark   by remember { mutableStateOf("") }
+
+    val coroutineScope = rememberCoroutineScope()
+
+    val quickAmounts = listOf("100", "300", "500", "1000", "2000", "5000", "10000")
+
     fun addBets(numbers: List<String>) {
         val amount = tempAmount.toIntOrNull() ?: 0
         if (amount <= 0) return
