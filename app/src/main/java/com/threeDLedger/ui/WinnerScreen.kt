@@ -234,7 +234,7 @@ fun WinnerScreen(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "ပေါက်ဂဏန်း ဖျက်မည် — ထိုးဆက်နိုင်မည်",
+                            "ဖျက်မည်။ ဆက်ထိုးနိုင်သည်။",
                             fontWeight = FontWeight.SemiBold
                         )
                     }
