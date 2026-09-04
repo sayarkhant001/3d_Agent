@@ -654,10 +654,9 @@ fun BettingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
-                .height(44.dp),
+                .height(48.dp),
             shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
         )
 
         // --- QUICK AMOUNTS (fixed 4 buttons) ---
