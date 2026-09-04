@@ -42,6 +42,7 @@ fun CustomersScreen(
 
     var showAdd         by remember { mutableStateOf(false) }
     var editCustomer    by remember { mutableStateOf<com.threeDLedger.data.Customer?>(null) }
+    var viewingCustomer by remember { mutableStateOf<com.threeDLedger.data.Customer?>(null) }
     var searchQuery     by remember { mutableStateOf("") }
 
     // Pre-compute per-customer totals once, not inside items{}
@@ -52,13 +53,26 @@ fun CustomersScreen(
                 val total = cv.sumOf { it.voucher.totalAmount }
                 val cut   = (total * c.commissionRate).toInt()
                 val net   = total - cut - c.paidAmount.toInt()
-                c.id to Triple(total, cut, net)  // id → (total, commCut, net)
+                c.id to Triple(total, cut, net)
             }
         }
     }
 
     // ── Use when{} instead of early returns ───────────────────────────────────
     when {
+        viewingCustomer != null -> {
+            val c = viewingCustomer!!
+            val (total, cut, net) = customerTotals[c.id] ?: Triple(0, 0, 0)
+            AgentNumbersView(
+                customer     = c,
+                allVWB       = allVWB,
+                totalAmount  = total,
+                commCut      = cut,
+                netAmount    = net,
+                onBack       = { viewingCustomer = null }
+            )
+        }
+
         editCustomer != null -> {
             EditCustomerFullScreen(
                 viewModel = viewModel,
@@ -160,7 +174,7 @@ fun CustomersScreen(
                                     commPct      = commPct,
                                     voucherCount = voucherCount,
                                     onEditTap    = { editCustomer = customer },
-                                    onBetsTap    = { onNavigateToVouchers(customer.id) },
+                                    onBetsTap    = { viewingCustomer = customer },
                                     onAddBetTap  = { onNavigateToBetting(customer.id) }
                                 )
                             }
@@ -466,4 +480,214 @@ fun FormRow(
     onValueChange : (String) -> Unit
 ) {
     CustomerFormField(label = label, value = value, readOnly = readOnly, onValueChange = onValueChange)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AgentNumbersView — aggregated number→amount table for one agent
+// (all their vouchers flattened, grouped by number, sorted ascending)
+// ─────────────────────────────────────────────────────────────────────────────
+private val OrangeH = Color(0xFFF57C00)
+private val OrangeR = Color(0xFFFFA000)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AgentNumbersView(
+    customer    : com.threeDLedger.data.Customer,
+    allVWB      : List<com.threeDLedger.data.VoucherWithBets>,
+    totalAmount : Int,
+    commCut     : Int,
+    netAmount   : Int,
+    onBack      : () -> Unit
+) {
+    val commPct = (customer.commissionRate * 100).toInt()
+
+    // Aggregate: voucher.customerId == customer.id, flatten bets, sum by number
+    val numberTotals: List<Pair<String, Int>> = remember(allVWB, customer.id) {
+        val map = mutableMapOf<String, Int>()
+        allVWB
+            .filter { it.voucher.customerId == customer.id }
+            .flatMap { it.bets }
+            .forEach { bet -> map[bet.number] = (map[bet.number] ?: 0) + bet.amount }
+        map.entries
+            .sortedBy { it.key.toIntOrNull() ?: 0 }
+            .map { it.key to it.value }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            customer.name,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Text(
+                            "ကော်မရှင်: $commPct%  |  ဘောင်ချာ: ${allVWB.count { it.voucher.customerId == customer.id }}",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            "Back",
+                            tint = Color.White
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = OrangeH)
+            )
+        },
+        bottomBar = {
+            // Summary footer
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(OrangeH)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("စုစုပေါင်း", color = Color.White, fontSize = 13.sp)
+                    Text(
+                        "%,d Ks".format(totalAmount),
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("ကော် ($commPct%)", color = Color.White, fontSize = 13.sp)
+                    Text(
+                        "%,d Ks".format(commCut),
+                        color = Color.White,
+                        fontSize = 13.sp
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("ပေးငွေ", color = Color.White, fontSize = 13.sp)
+                    Text(
+                        "%,d Ks".format(customer.paidAmount.toInt()),
+                        color = Color.White,
+                        fontSize = 13.sp
+                    )
+                }
+                HorizontalDivider(
+                    color = Color.White.copy(alpha = 0.3f),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        "နှုတ်ပြီးငွေ",
+                        color = CNet,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "%,d Ks".format(netAmount),
+                        color = CNet,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(Color(0xFFFFF3E0))
+        ) {
+            // Table header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(OrangeH)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    "ဂဏန်းများ",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+                Text(
+                    "ပမာဏ",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    modifier = Modifier.weight(1f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+
+            if (numberTotals.isEmpty()) {
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "ထိုးမှု မရှိသေးပါ",
+                        color = OrangeH.copy(alpha = 0.5f),
+                        fontSize = 16.sp
+                    )
+                }
+            } else {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(numberTotals) { (number, amount) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(OrangeR)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                number,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Text(
+                                "%,d".format(amount),
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                        HorizontalDivider(
+                            color = Color.White.copy(alpha = 0.18f),
+                            thickness = 0.5.dp
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
