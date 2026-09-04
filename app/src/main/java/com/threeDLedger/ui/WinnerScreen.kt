@@ -25,7 +25,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.util.concurrent.TimeUnit
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -550,7 +558,7 @@ private suspend fun fetchWinningNumber(
 ) {
     onStart()  // called on Main dispatcher (LaunchedEffect is on Main)
 
-    val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val result = withContext(Dispatchers.IO) {
         tryGloApi() ?: tryRayriffyApi()
     }
 
@@ -566,26 +574,24 @@ private suspend fun fetchWinningNumber(
 /** GLO official API — returns (last3digits, drawDate) or null on any failure */
 private fun tryGloApi(): Pair<String, String>? {
     return try {
-        val client = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        val client = OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
             .build()
 
-        val mediaType   = okhttp3.MediaType.parse("application/json; charset=utf-8")
-        val requestBody = okhttp3.RequestBody.create(mediaType, "{}".toByteArray())
+        val requestBody = "{}".toRequestBody("application/json; charset=utf-8".toMediaType())
 
-        val request = okhttp3.Request.Builder()
+        val request = Request.Builder()
             .url("https://www.glo.or.th/api/lottery/getLatestLottery")
             .post(requestBody)
-            .addHeader("Content-Type", "application/json")
             .addHeader("Accept", "application/json")
             .build()
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) return null
-        val raw = response.body()?.string() ?: return null
+        val raw = response.body?.string() ?: return null
 
-        val json = org.json.JSONObject(raw)
+        val json = JSONObject(raw)
         val resp = json.optJSONObject("response") ?: return null
 
         // Draw date — may be under "period.date" or directly "date"
@@ -600,7 +606,6 @@ private fun tryGloApi(): Pair<String, String>? {
             val id   = p.optString("id", "")
             val name = p.optString("name", "")
             if (id == "1" || id == "first" || name.contains("ที่ 1")) {
-                // Use "" as fallback (never null) — @NonNull parameter
                 val numArr = p.optJSONArray("number")
                 firstPrizeNum = if (numArr != null && numArr.length() > 0) {
                     numArr.optString(0, "").takeIf { it.isNotEmpty() }
@@ -623,12 +628,12 @@ private fun tryGloApi(): Pair<String, String>? {
 /** Rayriffy community API — returns (last3digits, drawDate) or null on any failure */
 private fun tryRayriffyApi(): Pair<String, String>? {
     return try {
-        val client = okhttp3.OkHttpClient.Builder()
-            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+        val client = OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
             .build()
 
-        val request = okhttp3.Request.Builder()
+        val request = Request.Builder()
             .url("https://lotto.api.rayriffy.com/latest")
             .get()
             .addHeader("Accept", "application/json")
@@ -636,9 +641,9 @@ private fun tryRayriffyApi(): Pair<String, String>? {
 
         val response = client.newCall(request).execute()
         if (!response.isSuccessful) return null
-        val raw = response.body()?.string() ?: return null
+        val raw = response.body?.string() ?: return null
 
-        val json = org.json.JSONObject(raw)
+        val json = JSONObject(raw)
         if (json.optString("status", "") != "ok") return null
 
         val resp   = json.optJSONObject("response") ?: return null
@@ -646,7 +651,6 @@ private fun tryRayriffyApi(): Pair<String, String>? {
         val prizes = resp.optJSONObject("prizes")   ?: return null
         val first  = prizes.optJSONObject("first")  ?: return null
 
-        // "number" can be a JSONArray OR a bare String — use "" fallback (never null)
         val numArr = first.optJSONArray("number")
         val full = if (numArr != null && numArr.length() > 0) {
             numArr.optString(0, "")
