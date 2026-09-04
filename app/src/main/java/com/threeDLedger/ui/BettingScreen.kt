@@ -1,4 +1,4 @@
-package com.threeDLedger.ui
+﻿package com.threeDLedger.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,55 +34,58 @@ fun String.myanmarToEnglish(): String {
 
 // Parse one line of pasted bet text into a list of (number, amount) pairs.
 // Handles ALL these real-world formats:
-//   723-372-245-309 = 2000      → 4 numbers at 2000
-//   446=1000                    → 1 number at 1000
-//   235-615 = 3000              → 2 numbers at 3000
-//   456=5000r1000               → 456 at 5000, permutations at 1000
-//   185-217-378-549 = 10000     → 4 numbers at 10000
-//   813-724-648-247-369 = 5000  → 5 numbers at 5000
+//   723-372-245-309 = 2000         -> 4 numbers at 2000
+//   446=1000                       -> 1 number at 1000
+//   235-615 = 3000                 -> 2 numbers at 3000
+//   456=5000r1000                  -> 456 at 5000, permutations at 1000
+//   456R=5000  OR  456/=5000       -> 456 + all perms at 5000  (R and / both mean Round)
+//   123/5000   OR  123R5000        -> 123 + perms at 5000
+//   123/456/789=5000               -> 123+perms, 456+perms, 789+perms at 5000
+//   185-217-378-549 = 10000        -> 4 numbers at 10000
 fun parsePastedLine(raw: String): List<Pair<String, Int>> {
-    // Convert Myanmar digits → English and trim
+    // Convert Myanmar digits -> English and trim
     val line = raw.trim().myanmarToEnglish()
     if (line.isBlank()) return emptyList()
 
-    // Normalise: remove spaces around separators, normalise R
-    var text = line.replace(Regex("""\s*([=:\-/.,_])\s*"""), "$1")
-    text = text.replace(Regex("""\s*[Rr]\s*"""), "R")
+    // Step 1: collapse spaces around plain separators (NOT / -- handled below)
+    var text = line.replace(Regex("""\s*([=:\-.,_])\s*"""), "$1")
+
+    // Step 2: normalise R, r, AND / -> "R"  (/ is treated as Round, same as R)
+    text = text.replace(Regex("""\s*[Rr/]\s*"""), "R")
 
     // Find the AMOUNT at the end: (optional separator)(digits)(optional R digits)$
-    // e.g. "=2000", "=5000R1000", "-3000"
-    val tailRegex = Regex("""[=:\-/.,_]?(\d+)(?:R(\d+))?$""")
+    val tailRegex = Regex("""[=:\-.,_]?(\d+)(?:R(\d+))?$""")
     val tailMatch = tailRegex.find(text) ?: return emptyList()
 
-    val amount = tailMatch.groupValues[1].toIntOrNull() ?: return emptyList()
-    val rAmount = tailMatch.groupValues[2].toIntOrNull() // may be null
+    val amount  = tailMatch.groupValues[1].toIntOrNull() ?: return emptyList()
+    val rAmount = tailMatch.groupValues[2].toIntOrNull()
 
     // Everything BEFORE the tail match is the numbers section
     val numbersStr = text.substring(0, tailMatch.range.first)
     if (numbersStr.isBlank()) return emptyList()
 
-    // Split numbers by any separator character
-    val chunks = numbersStr.split(Regex("""[=:\-/.,_\s]+"""))
-
+    // Step 3: extract (number, hasR) pairs using regex.
+    // After normalisation "123/456/789=5000" -> "123R456R789=5000"
+    // Pattern matches each 2-3 digit number and its optional trailing R
+    val numPattern = Regex("""(\d{2,3})(R?)""")
     val results = mutableListOf<Pair<String, Int>>()
-    for (chunk in chunks) {
-        if (chunk.isBlank()) continue
-        val hasR = chunk.endsWith("R", ignoreCase = true)
-        val baseNum = if (hasR) chunk.dropLast(1) else chunk
 
-        // Accept 2-digit or 3-digit numbers only
-        if (baseNum.length !in 2..3 || !baseNum.all { it.isDigit() }) continue
+    for (match in numPattern.findAll(numbersStr)) {
+        val baseNum = match.groupValues[1]
+        val hasR    = match.groupValues[2] == "R"
+
+        if (!baseNum.all { it.isDigit() }) continue
 
         results.add(baseNum to amount)
 
         when {
-            // Global R amount (e.g. 456=5000R1000 → permutations at 1000)
+            // Global R amount wins (e.g. 456=5000R1000 -> perms at 1000)
             rAmount != null && rAmount > 0 -> {
                 NumberGenerator.permutations(baseNum).forEach { perm ->
                     if (perm != baseNum) results.add(perm to rAmount)
                 }
             }
-            // Number-local R marker (e.g. "456R=5000" → permutations at same amount)
+            // Number-local R/slash marker (e.g. "456R=5000" or "456/5000")
             hasR -> {
                 NumberGenerator.permutations(baseNum).forEach { perm ->
                     if (perm != baseNum) results.add(perm to amount)
@@ -91,7 +94,7 @@ fun parsePastedLine(raw: String): List<Pair<String, Int>> {
         }
     }
 
-    // De-duplicate: if the same number appears twice, sum amounts
+    // De-duplicate: same number appearing twice -> sum amounts
     val merged = linkedMapOf<String, Int>()
     results.forEach { (num, amt) -> merged[num] = (merged[num] ?: 0) + amt }
     return merged.entries.map { it.key to it.value }
