@@ -77,9 +77,10 @@ fun AppNavigation(
         }
         composable<CustomersRoute> {
             CustomersScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToBetting = { customerId -> navController.navigate(BettingRoute(customerId)) }
+                viewModel            = viewModel,
+                onNavigateBack       = { navController.popBackStack() },
+                onNavigateToBetting  = { customerId -> navController.navigate(BettingRoute(customerId)) },
+                onNavigateToVouchers = { customerId -> navController.navigate(VouchersRoute(customerId)) }
             )
         }
         composable<BettingRoute> { backStackEntry ->
