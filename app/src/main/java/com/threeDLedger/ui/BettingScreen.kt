@@ -447,96 +447,155 @@ fun BettingScreen(
             }
         }
 
-        // --- BET LIST ---
-        val maxAmtB = if (pendingBets.isNotEmpty()) pendingBets.maxOf { it.amount } else 0
+        // ── BET LIST BOX ─────────────────────────────────────────────────────
+        val maxAmtB   = if (pendingBets.isNotEmpty()) pendingBets.maxOf { it.amount } else 0
         val amtWidthB = if (maxAmtB > 0) "%,d".format(maxAmtB).length else 5
+
         Column(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 8.dp)
-                .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
         ) {
-            // Header bar
+            // ── Header ────────────────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(primaryBlue, shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("#", color = Color.White, fontSize = 12.sp, modifier = Modifier.width(22.dp))
-                Text("ဂဏန်း = ပမာဏ", color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                // (no tap-to-erase hint — each row has its own delete button)
-            }
-            // Bet rows
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
                     .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.04f),
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(bottomStart = 6.dp, bottomEnd = 6.dp)
+                        primaryBlue,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
                     )
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(pendingBets.size) { i ->
-                    val bet = pendingBets[i]
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 6.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        // Dot/index bullet
+                Text(
+                    "#  ဂဏန်း",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "ပမာဏ",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.width(90.dp)
+                )
+                Spacer(Modifier.width(28.dp))  // room for delete icon column
+            }
+
+            // ── Rows ──────────────────────────────────────────────────────────
+            if (pendingBets.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "·",
-                            fontSize = 11.sp,
-                            color = primaryBlue.copy(alpha = 0.5f),
-                            modifier = Modifier.width(18.dp),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
-                        // Number
-                        Text(
-                            bet.number,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = primaryBlue,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            letterSpacing = 1.5.sp
-                        )
-                        Text(
-                            " = ",
+                            "ဂဏန်းထည့်ရန်",
+                            color = primaryBlue.copy(alpha = 0.35f),
                             fontSize = 16.sp,
-                            color = Color(0xFF6B7280),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            fontWeight = FontWeight.Medium
                         )
                         Text(
-                            "%,d".format(bet.amount).padStart(amtWidthB),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF111827),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            "ကီးပက်ကို သုံး၍ ထိုးနိုင်သည်",
+                            color = primaryBlue.copy(alpha = 0.25f),
+                            fontSize = 12.sp
                         )
-                        Text(
-                            " Ks",
-                            fontSize = 12.sp,
-                            color = Color(0xFF6B7280),
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                        )
-                        Spacer(Modifier.weight(1f))
-                        // Per-row delete button
-                        IconButton(
-                            onClick = { pendingBets.removeAt(i) },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(
-                                Icons.Default.Close,
-                                contentDescription = "ဖျက်",
-                                tint = Color(0xFFB91C1C),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     }
-                    Divider(color = primaryBlue.copy(alpha = 0.08f), thickness = 0.5.dp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(pendingBets.size) { i ->
+                        val bet = pendingBets[i]
+                        val isEven = i % 2 == 0
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isEven) Color.White
+                                    else Color(0xFFF0FDF4)  // very light mint stripe
+                                )
+                                .padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Row number
+                            Text(
+                                "${i + 1}.",
+                                fontSize = 11.sp,
+                                color = primaryBlue.copy(alpha = 0.45f),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.width(26.dp),
+                                textAlign = TextAlign.End
+                            )
+                            Spacer(Modifier.width(6.dp))
+
+                            // Number — large bold emerald
+                            Text(
+                                bet.number,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = primaryBlue,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                letterSpacing = 2.sp,
+                                modifier = Modifier.width(52.dp)
+                            )
+
+                            // Equals sign
+                            Text(
+                                "=",
+                                fontSize = 16.sp,
+                                color = Color(0xFF9CA3AF),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+
+                            // Amount — right-aligned, large
+                            Text(
+                                "%,d".format(bet.amount).padStart(amtWidthB),
+                                fontSize = 19.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF111827),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            // "Ks" suffix
+                            Text(
+                                " Ks",
+                                fontSize = 11.sp,
+                                color = Color(0xFF6B7280),
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+
+                            // Delete button
+                            IconButton(
+                                onClick = { pendingBets.removeAt(i) },
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "ဖျက်",
+                                    tint = Color(0xFFEF4444),
+                                    modifier = Modifier.size(15.dp)
+                                )
+                            }
+                        }
+                        if (i < pendingBets.lastIndex)
+                            Divider(
+                                color = primaryBlue.copy(alpha = 0.07f),
+                                thickness = 0.5.dp
+                            )
+                    }
                 }
             }
         }
