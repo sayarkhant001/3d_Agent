@@ -1,4 +1,4 @@
-package com.threeDLedger.ui
+﻿package com.threeDLedger.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -439,7 +439,7 @@ fun OverflowScreen(
                         if (overflowExposures.isEmpty()) {
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                    Text("ကျော်မှု မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                    Text("ကျော်ကွက် မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
                                 }
                             }
                         }

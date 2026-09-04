@@ -1,4 +1,4 @@
-package com.threeDLedger.ui
+﻿package com.threeDLedger.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -250,7 +250,7 @@ fun WinnerScreen(
                             Icon(Icons.Default.EmojiEvents, null, modifier = Modifier.size(40.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(8.dp))
-                            Text("ဤ batch တွင် ပေါက်မှု မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("ဤ batch တွင် ပေါက်သီး မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("(Batch ${targetBatch}, 3D: $winningNumber)", fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
