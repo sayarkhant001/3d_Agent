@@ -548,7 +548,7 @@ private suspend fun fetchWinningNumber(
     onResult: (String?, Boolean, String) -> Unit,
     onError:  () -> Unit
 ) {
-    onStart()  // called on Main dispatcher (LaunchedEffect is Main)
+    onStart()  // called on Main dispatcher (LaunchedEffect is on Main)
 
     val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         tryGloApi() ?: tryRayriffyApi()
@@ -556,97 +556,109 @@ private suspend fun fetchWinningNumber(
 
     if (result != null) {
         val (num3d, date) = result
-        // Both APIs only publish once results are final — always isFinal = true
+        // Both APIs publish only after results are finalized — isFinal always true
         onResult(num3d, true, date)
     } else {
         onError()
     }
 }
 
-/** GLO official API — returns (last3digits, drawDate) or null */
-private fun tryGloApi(): Pair<String, String>? = try {
-    val client = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+/** GLO official API — returns (last3digits, drawDate) or null on any failure */
+private fun tryGloApi(): Pair<String, String>? {
+    return try {
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
 
-    val body = "{}".toByteArray()
-    val mediaType = okhttp3.MediaType.parse("application/json; charset=utf-8")
-    val requestBody = okhttp3.RequestBody.create(mediaType, body)
+        val mediaType   = okhttp3.MediaType.parse("application/json; charset=utf-8")
+        val requestBody = okhttp3.RequestBody.create(mediaType, "{}".toByteArray())
 
-    val request = okhttp3.Request.Builder()
-        .url("https://www.glo.or.th/api/lottery/getLatestLottery")
-        .post(requestBody)
-        .addHeader("Content-Type", "application/json")
-        .addHeader("Accept", "application/json")
-        .build()
+        val request = okhttp3.Request.Builder()
+            .url("https://www.glo.or.th/api/lottery/getLatestLottery")
+            .post(requestBody)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "application/json")
+            .build()
 
-    val response = client.newCall(request).execute()
-    if (!response.isSuccessful) return null
-    val raw = response.body()?.string() ?: return null
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) return null
+        val raw = response.body()?.string() ?: return null
 
-    val json = org.json.JSONObject(raw)
-    val resp = json.optJSONObject("response") ?: return null
+        val json = org.json.JSONObject(raw)
+        val resp = json.optJSONObject("response") ?: return null
 
-    // Draw date — may be under "period.date" or directly "date"
-    val date = resp.optJSONObject("period")?.optString("date", "")
-        ?: resp.optString("date", "")
+        // Draw date — may be under "period.date" or directly "date"
+        val date = resp.optJSONObject("period")?.optString("date", "")
+            ?: resp.optString("date", "")
 
-    // Prizes — array with first prize having id==1 or name containing "ที่ 1"
-    val prizes = resp.optJSONArray("prizes") ?: return null
-    var firstPrizeNum: String? = null
-    for (i in 0 until prizes.length()) {
-        val p = prizes.getJSONObject(i)
-        val id   = p.optString("id", "")
-        val name = p.optString("name", "")
-        if (id == "1" || id == "first" || name.contains("ที่ 1")) {
-            val numArr = p.optJSONArray("number")
-            firstPrizeNum = numArr?.optString(0, null)
-                ?: p.optString("number", null)
-            break
+        // Prizes array — find prize with id "1" or name containing "ที่ 1"
+        val prizes = resp.optJSONArray("prizes") ?: return null
+        var firstPrizeNum: String? = null
+        for (i in 0 until prizes.length()) {
+            val p    = prizes.getJSONObject(i)
+            val id   = p.optString("id", "")
+            val name = p.optString("name", "")
+            if (id == "1" || id == "first" || name.contains("ที่ 1")) {
+                // Use "" as fallback (never null) — @NonNull parameter
+                val numArr = p.optJSONArray("number")
+                firstPrizeNum = if (numArr != null && numArr.length() > 0) {
+                    numArr.optString(0, "").takeIf { it.isNotEmpty() }
+                } else {
+                    p.optString("number", "").takeIf { it.isNotEmpty() }
+                }
+                break
+            }
         }
-    }
 
-    val full = firstPrizeNum ?: return null
-    if (full.length < 3) return null
-    Pair(full.takeLast(3), date)
-} catch (e: Exception) {
-    e.printStackTrace(); null
+        val full = firstPrizeNum ?: return null
+        if (full.length < 3) return null
+        Pair(full.takeLast(3), date)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
 }
 
-/** Rayriffy community API — returns (last3digits, drawDate) or null */
-private fun tryRayriffyApi(): Pair<String, String>? = try {
-    val client = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+/** Rayriffy community API — returns (last3digits, drawDate) or null on any failure */
+private fun tryRayriffyApi(): Pair<String, String>? {
+    return try {
+        val client = okhttp3.OkHttpClient.Builder()
+            .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
 
-    val request = okhttp3.Request.Builder()
-        .url("https://lotto.api.rayriffy.com/latest")
-        .get()
-        .addHeader("Accept", "application/json")
-        .build()
+        val request = okhttp3.Request.Builder()
+            .url("https://lotto.api.rayriffy.com/latest")
+            .get()
+            .addHeader("Accept", "application/json")
+            .build()
 
-    val response = client.newCall(request).execute()
-    if (!response.isSuccessful) return null
-    val raw = response.body()?.string() ?: return null
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) return null
+        val raw = response.body()?.string() ?: return null
 
-    val json = org.json.JSONObject(raw)
-    if (json.optString("status") != "ok") return null
+        val json = org.json.JSONObject(raw)
+        if (json.optString("status", "") != "ok") return null
 
-    val resp   = json.optJSONObject("response") ?: return null
-    val date   = resp.optString("date", "")
-    val prizes = resp.optJSONObject("prizes")   ?: return null
-    val first  = prizes.optJSONObject("first")  ?: return null
+        val resp   = json.optJSONObject("response") ?: return null
+        val date   = resp.optString("date", "")
+        val prizes = resp.optJSONObject("prizes")   ?: return null
+        val first  = prizes.optJSONObject("first")  ?: return null
 
-    // "number" may be a JSONArray or a bare String
-    val full = first.optJSONArray("number")?.optString(0, null)
-        ?: first.optString("number", null)
-        ?: return null
+        // "number" can be a JSONArray OR a bare String — use "" fallback (never null)
+        val numArr = first.optJSONArray("number")
+        val full = if (numArr != null && numArr.length() > 0) {
+            numArr.optString(0, "")
+        } else {
+            first.optString("number", "")
+        }
 
-    if (full.length < 3) return null
-    Pair(full.takeLast(3), date)
-} catch (e: Exception) {
-    e.printStackTrace(); null
+        if (full.length < 3) return null
+        Pair(full.takeLast(3), date)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
 }
 
