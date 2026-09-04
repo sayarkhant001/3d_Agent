@@ -216,6 +216,12 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         }
     }
 
+    fun deleteCustomer(customer: Customer) {
+        viewModelScope.launch {
+            repository.deleteCustomer(customer)
+        }
+    }
+
     fun addVoucherAndBets(customerId: Int, time: String, rawInput: String, remark: String = "") {
         viewModelScope.launch {
             val bets = parseBets(rawInput)

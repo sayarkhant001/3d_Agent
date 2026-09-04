@@ -22,6 +22,10 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
         return lotteryDao.insertCustomer(customer)
     }
 
+    suspend fun deleteCustomer(customer: Customer) {
+        lotteryDao.deleteCustomer(customer)
+    }
+
     suspend fun insertVoucherWithBets(voucher: Voucher, bets: List<Bet>) {
         val voucherId = lotteryDao.insertVoucher(voucher).toInt()
         val betsWithVoucherId = bets.map { it.copy(voucherId = voucherId) }

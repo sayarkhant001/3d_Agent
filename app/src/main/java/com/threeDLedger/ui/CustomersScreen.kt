@@ -382,6 +382,42 @@ fun EditCustomerFullScreen(
     var commissionStr by remember { mutableStateOf((customer.commissionRate * 100).toInt().toString()) }
     var multiplierStr by remember { mutableStateOf(customer.multiplier.toString()) }
     var paidStr       by remember { mutableStateOf(customer.paidAmount.toInt().toString()) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    // ── Confirmation dialog ───────────────────────────────────────────────────
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            icon = {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
+            },
+            title = { Text("ကော်မရှင် ဖျက်မည်") },
+            text  = {
+                Text("${customer.name} ကို အပြီးတိုင် ဖျက်မည်နေ? \nဤလုပ်ဆောင်ချက်ကို ပြန်မပြင်နိုင်ပါ။")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteCustomer(customer)
+                        showDeleteDialog = false
+                        onBack()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("ဖျက်မည်") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteDialog = false }) {
+                    Text("မဖျက်တော့ပါ")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -403,7 +439,16 @@ fun EditCustomerFullScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary
-                )
+                ),
+                actions = {
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(
+                            Icons.Default.Delete,
+                            "Delete commissioner",
+                            tint = Color.White
+                        )
+                    }
+                }
             )
         },
         bottomBar = {
