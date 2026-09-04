@@ -1,4 +1,4 @@
-package com.threeDLedger.ui
+﻿package com.threeDLedger.ui
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
@@ -120,19 +120,18 @@ fun VouchersScreen(
                                 appendLine("========================")
                                 appendLine("      3D VOUCHER")
                                 appendLine("========================")
-                                appendLine(" အကြိမ် : ${voucherWithBets.voucher.batchNumber}")
+                                appendLine(" No.${voucherWithBets.voucher.id}  အကြိမ် : ${voucherWithBets.voucher.batchNumber}")
                                 appendLine(" ရက်စွဲ : $dateString")
                                 appendLine(" ထိုးသူ : $customerName$remarkStr")
-                                appendLine(" ဘောင်ချာအမှတ် : ${voucherWithBets.voucher.id}")
                                 appendLine("------------------------")
                                 val maxAmt = voucherWithBets.bets.maxOfOrNull { it.amount } ?: 0
                                 val amtWidth = "%,d".format(maxAmt).length
                                 voucherWithBets.bets.forEach { bet ->
                                     val amtStr = "%,d".format(bet.amount).padStart(amtWidth)
-                                    appendLine(" ${bet.number.padEnd(5)} = $amtStr Ks")
+                                    appendLine(" ${bet.number.padStart(3)} = $amtStr Ks")
                                 }
                                 appendLine("------------------------")
-                                appendLine(" စုစုပေါင်း : ${voucherWithBets.voucher.totalAmount} Ks")
+                                appendLine(" ထိုးကြေးငွေ = ${ "%,d".format(voucherWithBets.voucher.totalAmount).padStart(amtWidth)} Ks")
                                 appendLine("------------------------")
                                 appendLine(" $footerText")
                                 appendLine("========================")
