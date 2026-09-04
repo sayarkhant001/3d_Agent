@@ -241,7 +241,7 @@ fun BettingScreen(
                         viewModel.addVoucherWithBetList(selectedCustomer!!, time, chunk, tempRemark)
                     }
                     tempRemark = ""
-                    android.widget.Toast.makeText(context, " ကြောင်း တိုက်ရိုက်သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, " ကြောင်း ပေါက်သီး သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
                 } else {
                     // No customer selected — still buffer (they can submit later)
                     pendingBets.addAll(allBets)
@@ -395,7 +395,7 @@ fun BettingScreen(
 
                         if (lineCount > 500)
                             Text(
-                                "⚡ ${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် တိုက်ရိုက် DB သိမ်းမည်",
+                                "⚡ ${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် ပေါက်သီး DB သိမ်းမည်",
                                 fontSize = 11.sp, color = Color(0xFFFF9800),
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )

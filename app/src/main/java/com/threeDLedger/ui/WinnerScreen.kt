@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -311,9 +311,9 @@ private fun InputCard(
             Text("အဆ (Multiplier)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MultiplierField("တိုက်ရိုက်", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
+                MultiplierField("ပေါက်သီး", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
                 MultiplierField("တွတ်",       permMult,  Color(0xFF6C63FF), Modifier.weight(1f), onPermChange)
-                MultiplierField("အနီး",       nearMult,  Color(0xFF4ECDC4), Modifier.weight(1f), onNearChange)
+                MultiplierField("တွတ်",       nearMult,  Color(0xFF4ECDC4), Modifier.weight(1f), onNearChange)
             }
 
             OutlinedButton(onClick = onRecalc, modifier = Modifier.fillMaxWidth(),
@@ -335,9 +335,9 @@ private fun GrandTotalBar(results: List<WinnerResult>, grandTotal: Double) {
         elevation = CardDefaults.cardElevation(4.dp)) {
         Row(modifier = Modifier.padding(14.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            WinChip("တိုက်ရိုက်", "${results.count { it.winType == WinType.EXACT }}", Color(0xFF43AA8B))
+            WinChip("ပေါက်သီး", "${results.count { it.winType == WinType.EXACT }}", Color(0xFF43AA8B))
             WinChip("တွတ်",       "${results.count { it.winType == WinType.PERMUTATION }}", Color(0xFF6C63FF))
-            WinChip("အနီး",       "${results.count { it.winType == WinType.NEAR }}", Color(0xFF4ECDC4))
+            WinChip("တွတ်",       "${results.count { it.winType == WinType.NEAR }}", Color(0xFF4ECDC4))
             Column(horizontalAlignment = Alignment.End) {
                 Text("ပေးရမည့် စုစုပေါင်း", fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
@@ -378,9 +378,9 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                 Column(Modifier.weight(1f)) {
                     Text(agent.customerName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (agent.exactCount > 0) WinTypeBadge("တိုက်ရိုက် ×${agent.exactCount}", Color(0xFF43AA8B))
+                        if (agent.exactCount > 0) WinTypeBadge("ပေါက်သီး ×${agent.exactCount}", Color(0xFF43AA8B))
                         if (agent.permCount  > 0) WinTypeBadge("တွတ် ×${agent.permCount}",       Color(0xFF6C63FF))
-                        if (agent.nearCount  > 0) WinTypeBadge("အနီး ×${agent.nearCount}",       Color(0xFF4ECDC4))
+                        if (agent.nearCount  > 0) WinTypeBadge("တွတ် ×${agent.nearCount}",       Color(0xFF4ECDC4))
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -445,9 +445,9 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
 @Composable
 private fun BetResultRow(result: WinnerResult) {
     val (color, label) = when (result.winType) {
-        WinType.EXACT       -> Pair(Color(0xFF43AA8B), "တိုက်ရိုက်")
+        WinType.EXACT       -> Pair(Color(0xFF43AA8B), "ပေါက်သီး")
         WinType.PERMUTATION -> Pair(Color(0xFF6C63FF), "တွတ်")
-        WinType.NEAR        -> Pair(Color(0xFF4ECDC4), "အနီး")
+        WinType.NEAR        -> Pair(Color(0xFF4ECDC4), "တွတ်")
     }
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically) {
