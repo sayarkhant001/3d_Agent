@@ -72,7 +72,45 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         brakeLimit.value = value
         prefs.edit().putInt("brakeLimit", value).apply()
     }
-    
+
+    // ── Per-batch multipliers (saved when ပေါက်သီး is declared) ──────────────
+    val savedExactMult = MutableStateFlow(600.0)
+    val savedPermMult  = MutableStateFlow(100.0)
+    val savedNearMult  = MutableStateFlow(10.0)
+
+    fun saveMultipliers(exact: Double, perm: Double, near: Double) {
+        savedExactMult.value = exact
+        savedPermMult.value  = perm
+        savedNearMult.value  = near
+        prefs.edit()
+            .putFloat("exactMult_${currentBatch.value}", exact.toFloat())
+            .putFloat("permMult_${currentBatch.value}",  perm.toFloat())
+            .putFloat("nearMult_${currentBatch.value}",  near.toFloat())
+            .apply()
+    }
+
+    fun getWinningNumberForBatch(batch: Int): String =
+        prefs.getString("winningNumber_$batch", "") ?: ""
+
+    fun getMultipliersForBatch(batch: Int): Triple<Double, Double, Double> = Triple(
+        prefs.getFloat("exactMult_$batch", 600f).toDouble(),
+        prefs.getFloat("permMult_$batch",  100f).toDouble(),
+        prefs.getFloat("nearMult_$batch",   10f).toDouble()
+    )
+
+    // ── Per-customer per-batch paid amount (persisted) ────────────────────────
+    fun getPaidForBatch(customerId: Int, batchNumber: Int): Double =
+        prefs.getFloat("paid_${customerId}_$batchNumber", 0f).toDouble()
+
+    fun setPaidForBatch(customerId: Int, batchNumber: Int, amount: Double) {
+        prefs.edit().putFloat("paid_${customerId}_$batchNumber", amount.toFloat()).apply()
+    }
+
+    /** Flow of all vouchers (incl. archived) for a specific batch number */
+    fun getVouchersWithBetsByBatch(batchNumber: Int): kotlinx.coroutines.flow.Flow<List<com.threeDLedger.data.VoucherWithBets>> =
+        repository.getVouchersWithBetsByBatch(batchNumber)
+
+
     val ledgerExposures: StateFlow<List<LedgerExposure>> = kotlinx.coroutines.flow.combine(
         vouchersWithBets,
         allExportRecords,

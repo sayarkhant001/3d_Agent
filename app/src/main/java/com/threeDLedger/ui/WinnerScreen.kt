@@ -120,8 +120,9 @@ fun WinnerScreen(
             WinnerResult(customer.name, customer.id, bet.voucherId, bet.number, bet.amount, win, wt)
         }.sortedWith(compareBy({ it.customerName }, { it.voucherId }))
 
-        // Share the winning number with LedgerScreen (Numbers page)
+        // Persist winning number and multipliers for this batch
         viewModel.saveWinningNumber(winningNumber)
+        viewModel.saveMultipliers(eM, pM, nM)
     }
 
     // Auto-fetch on open — fills the number field only, NO calculation

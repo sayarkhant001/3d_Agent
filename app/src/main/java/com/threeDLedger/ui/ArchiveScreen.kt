@@ -1,6 +1,7 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,7 +26,8 @@ import com.threeDLedger.data.ArchiveBatchSummary
 @Composable
 fun ArchiveScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToBatchResult: (Int) -> Unit = {}
 ) {
     val batches by viewModel.archivedBatchSummaries.collectAsStateWithLifecycle()
 
@@ -83,7 +85,10 @@ fun ArchiveScreen(
                 }
                 // One card per batch
                 items(batches) { batch ->
-                    ArchiveBatchCard(batch)
+                    ArchiveBatchCard(
+                        batch = batch,
+                        onViewResult = { onNavigateToBatchResult(batch.batchNumber) }
+                    )
                 }
                 item { Spacer(Modifier.height(8.dp)) }
             }
@@ -139,11 +144,14 @@ private fun VerticalDividerLine() {
 }
 
 @Composable
-private fun ArchiveBatchCard(batch: ArchiveBatchSummary) {
+private fun ArchiveBatchCard(
+    batch: ArchiveBatchSummary,
+    onViewResult: () -> Unit = {}
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier  = Modifier.fillMaxWidth(),
+        shape     = RoundedCornerShape(16.dp),
+        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -196,21 +204,36 @@ private fun ArchiveBatchCard(batch: ArchiveBatchSummary) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                BatchStat(
-                    icon = Icons.Default.Receipt,
-                    value = "${batch.voucherCount}",
-                    label = "ဘောင်ချာ"
-                )
-                BatchStat(
-                    icon = Icons.Default.People,
-                    value = "${batch.customerCount}",
-                    label = "ဖောက်သည်"
-                )
-                BatchStat(
-                    icon = Icons.Default.Payments,
-                    value = "%,d".format(batch.totalAmount),
-                    label = "ကျပ်"
-                )
+                BatchStat(icon = Icons.Default.Receipt,  value = "${batch.voucherCount}",           label = "ဘောင်ချာ")
+                BatchStat(icon = Icons.Default.People,   value = "${batch.customerCount}",           label = "ဖောက်သည်")
+                BatchStat(icon = Icons.Default.Payments, value = "%,d".format(batch.totalAmount),    label = "ကျပ်")
+            }
+
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            Spacer(Modifier.height(8.dp))
+
+            // Navigate to commissioner results
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF00796B).copy(alpha = 0.08f))
+                    .clickable(onClick = onViewResult)
+                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.PieChart, null, tint = Color(0xFF00796B), modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "ကော်မဆုင်ရာ ရလဒ် ကြည့်မည်",
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF00796B)
+                    )
+                }
+                Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF00796B), modifier = Modifier.size(18.dp))
             }
         }
     }

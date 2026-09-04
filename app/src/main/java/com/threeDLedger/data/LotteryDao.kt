@@ -118,6 +118,11 @@ interface LotteryDao {
     @Query("SELECT * FROM vouchers WHERE isArchived = 0 ORDER BY timestamp DESC")
     fun getAllVouchersWithBets(): Flow<List<VoucherWithBets>>
 
+    /** All vouchers for a specific batch — regardless of archive status */
+    @Transaction
+    @Query("SELECT * FROM vouchers WHERE batchNumber = :batchNumber ORDER BY timestamp DESC")
+    fun getVouchersWithBetsByBatch(batchNumber: Int): Flow<List<VoucherWithBets>>
+
     @Transaction
     @Query("SELECT * FROM vouchers WHERE id = :voucherId")
     suspend fun getVoucherWithBets(voucherId: Int): VoucherWithBets?

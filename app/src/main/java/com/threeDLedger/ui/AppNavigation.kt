@@ -25,6 +25,7 @@ import kotlinx.serialization.Serializable
 @Serializable object ArchiveRoute
 @Serializable object ExportHistoryRoute
 @Serializable object SettingsRoute
+@Serializable data class CommissionerResultRoute(val batchNumber: Int)
 
 @Composable
 fun AppNavigation(
@@ -102,8 +103,11 @@ fun AppNavigation(
         }
         composable<LedgerRoute> {
             LedgerScreen(
-                viewModel = viewModel,
-                onNavigateBack = { navController.popBackStack() }
+                viewModel          = viewModel,
+                onNavigateBack     = { navController.popBackStack() },
+                onNavigateToResult = {
+                    navController.navigate(CommissionerResultRoute(viewModel.currentBatch.value))
+                }
             )
         }
         
@@ -129,7 +133,18 @@ fun AppNavigation(
         }
         composable<ArchiveRoute> {
             ArchiveScreen(
-                viewModel = viewModel,
+                viewModel              = viewModel,
+                onNavigateBack         = { navController.popBackStack() },
+                onNavigateToBatchResult = { batchNum ->
+                    navController.navigate(CommissionerResultRoute(batchNum))
+                }
+            )
+        }
+        composable<CommissionerResultRoute> { backStackEntry ->
+            val route = backStackEntry.toRoute<CommissionerResultRoute>()
+            CommissionerResultScreen(
+                viewModel      = viewModel,
+                batchNumber    = route.batchNumber,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

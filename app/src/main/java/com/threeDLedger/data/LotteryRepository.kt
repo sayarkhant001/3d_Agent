@@ -14,6 +14,9 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
     val allBannedNumbers: Flow<List<BannedNumber>> = lotteryDao.getAllBannedNumbers()
     val allExportRecords: Flow<List<ExportRecordWithNumbers>> = lotteryDao.getAllExportRecords()
 
+    fun getVouchersWithBetsByBatch(batchNumber: Int): Flow<List<VoucherWithBets>> =
+        lotteryDao.getVouchersWithBetsByBatch(batchNumber)
+
     suspend fun updateCustomer(customer: Customer) {
         lotteryDao.updateCustomer(customer)
     }

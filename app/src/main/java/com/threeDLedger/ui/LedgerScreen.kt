@@ -1,6 +1,7 @@
 package com.threeDLedger.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,7 +44,8 @@ private val RedExact     = Color(0xFFD32F2F)
 @Composable
 fun LedgerScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToResult: () -> Unit = {}
 ) {
     val ledgerExposures by viewModel.ledgerExposures.collectAsStateWithLifecycle()
     val currentBatch    by viewModel.currentBatch.collectAsStateWithLifecycle()
@@ -184,10 +186,11 @@ fun LedgerScreen(
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(allExposures) { exposure ->
                             NumberTableRow(
-                                number  = exposure.number,
-                                amount  = exposure.totalBetAmount,
-                                bgColor = OrangeRow,
-                                textColor = Color.White
+                                number    = exposure.number,
+                                amount    = exposure.totalBetAmount,
+                                bgColor   = OrangeRow,
+                                textColor = Color.White,
+                                onClick   = onNavigateToResult
                             )
                             Divider(color = Color.White.copy(alpha = 0.18f), thickness = 0.5.dp)
                         }
@@ -214,7 +217,8 @@ fun LedgerScreen(
                                 number    = exposure.number,
                                 amount    = exposure.totalBetAmount,
                                 bgColor   = if (cat == NumCat.EXACT) RedExact else OrangeRow,
-                                textColor = Color.White
+                                textColor = Color.White,
+                                onClick   = onNavigateToResult
                             )
                             Divider(color = Color.White.copy(alpha = 0.18f), thickness = 0.5.dp)
                         }
@@ -254,12 +258,14 @@ private fun NumberTableRow(
     number   : String,
     amount   : Int,
     bgColor  : Color,
-    textColor: Color
+    textColor: Color,
+    onClick  : () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(bgColor)
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
