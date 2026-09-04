@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 class LotteryRepository(private val lotteryDao: LotteryDao) {
     val allCustomers: Flow<List<Customer>> = lotteryDao.getAllCustomers()
     val archivedVouchers: Flow<List<VoucherWithCustomer>> = lotteryDao.getArchivedVouchersWithCustomer()
+    val archivedBatchSummaries: Flow<List<ArchiveBatchSummary>> = lotteryDao.getArchivedBatchSummaries()
 
     val allVouchersWithCustomer: Flow<List<VoucherWithCustomer>> = lotteryDao.getAllVouchersWithCustomer()
     val allVouchersWithBets: Flow<List<VoucherWithBets>> = lotteryDao.getAllVouchersWithBets()

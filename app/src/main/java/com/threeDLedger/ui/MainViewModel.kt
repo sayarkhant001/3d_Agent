@@ -42,6 +42,9 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     val archivedVouchers: StateFlow<List<VoucherWithCustomer>> = repository.archivedVouchers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val archivedBatchSummaries: StateFlow<List<com.threeDLedger.data.ArchiveBatchSummary>> = repository.archivedBatchSummaries
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val allExportRecords: StateFlow<List<ExportRecordWithNumbers>> = repository.allExportRecords
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         

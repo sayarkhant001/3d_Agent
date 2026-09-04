@@ -26,6 +26,15 @@ data class NumberExposure(
     val totalAmount: Int
 )
 
+data class ArchiveBatchSummary(
+    val batchNumber: Int,
+    val voucherCount: Int,
+    val customerCount: Int,
+    val totalAmount: Int,
+    val minDate: String,
+    val maxDate: String
+)
+
 data class ExportRecordWithNumbers(
     @Embedded val record: ExportRecord,
     @Relation(
@@ -81,6 +90,21 @@ interface LotteryDao {
     @Transaction
     @Query("SELECT * FROM vouchers WHERE isArchived = 1 ORDER BY timestamp DESC")
     fun getArchivedVouchersWithCustomer(): Flow<List<VoucherWithCustomer>>
+
+    @Query("""
+        SELECT
+            batchNumber,
+            COUNT(id)              AS voucherCount,
+            COUNT(DISTINCT customerId) AS customerCount,
+            SUM(totalAmount)       AS totalAmount,
+            MIN(date)              AS minDate,
+            MAX(date)              AS maxDate
+        FROM vouchers
+        WHERE isArchived = 1
+        GROUP BY batchNumber
+        ORDER BY batchNumber DESC
+    """)
+    fun getArchivedBatchSummaries(): Flow<List<ArchiveBatchSummary>>
 
     @Transaction
     @Query("SELECT * FROM vouchers WHERE isArchived = 0 ORDER BY timestamp DESC")
