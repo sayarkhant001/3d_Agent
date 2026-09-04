@@ -55,9 +55,11 @@ export default {
 // ── Firebase Auth via Service Account ────────────────────────────────────────
 
 async function getFirebaseToken(env: Env): Promise<string> {
-  // Strip UTF-8 BOM if present (secret may have been saved with BOM)
+  // Strip UTF-8 BOM if present; replace literal \n sequences with real newlines
   const rawJson = env.GOOGLE_SERVICE_ACCOUNT_JSON.replace(/^\uFEFF/, '').trim();
   const sa = JSON.parse(rawJson);
+  // Cloudflare secrets may store private_key with literal \n instead of real newlines
+  const privateKey: string = sa.private_key.replace(/\\n/g, '\n');
   const now = Math.floor(Date.now() / 1000);
 
   // Build JWT header + payload
@@ -77,7 +79,7 @@ async function getFirebaseToken(env: Env): Promise<string> {
   const sigInput = `${enc(header)}.${enc(payload)}`;
 
   // Import the RSA private key
-  const pemBody = sa.private_key
+  const pemBody = privateKey
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
     .replace(/\s/g, '');
