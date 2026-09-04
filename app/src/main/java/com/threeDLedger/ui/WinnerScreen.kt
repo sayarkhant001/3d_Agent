@@ -116,7 +116,20 @@ fun WinnerScreen(
         viewModel.saveWinningNumber(winningNumber)
     }
 
-    // No auto-fetch / auto-recalc — results are frozen until user explicitly taps ပြန်တွက်မည်
+    // Auto-fetch on open — fills the number field only, NO calculation
+    LaunchedEffect(Unit) {
+        fetchWinningNumber(
+            onStart  = { isFetching = true; fetchStatus = "checking" },
+            onResult = { num, isFinal, session ->
+                if (!num.isNullOrEmpty()) winningNumber = num   // fill field, don't calc
+                isFinalResult = isFinal; resultSession = session
+                fetchStatus = if (num.isNullOrEmpty()) "error" else "ok"
+                isFetching = false
+            },
+            onError = { isFetching = false; fetchStatus = "error" }
+        )
+    }
+    // Calculation only happens when user explicitly taps ပေါက်သီ ကြောညာသည်။
 
     // Derived grouped data
     val agentSummaries: List<AgentWinSummary> = remember(results) {
@@ -337,11 +350,24 @@ private fun InputCard(
                 MultiplierField("တွတ်",       nearMult,  Color(0xFF4ECDC4), Modifier.weight(1f), onNearChange)
             }
 
-            OutlinedButton(onClick = onRecalc, modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp), enabled = winningNumber.length == 3) {
-                Icon(Icons.Default.Refresh, null, Modifier.size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("ပြန်တွက်မည်", fontWeight = FontWeight.SemiBold)
+            // ── Declare button ───────────────────────────────────────────────────
+            Button(
+                onClick = onRecalc,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(12.dp),
+                enabled = winningNumber.length == 3,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFD32F2F),   // strong red — declaration is final
+                    contentColor   = Color.White
+                )
+            ) {
+                Icon(Icons.Default.Star, null, Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "ပေါက်သီး ကြေညာသည်",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
         }
     }
