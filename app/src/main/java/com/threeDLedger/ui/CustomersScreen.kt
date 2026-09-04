@@ -43,10 +43,8 @@ fun CustomersScreen(
     onNavigateBack: () -> Unit,
     onNavigateToBetting: (Int) -> Unit
 ) {
-    val customers   by viewModel.customers.collectAsStateWithLifecycle()
-    val allVouchers by viewModel.vouchersWithCustomer.collectAsStateWithLifecycle()
-    val allVWB      by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
-    val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
+    val customers    by viewModel.customers.collectAsStateWithLifecycle()
+    val allVWB       by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
 
     var showAddDialog   by remember { mutableStateOf(false) }
     var editingCustomer by remember { mutableStateOf<com.threeDLedger.data.Customer?>(null) }
@@ -65,10 +63,10 @@ fun CustomersScreen(
     }
     if (viewingBetsCustomer != null) {
         val c = viewingBetsCustomer!!
-        val customerVouchers = allVouchers.filter { it.customer.id == c.id }
-        val totalAmount  = customerVouchers.sumOf { it.voucher.totalAmount }
-        val commissionCut = (totalAmount * c.commissionRate).toInt()
-        val netAmount    = totalAmount - commissionCut - c.paidAmount.toInt()
+        val customerVWB    = allVWB.filter { it.voucher.customerId == c.id }
+        val totalAmount    = customerVWB.sumOf { it.voucher.totalAmount }
+        val commissionCut  = (totalAmount * c.commissionRate).toInt()
+        val netAmount      = totalAmount - commissionCut - c.paidAmount.toInt()
 
         // Aggregate bets: number → total amount (sorted ascending)
         val betsForCustomer = allVWB
@@ -84,7 +82,7 @@ fun CustomersScreen(
 
         AgentBetsView(
             customerName   = c.name,
-            batchNumber    = currentBatch,
+            batchNumber    = allVWB.firstOrNull { it.voucher.customerId == c.id }?.voucher?.batchNumber ?: 0,
             totalAmount    = totalAmount,
             commissionCut  = commissionCut,
             netAmount      = netAmount,
@@ -141,8 +139,8 @@ fun CustomersScreen(
                     .filter { it.name != "တင်ကွက် (Overflows)" }
 
                 items(filtered) { customer ->
-                    val customerVouchers = allVouchers.filter { it.customer.id == customer.id }
-                    val totalAmount   = customerVouchers.sumOf { it.voucher.totalAmount }
+                    val customerVWB   = allVWB.filter { it.voucher.customerId == customer.id }
+                    val totalAmount   = customerVWB.sumOf { it.voucher.totalAmount }
                     val commissionCut = (totalAmount * customer.commissionRate).toInt()
                     val netAmount     = totalAmount - commissionCut - customer.paidAmount.toInt()
                     val commPct       = (customer.commissionRate * 100).toInt()
@@ -230,7 +228,7 @@ fun CustomersScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        "ဘောင်ချာ: ${customerVouchers.size}",
+                                        "ဘောင်ချာ: ${customerVWB.size}",
                                         color = DimOnCard,
                                         fontSize = 13.sp
                                     )
