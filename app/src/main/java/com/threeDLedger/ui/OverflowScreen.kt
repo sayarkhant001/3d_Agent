@@ -412,9 +412,10 @@ fun OverflowScreen(
                                 fontSize = 14.sp
                                 )
                                 Text(
-                                    "$kept",
+                                    "%,d".format(kept),
                                     modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center,
+                                    textAlign = TextAlign.End,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                                     fontSize = 14.sp
                                 )
@@ -424,7 +425,7 @@ fun OverflowScreen(
                     }
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(4.dp)) {
                         Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                        Text("$totalBraked", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        Text("%,d".format(totalBraked), color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
@@ -458,9 +459,10 @@ fun OverflowScreen(
                                 fontSize = 14.sp
                                 )
                                 Text(
-                                    "${exposure.overflowAmount}",
+                                    "%,d".format(exposure.overflowAmount),
                                     modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center,
+                                    textAlign = TextAlign.End,
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
@@ -473,7 +475,7 @@ fun OverflowScreen(
                         if (totalOverflow > 0) MaterialTheme.colorScheme.error else orangeColor
                     ).padding(4.dp)) {
                         Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                        Text("$totalOverflow", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        Text("%,d".format(totalOverflow), color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     }
                 }
             }

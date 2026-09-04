@@ -255,8 +255,23 @@ object BluetoothPrinter {
         paint.textSize = 28f
         paint.typeface = android.graphics.Typeface.MONOSPACE
         val betIndent = pad + 24f
+        val rightEdge = width - pad - 24f
+
+        // Pre-compute max amount string width so the column stays fixed
+        val maxAmtStr = data.bets.maxOfOrNull { "%,d Ks".format(it.second) } ?: ""
+        paint.textAlign = android.graphics.Paint.Align.RIGHT
+        val amtColumnWidth = paint.measureText(maxAmtStr) + 8f
+        paint.textAlign = android.graphics.Paint.Align.LEFT
+
         data.bets.forEachIndexed { idx, (number, amount) ->
-            canvas.drawText("$number  =  $amount", betIndent, y + betLineH * 0.72f, paint)
+            val amtStr = "%,d Ks".format(amount)
+            // Number — left aligned
+            paint.textAlign = android.graphics.Paint.Align.LEFT
+            canvas.drawText(number, betIndent, y + betLineH * 0.72f, paint)
+            // Amount — right aligned at fixed right edge
+            paint.textAlign = android.graphics.Paint.Align.RIGHT
+            canvas.drawText(amtStr, rightEdge, y + betLineH * 0.72f, paint)
+            paint.textAlign = android.graphics.Paint.Align.LEFT
             y += betLineH
             // dotted line between bets (not after last)
             if (idx < data.bets.size - 1) {
@@ -289,7 +304,7 @@ object BluetoothPrinter {
         paint.color = Color.BLACK
         canvas.drawText("Total", pad + 12f, y + bigLineH * 0.55f, paint)
         paint.textAlign = android.graphics.Paint.Align.RIGHT
-        canvas.drawText("${data.totalAmount} Ks", width - pad - 12f, y + bigLineH * 0.55f, paint)
+        canvas.drawText("%,d Ks".format(data.totalAmount), width - pad - 12f, y + bigLineH * 0.55f, paint)
         y += bigLineH + 8f
 
         drawSeparator(y)

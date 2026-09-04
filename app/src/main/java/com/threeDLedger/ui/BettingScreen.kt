@@ -384,7 +384,7 @@ fun BettingScreen(
                 Text("|", color = MaterialTheme.colorScheme.onPrimary)
                 Text("ဂဏန်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                 Text("|", color = MaterialTheme.colorScheme.onPrimary)
-                Text("ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                Text("ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
             }
             
             // List
@@ -403,7 +403,13 @@ fun BettingScreen(
                     ) {
                         Text("${i + 1}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
                         Text("${bet.number}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                        Text("${bet.amount}", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "%,d".format(bet.amount),
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.End,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     Divider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
@@ -435,7 +441,7 @@ fun BettingScreen(
                 Text("အမြန်ထိုးရွေးပါ", color = MaterialTheme.colorScheme.onPrimary, fontSize = 14.sp)
             }
 
-            Text("စုစုပေါင်း = $totalAmount", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("စုစုပေါင်း = %,d".format(totalAmount), color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("ထိုးရန်", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp, modifier = Modifier.padding(end = 4.dp))

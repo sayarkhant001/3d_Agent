@@ -75,9 +75,27 @@ fun VouchersScreen(
                         
                         Column(modifier = Modifier.fillMaxWidth()) {
                             voucherWithBets.bets.forEach { bet ->
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(bet.number)
-                                    Text("= ${bet.amount}")
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        bet.number,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    )
+                                    Text(
+                                        "%,d".format(bet.amount),
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        " Ks",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
                                 }
                             }
                         }
@@ -91,7 +109,11 @@ fun VouchersScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("စုစုပေါင်း: ${voucherWithBets.voucher.totalAmount} Ks", fontWeight = FontWeight.Bold)
+                            Text(
+                                "စုစုပေါင်း: %,d Ks".format(voucherWithBets.voucher.totalAmount),
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
                             
                             val remarkStr = if (voucherWithBets.voucher.remark.isNotEmpty()) " (${voucherWithBets.voucher.remark})" else ""
                             val textToCopy = buildString {
@@ -103,8 +125,11 @@ fun VouchersScreen(
                                 appendLine(" ထိုးသူ : $customerName$remarkStr")
                                 appendLine(" ဘောင်ချာအမှတ် : ${voucherWithBets.voucher.id}")
                                 appendLine("------------------------")
+                                val maxAmt = voucherWithBets.bets.maxOfOrNull { it.amount } ?: 0
+                                val amtWidth = "%,d".format(maxAmt).length
                                 voucherWithBets.bets.forEach { bet ->
-                                    appendLine(" ${bet.number.padEnd(5)} = ${bet.amount}")
+                                    val amtStr = "%,d".format(bet.amount).padStart(amtWidth)
+                                    appendLine(" ${bet.number.padEnd(5)} = $amtStr Ks")
                                 }
                                 appendLine("------------------------")
                                 appendLine(" စုစုပေါင်း : ${voucherWithBets.voucher.totalAmount} Ks")
