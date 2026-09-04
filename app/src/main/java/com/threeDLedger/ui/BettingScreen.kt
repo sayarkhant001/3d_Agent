@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Bet
 import com.threeDLedger.logic.NumberGenerator
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // Myanmar digit to English digit converter
 fun String.myanmarToEnglish(): String {
@@ -123,21 +127,24 @@ fun BettingScreen(
         }
     }
 
-    var showDialog by remember { mutableStateOf(false) }
     var showPasteDialog by remember { mutableStateOf(false) }
-    var pasteText by remember { mutableStateOf("") }
-    
+    var pasteText     by remember { mutableStateOf("") }
+    var isParsing     by remember { mutableStateOf(false) }
+    var parseProgress by remember { mutableStateOf(0f) }
+    var parseStatus   by remember { mutableStateOf("") }
+
     val pendingBets = remember { mutableStateListOf<Bet>() }
-    
-    var focusedField by remember { mutableStateOf(FocusField.NUMBER) }
-    var tempNumber by remember { mutableStateOf("") }
-    var tempAmount by remember { mutableStateOf("1000") }
-    var tempRemark by remember { mutableStateOf("") } // Maybe not needed in new layout but keep logic
-    
+
+    var focusedField    by remember { mutableStateOf(FocusField.NUMBER) }
+    var tempNumber      by remember { mutableStateOf("") }
+    var tempAmount      by remember { mutableStateOf("1000") }
+    var tempRemark      by remember { mutableStateOf("") }
+
+    val coroutineScope  = rememberCoroutineScope()
+
     // Dropdown states
     var expandedBetType by remember { mutableStateOf(false) }
-    var currentBetType by remember { mutableStateOf("ဒဲ့") }
-    val betTypes = listOf("ဒဲ့", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
+    var currentBetType  by remember { mutableStateOf("") }
 
     val quickAmounts = listOf("100", "300", "500", "1000", "2000", "5000", "10000")
 
@@ -186,26 +193,73 @@ fun BettingScreen(
         focusedField = FocusField.NUMBER
     }
     
-    fun addBetsFromPaste(text: String) {
-        val bannedList = viewModel.bannedNumbers.value.map { it.number }
-        var addedCount = 0
-        var bannedFound = false
-        text.lines().forEach { line ->
-            val parsed = parsePastedLine(line)
-            parsed.forEach { (num, amt) ->
-                if (amt > 0) {
-                    if (num in bannedList) {
-                        bannedFound = true
-                    } else {
-                        pendingBets.add(Bet(voucherId = 0, number = num, amount = amt))
-                        addedCount++
+    // Async paste processing — runs IO-heavy parsing off the main thread.
+    // For <= 500 resulting bets: adds to pendingBets (shows in list).
+    // For > 500: submits directly as a voucher so the list never lags.
+    fun addBetsFromPasteAsync(text: String) {
+        if (selectedCustomer == null && text.lines().size > 500) {
+            android.widget.Toast.makeText(context, "ထိုးသူ ရွေးပါ — large paste needs customer selected", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        isParsing = true
+        parseProgress = 0f
+        parseStatus = "ပြင်ဆင်နေသည်..."
+        coroutineScope.launch {
+            val bannedList = viewModel.bannedNumbers.value.map { it.number }.toHashSet()
+            val lines = text.lines().filter { it.isNotBlank() }
+            val total = lines.size.coerceAtLeast(1)
+            val allBets = ArrayList<Bet>(total * 2)
+            var bannedCount = 0
+
+            withContext(Dispatchers.Default) {
+                lines.forEachIndexed { i, line ->
+                    val parsed = parsePastedLine(line)
+                    parsed.forEach { (num, amt) ->
+                        if (amt > 0) {
+                            if (num in bannedList) bannedCount++
+                            else allBets.add(Bet(voucherId = 0, number = num, amount = amt))
+                        }
+                    }
+                    if (i % 200 == 0) {
+                        withContext(Dispatchers.Main) {
+                            parseProgress = i.toFloat() / total
+                            parseStatus = " ကြောင်း ရှာနေသည်..."
+                        }
                     }
                 }
             }
+
+            // Back on Main thread — update UI
+            val addedCount = allBets.size
+            if (addedCount <= 500) {
+                // Small batch: buffer in the list so user can review
+                pendingBets.addAll(allBets)
+            } else {
+                // Large batch: submit straight to DB in one voucher to keep UI responsive
+                if (selectedCustomer != null) {
+                    val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
+                    // Split into chunks of 1000 bets per voucher so Room doesn't time out
+                    allBets.chunked(1000).forEach { chunk ->
+                        viewModel.addVoucherWithBetList(selectedCustomer!!, time, chunk, tempRemark)
+                    }
+                    tempRemark = ""
+                    android.widget.Toast.makeText(context, " ကြောင်း တိုက်ရိုက်သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    // No customer selected — still buffer (they can submit later)
+                    pendingBets.addAll(allBets)
+                }
+            }
+
+            if (bannedCount > 0)
+                android.widget.Toast.makeText(context, " ကြောင်း ပိတ်ဂဏန်းများ ဖယ်ထုတ်ပြီး", android.widget.Toast.LENGTH_SHORT).show()
+            if (addedCount > 0 && addedCount <= 500)
+                android.widget.Toast.makeText(context, " ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
+
+            isParsing = false
+            parseProgress = 1f
+            parseStatus = " ကြောင်း"
         }
-        if (bannedFound) android.widget.Toast.makeText(context, "ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေ၍ ဖယ်ထုတ်လိုက်ပါသည်", android.widget.Toast.LENGTH_SHORT).show()
-        if (addedCount > 0) android.widget.Toast.makeText(context, "$addedCount ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
     }
+
 
     fun submit() {
         val num = tempNumber.toIntOrNull()
@@ -286,57 +340,85 @@ fun BettingScreen(
 
         // --- PASTE DIALOG ---
         if (showPasteDialog) {
+            val lineCount = pasteText.lines().count { it.isNotBlank() }
             AlertDialog(
-                onDismissRequest = { showPasteDialog = false },
-                title = { Text("အမြန်ထိုး — Paste", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
+                onDismissRequest = { if (!isParsing) { showPasteDialog = false } },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Quick Bet — Paste", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        if (lineCount > 0)
+                            Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
+                                Text("%,d မျဉ်း".format(lineCount),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                    fontSize = 11.sp, color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            }
+                    }
+                },
                 text = {
-                    Column {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Format hint
                         Text(
-                            "ပံ့ပိုးသော ဖော်မတ်များ:",
-                            fontSize = 12.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            "446=1000  |  235-615=3000  |  456R=5000  |  123/456/789=5000",
+                            fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
-                        Text(
-                            "446=1000          (တစ်ကွက်တည်း)\n" +
-                            "235-615=3000       (ဂဏန်းများ-)\n" +
-                            "723-372-245-309=2000 (ဂဏန်းများ)\n" +
-                            "456=5000r1000      (R ပြောင်းပြန်)",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
+
+                        // Text input — BasicTextField so it never lags on huge pastes
                         OutlinedTextField(
                             value = pasteText,
                             onValueChange = { pasteText = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp),
+                            modifier = Modifier.fillMaxWidth().height(240.dp),
+                            enabled = !isParsing,
                             placeholder = {
-                                Text(
-                                    "446=1000\n235-615=3000\n723-372-245-309=2000\n813-724-648-247-369=5000\n456=5000r1000\n...",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                )
-                            },
-                            maxLines = 30
+                                Text("446=1000\n235-615=3000\n723-372-245-309=2000\n456R=5000\n123/456/789=10000\n...",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+                            }
                         )
+
+                        // Progress / status
+                        if (isParsing) {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                LinearProgressIndicator(
+                                    progress = { parseProgress },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(parseStatus, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            }
+                        } else if (parseStatus.isNotEmpty()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(14.dp), tint = Color(0xFF43AA8B))
+                                Text(parseStatus, fontSize = 12.sp, color = Color(0xFF43AA8B), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                            }
+                        }
+
+                        if (lineCount > 500)
+                            Text(
+                                "⚡ + မျဉ်း — ထိုးသူ ရွေးထားလျှင် တိုက်ရိုက် DB သိမ်းမည်",
+                                fontSize = 11.sp, color = Color(0xFFFF9800),
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
                     }
                 },
                 confirmButton = {
                     Button(
                         onClick = {
-                            addBetsFromPaste(pasteText)
+                            addBetsFromPasteAsync(pasteText)
                             showPasteDialog = false
                             pasteText = ""
                         },
+                        enabled = pasteText.isNotBlank() && !isParsing,
                         colors = ButtonDefaults.buttonColors(containerColor = primaryBlue)
-                    ) { Text("ထည့်မည်") }
+                    ) { Text(if (isParsing) "ပြင်ဆင်နေသည်..." else "ထည့်မည်") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showPasteDialog = false }) { Text("မလုပ်တော့") }
+                    TextButton(onClick = { if (!isParsing) { showPasteDialog = false; pasteText = "" } }) { Text("မလုပ်တော့") }
                 }
+            )
+        }
+
             )
         }
 
