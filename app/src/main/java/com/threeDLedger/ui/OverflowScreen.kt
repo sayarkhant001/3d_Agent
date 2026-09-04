@@ -47,14 +47,14 @@ fun OverflowScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Sort exposures — ascending by number string (000 → 999)
-    val overflowExposures = ledgerExposures.filter { it.overflowAmount > 0 }.sortedBy { it.number }
+    val overflowExposures = ledgerExposures.filter { it.overflowAmount > 0 }.sortedBy { it.number.toIntOrNull() ?: 0 }
 
-    // Left table: ALL numbers with any bet, sorted ascending by number.
+    // Left table: ALL numbers with any bet, sorted ascending by number (numeric, not lexicographic).
     // Display amount = min(totalBetAmount, brakeLimit) — i.e. the "kept" portion capped at brake.
     // If brake is 0 (not set), show full totalBetAmount.
     val brakedExposures = ledgerExposures
         .filter { it.totalBetAmount > 0 }
-        .sortedBy { it.number }
+        .sortedBy { it.number.toIntOrNull() ?: 0 }
 
     fun keptAmount(totalBetAmount: Int): Int =
         if (brakeLimit > 0) minOf(totalBetAmount, brakeLimit) else totalBetAmount
@@ -387,9 +387,9 @@ fun OverflowScreen(
             Row(modifier = Modifier.fillMaxSize().padding(4.dp)) {
                 // Left Table — Bets within brake limit (≤ brakeLimit, > 0)
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(6.dp)) {
-                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Text("ဘရိတ်အတ်ွင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(4.dp)) {
+                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        Text("ဘရိတ်အတွင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (brakedExposures.isEmpty()) {
@@ -409,30 +409,30 @@ fun OverflowScreen(
                                     textAlign = TextAlign.Center,
                                     color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                fontSize = 14.sp
                                 )
                                 Text(
                                     "$kept",
                                     modifier = Modifier.weight(1f),
                                     textAlign = TextAlign.Center,
                                     color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 11.sp
+                                    fontSize = 14.sp
                                 )
                             }
                             Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(6.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Text("$totalBraked", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(4.dp)) {
+                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        Text("$totalBraked", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 // Right Table — Overflow only
                 Column(modifier = Modifier.weight(1f).border(1.dp, MaterialTheme.colorScheme.error).padding(2.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error).padding(6.dp)) {
-                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Text("ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error).padding(4.dp)) {
+                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        Text("ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (overflowExposures.isEmpty()) {
@@ -455,7 +455,7 @@ fun OverflowScreen(
                                     textAlign = TextAlign.Center,
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                fontSize = 14.sp
                                 )
                                 Text(
                                     "${exposure.overflowAmount}",
@@ -463,7 +463,7 @@ fun OverflowScreen(
                                     textAlign = TextAlign.Center,
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                fontSize = 14.sp
                                 )
                             }
                             Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
@@ -471,9 +471,9 @@ fun OverflowScreen(
                     }
                     Row(modifier = Modifier.fillMaxWidth().background(
                         if (totalOverflow > 0) MaterialTheme.colorScheme.error else orangeColor
-                    ).padding(6.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                        Text("$totalOverflow", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                    ).padding(4.dp)) {
+                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                        Text("$totalOverflow", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
                     }
                 }
             }
