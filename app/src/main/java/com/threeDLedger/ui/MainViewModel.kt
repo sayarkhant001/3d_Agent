@@ -49,13 +49,24 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         
     var currentBatch = MutableStateFlow(15)
-                
-    
+
     val appPassword = MutableStateFlow("")
     val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
     val printerSettings = MutableStateFlow("")
     val bannedNumberEvent = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>()
-var brakeLimit = MutableStateFlow(3000)
+    var brakeLimit = MutableStateFlow(3000)
+
+    // Winning number declared for the current batch (persisted per batch key)
+    val winningNumber = MutableStateFlow("")
+
+    fun saveWinningNumber(number: String) {
+        winningNumber.value = number
+        prefs.edit().putString("winningNumber_${currentBatch.value}", number).apply()
+    }
+
+    fun loadWinningNumber() {
+        winningNumber.value = prefs.getString("winningNumber_${currentBatch.value}", "") ?: ""
+    }
 
     fun saveBrakeLimit(value: Int) {
         brakeLimit.value = value
@@ -141,6 +152,7 @@ var brakeLimit = MutableStateFlow(3000)
         voucherFooterText.value = prefs.getString("voucherFooterText", "ထွက်လျော်မည်။") ?: "ထွက်လျော်မည်။"
         printerSettings.value = prefs.getString("printerSettings", "") ?: ""
         brakeLimit.value = prefs.getInt("brakeLimit", 3000)
+        winningNumber.value = prefs.getString("winningNumber_${currentBatch.value}", "") ?: ""
     }
 
     fun updateAppPassword(password: String) {
