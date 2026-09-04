@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -310,12 +310,12 @@ fun BettingScreen(
         android.widget.Toast.makeText(context, "ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
     }
     
-    // Theme-aware color aliases (respond to Emerald-Gold palette)
-    val primaryBlue  = MaterialTheme.colorScheme.primary
-    val buttonTeal   = MaterialTheme.colorScheme.tertiary
-    val buttonGreen  = MaterialTheme.colorScheme.primaryContainer
-    val buttonOrange = MaterialTheme.colorScheme.secondary
-    val borderColor  = MaterialTheme.colorScheme.outline
+    // ── Fixed colour tokens — consistent dark-emerald scheme ─────────────────
+    val primaryBlue  = Color(0xFF065F46)   // deep emerald (header/border/number colour)
+    val buttonTeal   = Color(0xFF047857)   // medium emerald (numpad digits)
+    val buttonGreen  = Color(0xFF059669)   // lighter emerald (shortcut chips, R, /)
+    val buttonOrange = Color(0xFF92400E)   // warm amber (selected, ရှင်း, OK)
+    val borderColor  = Color(0xFF6EE7B7)   // mint outline
 
     Column(
         modifier = Modifier
@@ -464,9 +464,9 @@ fun BettingScreen(
                     .padding(horizontal = 12.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("#", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, modifier = Modifier.width(22.dp))
-                Text("ဂဏန်း = ပမာဏ", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                Text("(ဖျက်ရန် နှိပ်)", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f), fontSize = 10.sp)
+                Text("#", color = Color.White, fontSize = 12.sp, modifier = Modifier.width(22.dp))
+                Text("ဂဏန်း = ပမာဏ", color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                // (no tap-to-erase hint — each row has its own delete button)
             }
             // Bet rows
             LazyColumn(
@@ -482,47 +482,61 @@ fun BettingScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { pendingBets.removeAt(i) }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Start
                     ) {
+                        // Dot/index bullet
                         Text(
-                            ".",
+                            "·",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.width(22.dp),
+                            color = primaryBlue.copy(alpha = 0.5f),
+                            modifier = Modifier.width(18.dp),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                         )
+                        // Number
                         Text(
                             bet.number,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
+                            color = primaryBlue,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             letterSpacing = 1.5.sp
                         )
                         Text(
                             " = ",
                             fontSize = 16.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color(0xFF6B7280),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                         )
                         Text(
                             "%,d".format(bet.amount).padStart(amtWidthB),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color(0xFF111827),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                         )
                         Text(
                             " Ks",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color(0xFF6B7280),
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                         )
+                        Spacer(Modifier.weight(1f))
+                        // Per-row delete button
+                        IconButton(
+                            onClick = { pendingBets.removeAt(i) },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "ဖျက်",
+                                tint = Color(0xFFB91C1C),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
-                    Divider(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), thickness = 0.5.dp)
+                    Divider(color = primaryBlue.copy(alpha = 0.08f), thickness = 0.5.dp)
                 }
             }
         }
@@ -540,7 +554,7 @@ fun BettingScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f), contentColor = MaterialTheme.colorScheme.onPrimary),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                 modifier = Modifier.height(30.dp)
-            ) { Text("Quick Bet", fontSize = 12.sp) }
+            ) { Text("အမြန်ထိုးရန် နှိပ်ပါ။", fontSize = 11.sp) }
             Text("= %,d Ks".format(totalAmount), color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("ထိုးရန်", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp, modifier = Modifier.padding(end = 4.dp))
@@ -572,14 +586,19 @@ fun BettingScreen(
             }
         }
 
-        // --- မှတ်ချက် (Remark) row ---
+        // --- မှတ်ချက် (Remark) row — compact single line ---
         OutlinedTextField(
             value = tempRemark,
             onValueChange = { tempRemark = it },
-            label = { Text("မှတ်ချက်", fontSize = 11.sp) },
+            placeholder = { Text("မှတ်ချက်", fontSize = 11.sp, color = Color(0xFF9CA3AF)) },
             singleLine = true,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .height(44.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
         )
 
         // --- QUICK AMOUNTS (fixed 4 buttons) ---
