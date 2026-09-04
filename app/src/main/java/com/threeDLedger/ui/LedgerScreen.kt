@@ -71,7 +71,7 @@ fun LedgerScreen(
     val isAfterMode = savedWinner.length == 3
 
     // For after mode: filter + sort (EXACT → PERM → NEAR), only those actually bet
-    val relevantRows: List<Pair<com.threeDLedger.data.LedgerExposure, NumCat>> =
+    val relevantRows: List<Pair<LedgerExposure, NumCat>> =
         if (isAfterMode) {
             allExposures
                 .map { it to categorize(it.number, savedWinner) }
