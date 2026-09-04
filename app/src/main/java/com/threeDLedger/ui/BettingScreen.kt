@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -127,26 +128,7 @@ fun BettingScreen(
         }
     }
 
-    var showPasteDialog by remember { mutableStateOf(false) }
-    var pasteText     by remember { mutableStateOf("") }
-    var isParsing     by remember { mutableStateOf(false) }
-    var parseProgress by remember { mutableStateOf(0f) }
-    var parseStatus   by remember { mutableStateOf("") }
-
-    val pendingBets = remember { mutableStateListOf<Bet>() }
-
-    var focusedField    by remember { mutableStateOf(FocusField.NUMBER) }
-    var tempNumber      by remember { mutableStateOf("") }
-    var tempAmount      by remember { mutableStateOf("1000") }
-    var tempRemark      by remember { mutableStateOf("") }
-
-    val coroutineScope  = rememberCoroutineScope()
-
-    // Dropdown states
-    var expandedBetType by remember { mutableStateOf(false) }
-    var currentBetType  by remember { mutableStateOf("") }
-
-    val quickAmounts = listOf("100", "300", "500", "1000", "2000", "5000", "10000")
+    var currentBetType  by remember { mutableStateOf("ဒဲ့") }
 
     fun addBets(numbers: List<String>) {
         val amount = tempAmount.toIntOrNull() ?: 0
@@ -396,7 +378,7 @@ fun BettingScreen(
 
                         if (lineCount > 500)
                             Text(
-                                "⚡ + မျဉ်း — ထိုးသူ ရွေးထားလျှင် တိုက်ရိုက် DB သိမ်းမည်",
+                                "⚡ ${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် တိုက်ရိုက် DB သိမ်းမည်",
                                 fontSize = 11.sp, color = Color(0xFFFF9800),
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
                             )
@@ -566,41 +548,40 @@ fun BettingScreen(
         }
 
         // --- SCROLLABLE SHORTCUT CHIPS ---
-        LazyRow(
+        val shortcuts = listOf(
+            Triple("ဒဲ့",         true,  { currentBetType = "ဒဲ့" }),
+            Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
+            Triple("လယ်",         true,  { currentBetType = "လယ်" }),
+            Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
+            Triple("အပါ",         true,  { currentBetType = "အပါ" }),
+            Triple("ရှေ့စီးရီး",  false, { handleSpecial("ရှေ့စီးရီး") }),
+            Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),
+            Triple("နောက်စီးရီး", false, { handleSpecial("နောက်စီးရီး") }),
+            Triple("ဘရိတ်",       false, { handleSpecial("ဘရိတ်") }),
+            Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
+            Triple("ရှေ့ပူး",      false, { handleSpecial("ရှေ့ပူး") }),
+            Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
+            Triple("အခွ",          false, { handleSpecial("အခွ") })
+        )
+        androidx.compose.foundation.lazy.LazyRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            val shortcuts = listOf(
-                "ဒဲ့" to { currentBetType = "ဒဲ့" },
-                "ထိပ်" to { currentBetType = "ထိပ်" },
-                "လယ်" to { currentBetType = "လယ်" },
-                "ပိတ်" to { currentBetType = "ပိတ်" },
-                "အပါ" to { currentBetType = "အပါ" },
-                "ရှေ့စီးရီး" to { handleSpecial("ရှေ့စီးရီး") },
-                "လယ်စီးရီး" to { handleSpecial("လယ်စီးရီး") },
-                "နောက်စီးရီး" to { handleSpecial("နောက်စီးရီး") },
-                "ဘရိတ်" to { handleSpecial("ဘရိတ်") },
-                "ထွိုင်" to { handleSpecial("ထွိုင်") },
-                "ရှေ့ပူး" to { handleSpecial("ရှေ့ပူး") },
-                "နောက်ပူး" to { handleSpecial("နောက်ပူး") },
-                "အခွ" to { handleSpecial("အခွ") }
-            )
             items(shortcuts.size) { i ->
-                val (label, action) = shortcuts[i]
-                val isBetTypeSel = label in listOf("ဒဲ့","ထိပ်","လယ်","ပိတ်","အပါ") && currentBetType == label
+                val (label, isBetTypeChip, action) = shortcuts[i]
+                val isSelected = isBetTypeChip && currentBetType == label
                 Surface(
                     onClick = { action() },
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    color = if (isBetTypeSel) primaryBlue else buttonGreen,
+                    color = if (isSelected) primaryBlue else buttonGreen,
                     modifier = Modifier.height(28.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
-                        Text(label, fontSize = 12.sp, color = Color.White, fontWeight = if (isBetTypeSel) FontWeight.Bold else FontWeight.Normal)
+                        Text(label, fontSize = 12.sp, color = Color.White, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
                     }
                 }
             }
         }
-
         // --- 4x4 NUMPAD ---
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
