@@ -73,6 +73,13 @@ interface LotteryDao {
     @Query("DELETE FROM exported_numbers WHERE exportRecordId NOT IN (SELECT id FROM export_records)")
     suspend fun deleteOrphanedExportedNumbers()
 
+    @Query("DELETE FROM customers WHERE name LIKE '%တင်ကွက်%' OR name LIKE '%overflow%' OR name LIKE '%upper%'")
+    suspend fun purgeOverflowCustomers()
+
+    @Query("DELETE FROM vouchers WHERE remark LIKE '%တင်ကွက်%' OR remark LIKE '%overflow%'")
+    suspend fun purgeOverflowVouchers()
+
+
 
 
     @Update

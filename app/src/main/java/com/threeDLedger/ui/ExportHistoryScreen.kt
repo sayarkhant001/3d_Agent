@@ -1,20 +1,29 @@
 package com.threeDLedger.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -40,7 +49,7 @@ fun ExportHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("လွှဲပြောင်းမှတ်တမ်း", color = MaterialTheme.colorScheme.onPrimary) },
+                title = { Text("တင်ကွက် မှတ်တမ်း", color = MaterialTheme.colorScheme.onPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
@@ -66,7 +75,7 @@ fun ExportHistoryScreen(
                         onCopy = { text ->
                             val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             cm.setPrimaryClip(android.content.ClipData.newPlainText("Export Record", text))
-                            android.widget.Toast.makeText(context, "Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                            android.widget.Toast.makeText(context, "ကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                         },
                         onPrint = { export ->
                             coroutineScope.launch {
@@ -103,8 +112,9 @@ private fun ExportRecordCard(
     onCopy: (String) -> Unit,
     onPrint: (ExportRecordWithNumbers) -> Unit
 ) {
-    val dateString = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(export.record.timestamp))
-    val isOverflow = export.record.type.contains("Overflow")
+    var expanded by remember { mutableStateOf(false) }
+    val dateString = SimpleDateFormat("HH:mm:ss  dd/MM/yyyy", Locale.getDefault()).format(Date(export.record.timestamp))
+    val isOverflow = export.record.type.contains("Overflow") || export.record.type.contains("တင်ကွက်")
     val headerColor = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val sortedNumbers = export.numbers.sortedByDescending { it.amount }
 
@@ -112,161 +122,224 @@ private fun ExportRecordCard(
         appendLine("========================")
         appendLine("   တင်ကွက် မှတ်တမ်း     ")
         appendLine("========================")
-        appendLine(" အကြိမ်  : ${export.record.batchNumber}")
-        appendLine(" အချိန်  : $dateString")
+        appendLine(" ဘောင်ချာ  : #${export.record.id}")
+        appendLine(" အကြိမ်    : ${export.record.batchNumber}")
+        appendLine(" အချိန်    : $dateString")
         appendLine(" အမျိုးအစား: ${export.record.type}")
         appendLine("------------------------")
         sortedNumbers.forEach { num ->
             appendLine(" ${num.number.padEnd(5)} = ${num.amount}")
         }
         appendLine("------------------------")
-        appendLine(" စုစုပေါင်း : ${export.record.totalAmount} Ks")
+        appendLine(" စုစုပေါင်း : %,d Ks".format(export.record.totalAmount))
         appendLine("========================")
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 12.dp),
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column {
-            // ── Card header bar ───────────────────────────────────────────
+            // ── Card header bar (Always visible, tap to expand/collapse) ────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(headerColor)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        export.record.type,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                    Text(
-                        "အကြိမ် : ${export.record.batchNumber}",
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                        fontSize = 12.sp
-                    )
-                }
-                Text(
-                    dateString,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                    fontSize = 11.sp,
-                    textAlign = TextAlign.End
-                )
-            }
-
-            Column(modifier = Modifier.padding(12.dp)) {
-                // ── Column headers ────────────────────────────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(headerColor.copy(alpha = 0.12f))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        "ဂဏန်း",
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        "ပမာဏ",
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 13.sp
-                    )
-                }
-
-                // ── Per-number rows ───────────────────────────────────────
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, headerColor.copy(alpha = 0.25f))
-                ) {
-                    sortedNumbers.forEachIndexed { index, num ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    if (index % 2 == 0) Color.Transparent
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
                         ) {
                             Text(
-                                num.number,
+                                "ဘောင်ချာ #${export.record.id}",
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Center
-                            )
-                            Text(
-                                "${num.amount} Ks",
-                                fontSize = 15.sp,
-                                color = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f),
-                                textAlign = TextAlign.Center
+                                fontSize = 13.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
                         }
-                        if (index < sortedNumbers.lastIndex) {
-                            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
-                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "အကြိမ်: ${export.record.batchNumber}",
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            dateString,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
                     }
                 }
 
-                // ── Footer total ──────────────────────────────────────────
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(headerColor)
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        "စုစုပေါင်း (${sortedNumbers.size} ဂဏန်း)",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                    Text(
-                        "${export.record.totalAmount} Ks",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            "%,d Ks".format(export.record.totalAmount),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            "${sortedNumbers.size} ဂဏန်း",
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
+            }
 
-                Spacer(Modifier.height(10.dp))
-
-                // ── Action buttons ────────────────────────────────────────
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { onPrint(export) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = headerColor)
+            // ── Expanded Body ──────────────────────────────────────────────
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    // Column headers
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerColor.copy(alpha = 0.12f))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
-                        Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Print", fontSize = 13.sp)
+                        Text(
+                            "ဂဏန်း",
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            "ပမာဏ",
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            fontSize = 13.sp
+                        )
                     }
-                    Button(
-                        onClick = { onCopy(voucherText) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = headerColor)
+
+                    // Per-number rows
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, headerColor.copy(alpha = 0.25f))
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Copy", fontSize = 13.sp)
+                        sortedNumbers.forEachIndexed { index, num ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        if (index % 2 == 0) Color.Transparent
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    )
+                                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    num.number,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                                Text(
+                                    "%,d Ks".format(num.amount),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.Center,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            if (index < sortedNumbers.lastIndex) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                            }
+                        }
+                    }
+
+                    // Footer total
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerColor)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "စုစုပေါင်း (${sortedNumbers.size} ဂဏန်း)",
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            "%,d Ks".format(export.record.totalAmount),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+
+                    // Action buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { onPrint(export) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = headerColor)
+                        ) {
+                            Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ပရင့်ထုတ်မည်", fontSize = 13.sp)
+                        }
+                        Button(
+                            onClick = { onCopy(voucherText) },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = headerColor)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ကော်ပီကူးမည်", fontSize = 13.sp)
+                        }
                     }
                 }
             }

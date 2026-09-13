@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.People
@@ -74,6 +75,16 @@ fun HomeScreen(
                         Text(currentDate, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
                     }
                 },
+                actions = {
+                    IconButton(onClick = onNavigateToWinner) {
+                        Icon(
+                            imageVector = Icons.Default.EmojiEvents,
+                            contentDescription = "ပေါက်ဂဏန်း",
+                            tint = Color(0xFFFFD93D),
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = MaterialTheme.colorScheme.onPrimary,
@@ -108,14 +119,14 @@ fun HomeScreen(
                     ) {
                         Column {
                             Text(
-                                text = "အကြိမ် (Batch No)",
+                                text = "အကြိမ်",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Active processing batch",
+                                text = "လက်ရှိ အသုံးပြုနေသော အကြိမ်",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -220,7 +231,7 @@ fun HomeScreen(
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(22.dp))
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("ဆက်တင် (Settings)", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Text("ဆက်တင်", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
                 }
                 
                 Spacer(modifier = Modifier.height(32.dp))

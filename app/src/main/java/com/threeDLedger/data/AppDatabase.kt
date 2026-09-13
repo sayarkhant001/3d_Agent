@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Customer::class, Voucher::class, Bet::class, ExportRecord::class, ExportedNumber::class, BannedNumber::class], version = 6, exportSchema = false)
+@Database(entities = [Customer::class, Voucher::class, Bet::class, ExportRecord::class, ExportedNumber::class, BannedNumber::class], version = 7, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun lotteryDao(): LotteryDao
     
@@ -15,6 +15,18 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
         
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_vouchers_customerId` ON `vouchers` (`customerId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_vouchers_batchNumber` ON `vouchers` (`batchNumber`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_vouchers_isArchived` ON `vouchers` (`isArchived`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_bets_voucherId` ON `bets` (`voucherId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_bets_number` ON `bets` (`number`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exported_numbers_exportRecordId` ON `exported_numbers` (`exportRecordId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_exported_numbers_number` ON `exported_numbers` (`number`)")
+            }
+        }
+
         val MIGRATION_5_6 = object : Migration(5, 6) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE vouchers ADD COLUMN remark TEXT NOT NULL DEFAULT ''")
@@ -41,7 +53,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "lottery_database"
                 )
-                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -50,3 +62,4 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
+

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,14 +32,18 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Customer
 import com.threeDLedger.logic.NumberGenerator
+import com.threeDLedger.ui.theme.*
 
-// ── Palette ────────────────────────────────────────────────────────────────────
-private val CrTeal     = Color(0xFF00796B)
-private val CrOrange   = Color(0xFFFF9800)
-private val CrOrangeDk = Color(0xFFF57C00)
-private val CrYellow   = Color(0xFFFFEE58)
-private val CrRed      = Color(0xFFD32F2F)
-private val CrGreen    = Color(0xFF43A047)
+// ── Palette (Harmonized Emerald-Gold) ──────────────────────────────────────────
+private val ResPrimary     = EmeraldPrimary
+private val ResDark        = EmeraldDark
+private val ResMintBg      = EmeraldSoftBg
+private val ResGold        = GoldAccent
+private val ResGoldBg      = GoldContainer
+private val ResRed         = WinExactRed
+private val ResRedBg       = WinExactBg
+private val ResGreen       = Color(0xFF059669)
+private val ResGreenBg     = EmeraldLight
 
 // ── Data model ─────────────────────────────────────────────────────────────────
 data class AgentSettlement(
@@ -60,17 +65,24 @@ private fun fmt(n: Long) = "%,d".format(n)
 
 private fun buildClipText(s: AgentSettlement, batch: Int, winNum: String): String =
     buildString {
-        appendLine("3D = $batch ( $winNum )")
+        appendLine("========================")
+        appendLine("   3D ကော်မရှင် ရလဒ်   ")
+        appendLine("========================")
+        appendLine("အကြိမ် = $batch ( $winNum )")
         appendLine("အမည် = ${s.customer.name}")
-        appendLine("ရောင်းကြေး = ${s.totalBet}")
-        appendLine("ကော် = ${s.commission}")
-        appendLine("နုတ်ပြီးငွေ = ${s.netAfterComm}")
-        if (s.exactBetAmt > 0) appendLine("ဲ = ${s.exactBetAmt}")
-        if (s.tuwtPayout  > 0) appendLine("တွတ် = ${s.tuwtPayout}")
-        appendLine("လျော် = ${s.totalPayout}")
-        appendLine("ကျန်ငွေ = ${s.balance}")
-        appendLine("ပေးငွေ = ${s.paidAmount}")
-        append("ကြွေးကျန် = ${s.remaining}")
+        appendLine("ရောင်းကြေး = ${fmt(s.totalBet)} Ks")
+        appendLine("ကော်မရှင် = ${fmt(s.commission)} Ks")
+        appendLine("နုတ်ပြီးငွေ = ${fmt(s.netAfterComm)} Ks")
+        if (s.exactBetAmt > 0) appendLine("ဒဲ့ ထိုးငွေ = ${fmt(s.exactBetAmt)} Ks (လျော် = ${fmt(s.exactPayout)} Ks)")
+        if (s.tuwtPayout  > 0) appendLine("တွတ် လျော်ငွေ = ${fmt(s.tuwtPayout)} Ks")
+        appendLine("စုစုပေါင်း လျော်ငွေ = ${fmt(s.totalPayout)} Ks")
+        appendLine("------------------------")
+        val balTag = if (s.balance < 0) "(ပေးရန်)" else "(ရရန်)"
+        val remTag = if (s.remaining < 0) "(ပေးရန်)" else "(ရရန်)"
+        appendLine("ကျန်ငွေ $balTag = ${fmt(s.balance)} Ks")
+        appendLine("ပေးငွေ = ${fmt(s.paidAmount)} Ks")
+        appendLine("ကြွေးကျန် $remTag = ${fmt(s.remaining)} Ks")
+        appendLine("========================")
     }
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
@@ -114,23 +126,26 @@ fun CommissionerResultScreen(
         ) - setOf(winningNumber)
 
         allCustomers.mapNotNull { customer ->
-            val agentVouchers = batchVouchers.filter { it.voucher.customerId == customer.id }
+            if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true)) return@mapNotNull null
+            val agentVouchers = batchVouchers.filter { 
+                it.voucher.customerId == customer.id &&
+                !it.voucher.remark.contains("တင်ကွက်") &&
+                !it.voucher.remark.contains("overflow", ignoreCase = true)
+            }
             if (agentVouchers.isEmpty()) return@mapNotNull null
             val bets     = agentVouchers.flatMap { it.bets }
             val totalBet = bets.sumOf { it.amount }.toLong()
             if (totalBet == 0L) return@mapNotNull null
 
-            val commission   = (totalBet * customer.commissionRate / 100.0).toLong()
+            // Fixed accounting bug: commissionRate is decimal fraction (0.15 = 15%)
+            val commission   = (totalBet * customer.commissionRate).toLong()
             val netAfterComm = totalBet - commission
             val exactBets    = bets.filter { it.number == winningNumber }
-            val permBets     = bets.filter { it.number in permsOnly }
-            val nearBets     = bets.filter { it.number in near }
+            val tuwtBets     = bets.filter { it.number in permsOnly || it.number in near }
             val exactBetAmt  = exactBets.sumOf { it.amount }.toLong()
             val exactPayout  = (exactBetAmt * exactMult).toLong()
-            val permPayout   = (permBets.sumOf { it.amount } * permMult).toLong()
-            val nearPayout   = (nearBets.sumOf { it.amount } * nearMult).toLong()
-            val tuwtBetAmt   = (permBets + nearBets).sumOf { it.amount }.toLong()
-            val tuwtPayout   = permPayout + nearPayout
+            val tuwtBetAmt   = tuwtBets.sumOf { it.amount }.toLong()
+            val tuwtPayout   = (tuwtBetAmt * permMult).toLong()
             val totalPayout  = exactPayout + tuwtPayout
             val balance      = netAfterComm - totalPayout
             val paid         = (paidMap[customer.id] ?: 0.0).toLong()
@@ -152,13 +167,18 @@ fun CommissionerResultScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ကော်မဆုင်ရာ ရလဒ်", color = Color.White, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                title = { 
+                    Column {
+                        Text("ကော်မရှင်ဆိုင်ရာ ရလဒ်", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("အကြိမ် $batchNumber ရှင်းတမ်း", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f), fontSize = 11.sp)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = CrTeal)
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ResPrimary)
             )
         }
     ) { padding ->
@@ -166,41 +186,85 @@ fun CommissionerResultScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(Color(0xFFF0F4F3))
+                .background(ResMintBg)
         ) {
-            // Page header
-            Column(
-                modifier = Modifier.fillMaxWidth().background(Color.White).padding(vertical = 14.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            // Page header banner
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp
             ) {
-                Text("အကြိမ် - $batchNumber", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF212121))
-                Spacer(Modifier.height(2.dp))
-                if (winningNumber.length == 3) {
-                    Text(
-                        "ထွက်ဂဏန်း -  ( $winningNumber )",
-                        color = CrRed, fontWeight = FontWeight.ExtraBold,
-                        fontSize = 20.sp, fontFamily = FontFamily.Monospace
-                    )
-                } else {
-                    Text("ပေါက်ဂဏန်း မကြေညာရသေးပါ", color = Color.Gray, fontSize = 14.sp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("အကြိမ်", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$batchNumber", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = ResPrimary)
+                    }
+
+                    if (winningNumber.length == 3) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = ResRedBg,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ResRed.copy(alpha = 0.3f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("ထွက်ဂဏန်း: ", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = ResRed)
+                                Text(
+                                    winningNumber,
+                                    color = ResRed,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 22.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 2.sp
+                                )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "ပေါက်ဂဏန်း မကြေညာရသေးပါ",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                 }
             }
-            HorizontalDivider(thickness = 2.dp, color = CrTeal)
 
             when {
                 winningNumber.length != 3 ->
                     Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
-                        Text("ပေါက်ဂဏန်း ကြေညာပြီးမှ ကြည့်ရှုနိုင်ပါသည်", color = Color.Gray, textAlign = TextAlign.Center)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Info, null, tint = ResPrimary.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text("ပေါက်ဂဏန်း ကြေညာပြီးမှ ရှင်းတမ်း ကြည့်ရှုနိုင်ပါသည်", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        }
                     }
                 settlements.isEmpty() ->
                     Box(Modifier.weight(1f).fillMaxWidth(), Alignment.Center) {
-                        Text("Batch $batchNumber တွင် ထိုးမှု မရှိသေးပါ", color = Color.Gray, textAlign = TextAlign.Center)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.FolderOpen, null, tint = ResPrimary.copy(alpha = 0.4f), modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text("အကြိမ် $batchNumber တွင် ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        }
                     }
                 else -> {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(settlements, key = { it.customer.id }) { s ->
                             AgentSettlementCard(
@@ -221,18 +285,31 @@ fun CommissionerResultScreen(
                 }
             }
 
-            // Footer totals
-            Row(
-                modifier = Modifier.fillMaxWidth().background(CrOrangeDk).padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically
+            // Footer totals with polished Emerald-Gold styling
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = ResPrimary,
+                shadowElevation = 8.dp
             ) {
-                FooterCol("စုပေါင်း", grandTotal)
-                Box(Modifier.width(1.dp).height(28.dp).background(Color.White.copy(0.3f)))
-                FooterCol("ကော်မဆုင်ခ", grandComm)
-                Box(Modifier.width(1.dp).height(28.dp).background(Color.White.copy(0.3f)))
-                FooterCol("လျော်ငွေ", grandPayout)
-                Box(Modifier.width(1.dp).height(28.dp).background(Color.White.copy(0.3f)))
-                FooterCol("လက်ကျန်", grandBalance)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FooterCol("စုပေါင်း", grandTotal)
+                    Box(Modifier.width(1.dp).height(28.dp).background(Color.White.copy(0.2f)))
+                    FooterCol("ကော်မရှင်ခ", grandComm)
+                    Box(Modifier.width(1.dp).height(28.dp).background(Color.White.copy(0.2f)))
+                    FooterCol("လျော်ငွေ", grandPayout)
+                    Box(Modifier.width(1.dp).height(28.dp).background(Color.White.copy(0.2f)))
+                    FooterCol(
+                        if (grandBalance < 0) "လက်ကျန်(ပေး)" else "လက်ကျန်(ရ)",
+                        grandBalance,
+                        if (grandBalance < 0) Color(0xFFFCA5A5) else Color(0xFF6EE7B7)
+                    )
+                }
             }
         }
     }
@@ -242,43 +319,48 @@ fun CommissionerResultScreen(
         AlertDialog(
             onDismissRequest = { dialogAgent = null },
             shape = RoundedCornerShape(20.dp),
-            containerColor = Color(0xFFFAFAFA),
+            containerColor = MaterialTheme.colorScheme.surface,
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(CrTeal), Alignment.Center) {
-                        Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Box(
+                        Modifier.size(40.dp).clip(CircleShape).background(ResPrimary),
+                        Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(22.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column {
-                        Text(s.customer.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text("Batch $batchNumber • $winningNumber", color = Color.Gray, fontSize = 11.sp)
+                        Text(s.customer.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("အကြိမ် $batchNumber • ထွက်ဂဏန်း: $winningNumber", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
                     }
                 }
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    DialogRow("3D", "$batchNumber ( $winningNumber )")
-                    DialogRow("အမည်", s.customer.name)
-                    HorizontalDivider(color = Color(0xFFEEEEEE))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DialogRow("3D အကြိမ်", "$batchNumber ( $winningNumber )")
+                    DialogRow("ထိုးသူ အမည်", s.customer.name)
+                    HorizontalDivider(color = CardBorderSubtle)
                     DialogRow("ရောင်းကြေး", fmt(s.totalBet))
-                    DialogRow("ကော်", fmt(s.commission))
+                    DialogRow("ကော်မရှင်", fmt(s.commission))
                     DialogRow("နုတ်ပြီးငွေ", fmt(s.netAfterComm))
-                    HorizontalDivider(color = Color(0xFFEEEEEE))
-                    if (s.exactBetAmt > 0) DialogRow("ဲ (ပေါက်သီး)", fmt(s.exactBetAmt), CrRed)
-                    if (s.tuwtPayout  > 0) DialogRow("တွတ် လျော်ငွေ", fmt(s.tuwtPayout), CrTeal)
+                    HorizontalDivider(color = CardBorderSubtle)
+                    if (s.exactBetAmt > 0) DialogRow("ဒဲ့ (ပေါက်သီး)", fmt(s.exactBetAmt), ResRed)
+                    if (s.tuwtPayout  > 0) DialogRow("တွတ် လျော်ငွေ", fmt(s.tuwtPayout), ResGold)
                     DialogRow("လျော် (စုစုပေါင်း)", fmt(s.totalPayout))
-                    HorizontalDivider(color = Color(0xFFEEEEEE))
-                    DialogRow("ကျန်ငွေ", fmt(s.balance), if (s.balance < 0) CrRed else CrGreen, bold = true)
+                    HorizontalDivider(color = CardBorderSubtle)
+                    val balLabel = if (s.balance < 0) "ကျန်ငွေ (ပေးရန်)" else "ကျန်ငွေ (ရရန်)"
+                    val remLabel = if (s.remaining < 0) "ကြွေးကျန် (ပေးရန်)" else "ကြွေးကျန် (ရရန်)"
+                    DialogRow(balLabel, fmt(s.balance), if (s.balance < 0) ResRed else ResGreen, bold = true)
                     DialogRow("ပေးငွေ", fmt(s.paidAmount))
-                    DialogRow("ကြွေးကျန်", fmt(s.remaining), if (s.remaining < 0) CrRed else CrGreen, bold = true)
+                    DialogRow(remLabel, fmt(s.remaining), if (s.remaining < 0) ResRed else ResGreen, bold = true)
                     Spacer(Modifier.height(6.dp))
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp)).padding(8.dp),
+                        Modifier.fillMaxWidth().background(ResGreenBg, RoundedCornerShape(8.dp)).padding(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Check, null, tint = CrGreen, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Check, null, tint = ResGreen, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Clipboard ထဲ ကော်ပီ ပြုလုပ်ပြီး", color = CrGreen, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text("ကော်ပီ ကူးယူပြီးပါပြီ", color = ResGreen, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             },
@@ -297,16 +379,16 @@ fun CommissionerResultScreen(
                             ))
                         },
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CrTeal)
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ResPrimary)
                     ) {
                         Icon(Icons.Default.Share, null, Modifier.size(15.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Send")
+                        Text("ပေးပို့မည်")
                     }
                     Button(
                         onClick = { dialogAgent = null },
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CrTeal)
+                        colors = ButtonDefaults.buttonColors(containerColor = ResPrimary)
                     ) { Text("ပိတ်မည်") }
                 }
             }
@@ -320,21 +402,21 @@ fun CommissionerResultScreen(
             shape = RoundedCornerShape(20.dp),
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Edit, null, tint = CrOrange, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Default.Edit, null, tint = ResGold, modifier = Modifier.size(22.dp))
                     Spacer(Modifier.width(8.dp))
                     Text("ပေးငွေ ထည့်မည်", fontWeight = FontWeight.Bold)
                 }
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("${s.customer.name} ၏ ပေးငွေ ပမာဏ ထည့်ပါ", fontSize = 14.sp, color = Color(0xFF555555))
+                    Text("${s.customer.name} ၏ ပေးငွေ ပမာဏ ထည့်ပါ", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(
-                        Modifier.fillMaxWidth().background(Color(0xFFF5F5F5), RoundedCornerShape(10.dp)).padding(10.dp),
+                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(10.dp)).padding(10.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        SummaryPill("ကျန်ငွေ",   fmt(s.balance),   if (s.balance < 0) CrRed else CrGreen)
-                        SummaryPill("ယခင်ပေးငွေ", fmt(s.paidAmount), CrTeal)
-                        SummaryPill("ကြွေးကျန်", fmt(s.remaining), if (s.remaining < 0) CrRed else CrGreen)
+                        SummaryPill("ကျန်ငွေ",   fmt(s.balance),   if (s.balance < 0) ResRed else ResGreen)
+                        SummaryPill("ယခင်ပေးငွေ", fmt(s.paidAmount), ResPrimary)
+                        SummaryPill("ကြွေးကျန်", fmt(s.remaining), if (s.remaining < 0) ResRed else ResGreen)
                     }
                     OutlinedTextField(
                         value = editPaidText,
@@ -345,10 +427,10 @@ fun CommissionerResultScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = CrTeal,
-                            focusedLabelColor  = CrTeal
+                            focusedBorderColor = ResPrimary,
+                            focusedLabelColor  = ResPrimary
                         ),
-                        leadingIcon = { Text("K", fontWeight = FontWeight.Bold, color = CrTeal, modifier = Modifier.padding(start = 4.dp)) }
+                        leadingIcon = { Text("K", fontWeight = FontWeight.Bold, color = ResPrimary, modifier = Modifier.padding(start = 6.dp)) }
                     )
                 }
             },
@@ -366,7 +448,7 @@ fun CommissionerResultScreen(
                             editAgent = null
                         },
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = CrTeal)
+                        colors = ButtonDefaults.buttonColors(containerColor = ResPrimary)
                     ) {
                         Icon(Icons.Default.Check, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
@@ -378,7 +460,7 @@ fun CommissionerResultScreen(
     }
 }
 
-// ── Card ───────────────────────────────────────────────────────────────────────
+// ── Settlement Card ────────────────────────────────────────────────────────────
 @Composable
 private fun AgentSettlementCard(
     settlement : AgentSettlement,
@@ -388,106 +470,203 @@ private fun AgentSettlementCard(
     val s = settlement
     Card(
         modifier  = Modifier.fillMaxWidth(),
-        shape     = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.cardElevation(4.dp),
-        colors    = CardDefaults.cardColors(containerColor = Color.White)
+        shape     = RoundedCornerShape(18.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border    = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
     ) {
         Column {
-            // Teal header
+            // Emerald header with customer info
             Row(
-                modifier = Modifier.fillMaxWidth().background(CrTeal).padding(horizontal = 12.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(ResPrimary)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.size(46.dp).clip(CircleShape).background(CrOrange), Alignment.Center) {
-                    Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                Box(
+                    Modifier.size(42.dp).clip(CircleShape).background(ResMintBg),
+                    Alignment.Center
+                ) {
+                    Icon(Icons.Default.Person, null, tint = ResPrimary, modifier = Modifier.size(24.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("ကော် အိုင်ဒီ : ${s.customer.id}", color = Color.White.copy(0.8f), fontSize = 11.sp)
-                    Text("အမည် : ${s.customer.name}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    if (s.customer.commissionRate > 0)
-                        Text("ကော်မဆုင် ${s.customer.commissionRate}%", color = CrYellow, fontSize = 10.sp)
+                    Text(
+                        s.customer.name,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("အမှတ်စဉ်: ${s.customer.id}", color = Color.White.copy(0.75f), fontSize = 11.sp)
+                        if (s.customer.commissionRate > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = ResGoldBg
+                            ) {
+                                Text(
+                                    "ကော် ${(s.customer.commissionRate * 100).toInt()}%",
+                                    color = GoldDark,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                 }
                 // Edit paid-amount button
                 IconButton(
                     onClick = onEditPaid,
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(0.15f))
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(0.18f))
                 ) {
-                    Icon(Icons.Default.Edit, "ပေးငွေ ပြင်ဆင်မည်", tint = CrYellow, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Edit, "ပေးငွေ ပြင်ဆင်မည်", tint = Color.White, modifier = Modifier.size(18.dp))
                 }
             }
 
-            // Orange body (tappable)
+            // Card body (tappable for detail)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(CrOrange)
                     .clickable(onClick = onTapDetail)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    SmallCol("စုပေါင်း",  fmt(s.totalBet))
-                    SmallCol("ကော်",      fmt(s.commission))
-                    SmallCol("နုတ်ပြီး",  fmt(s.netAfterComm))
+                // Row 1: Sales / Commission / Net
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    SmallCol("ရောင်းကြေး", fmt(s.totalBet), MaterialTheme.colorScheme.onSurface)
+                    SmallCol("ကော်မရှင်", fmt(s.commission), ResGold)
+                    SmallCol("နုတ်ပြီးငွေ", fmt(s.netAfterComm), ResPrimary)
                 }
-                HorizontalDivider(color = Color.White.copy(0.3f), thickness = 0.5.dp)
-                if (s.exactBetAmt > 0) WinRow(Icons.Default.Star,  "ဲ",    fmt(s.exactBetAmt), fmt(s.exactPayout), CrYellow)
-                if (s.tuwtBetAmt  > 0) WinRow(Icons.Default.Info,  "တွတ်", fmt(s.tuwtBetAmt),  fmt(s.tuwtPayout),  Color.White)
-                HorizontalDivider(color = Color.White.copy(0.3f), thickness = 0.5.dp)
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text("လျော်ငွေ = ${fmt(s.totalPayout)}", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    Text("ရငွေ = ${fmt(s.balance)}", color = if (s.balance < 0) CrYellow else Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+
+                // Row 2: Winning breakdown if any
+                if (s.exactBetAmt > 0 || s.tuwtBetAmt > 0) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(ResRedBg.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (s.exactBetAmt > 0) {
+                            WinRow(Icons.Default.Star, "ဒဲ့ (ပေါက်)", fmt(s.exactBetAmt), fmt(s.exactPayout), ResRed)
+                        }
+                        if (s.tuwtBetAmt > 0) {
+                            WinRow(Icons.Default.CheckCircle, "တွတ် (လျော်)", fmt(s.tuwtBetAmt), fmt(s.tuwtPayout), ResGold)
+                        }
+                    }
                 }
+
+                HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+
+                // Row 3: Totals & Balance
                 Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text("ပေးငွေ = ${fmt(s.paidAmount)}", color = Color.White, fontSize = 12.sp)
-                    Text("ကြွေးကျန် = ${fmt(s.remaining)}", color = if (s.remaining < 0) CrYellow else Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(
+                        "လျော်ငွေ = ${fmt(s.totalPayout)}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    val balLabel = if (s.balance < 0) "ကျန်ငွေ (ပေးရန်)" else "ကျန်ငွေ (ရရန်)"
+                    Text(
+                        "$balLabel = ${fmt(s.balance)}",
+                        color = if (s.balance < 0) ResRed else ResGreen,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
                 }
-                Row(Modifier.fillMaxWidth(), Arrangement.Center, Alignment.CenterVertically) {
-                    Icon(Icons.Default.ContentCopy, null, tint = Color.White.copy(0.55f), modifier = Modifier.size(10.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text("နှိပ်၍ ကော်ပီ + အသေးစိတ်", color = Color.White.copy(0.55f), fontSize = 9.sp)
+
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                    Text(
+                        "ပေးငွေ = ${fmt(s.paidAmount)}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    val remLabel = if (s.remaining < 0) "ကြွေးကျန် (ပေးရန်)" else "ကြွေးကျန် (ရရန်)"
+                    Text(
+                        "$remLabel = ${fmt(s.remaining)}",
+                        color = if (s.remaining < 0) ResRed else ResGreen,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.ContentCopy, null, tint = ResPrimary.copy(alpha = 0.6f), modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("နှိပ်၍ အသေးစိတ်ကြည့်ရန် & ကော်ပီကူးရန်", color = ResPrimary.copy(alpha = 0.7f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
     }
 }
 
-@Composable private fun SmallCol(label: String, value: String) {
+@Composable
+private fun SmallCol(label: String, value: String, valueColor: Color = Color.Unspecified) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = Color.White.copy(0.75f), fontSize = 9.sp)
-        Text(value, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+        Text(
+            value,
+            color = valueColor,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
-@Composable private fun WinRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, bet: String, payout: String, iconTint: Color) {
+@Composable
+private fun WinRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, bet: String, payout: String, iconTint: Color) {
     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = iconTint, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
-            Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(label, color = iconTint, fontWeight = FontWeight.Bold, fontSize = 12.sp)
         }
-        Text("$bet  /  $payout", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+        Text(
+            "$bet Ks  →  $payout Ks",
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }
 
-@Composable private fun DialogRow(label: String, value: String, valueColor: Color = Color(0xFF212121), bold: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 1.dp), Arrangement.SpaceBetween) {
-        Text(label, fontSize = 12.sp, color = Color(0xFF666666), fontWeight = FontWeight.SemiBold)
-        Text(value, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.Normal, color = valueColor)
+@Composable
+private fun DialogRow(label: String, value: String, valueColor: Color = Color(0xFF1A1A1A), bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), Arrangement.SpaceBetween) {
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+        Text(value, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.Medium, color = valueColor)
     }
 }
 
-@Composable private fun SummaryPill(label: String, value: String, valueColor: Color) {
+@Composable
+private fun SummaryPill(label: String, value: String, valueColor: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 10.sp, color = Color.Gray)
+        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(value, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = valueColor, fontFamily = FontFamily.Monospace)
     }
 }
 
-@Composable private fun FooterCol(label: String, value: Long) {
+@Composable
+private fun FooterCol(label: String, value: Long, valueColor: Color = Color.White) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = Color.White.copy(0.8f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
-        Text(fmt(value), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        Text(label, color = Color.White.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Text(fmt(value), color = valueColor, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
     }
 }

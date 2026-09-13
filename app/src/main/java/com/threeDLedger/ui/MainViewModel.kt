@@ -76,15 +76,15 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     // ── Per-batch multipliers (saved when ပေါက်သီး is declared) ──────────────
     val savedExactMult = MutableStateFlow(600.0)
     val savedPermMult  = MutableStateFlow(100.0)
-    val savedNearMult  = MutableStateFlow(10.0)
+    val savedNearMult  = MutableStateFlow(100.0)
 
-    fun saveMultipliers(exact: Double, perm: Double, near: Double) {
+    fun saveMultipliers(exact: Double, tuwt: Double, near: Double = tuwt) {
         savedExactMult.value = exact
-        savedPermMult.value  = perm
+        savedPermMult.value  = tuwt
         savedNearMult.value  = near
         prefs.edit()
             .putFloat("exactMult_${currentBatch.value}", exact.toFloat())
-            .putFloat("permMult_${currentBatch.value}",  perm.toFloat())
+            .putFloat("permMult_${currentBatch.value}",  tuwt.toFloat())
             .putFloat("nearMult_${currentBatch.value}",  near.toFloat())
             .apply()
     }
@@ -95,7 +95,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     fun getMultipliersForBatch(batch: Int): Triple<Double, Double, Double> = Triple(
         prefs.getFloat("exactMult_$batch", 600f).toDouble(),
         prefs.getFloat("permMult_$batch",  100f).toDouble(),
-        prefs.getFloat("nearMult_$batch",   10f).toDouble()
+        prefs.getFloat("nearMult_$batch",  100f).toDouble()
     )
 
     // ── Per-customer per-batch paid amount (persisted) ────────────────────────
@@ -139,7 +139,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         // Overflow-specific exported amounts per number
         val overflowExportMap = mutableMapOf<String, Int>()
         batchExports
-            .filter { it.record.type.contains("Overflow") }
+            .filter { it.record.type.contains("Overflow", ignoreCase = true) || it.record.type.contains("ဘရိတ်ကျော်") || it.record.type.contains("တင်ကွက်") }
             .forEach { eb ->
                 eb.numbers.forEach { num ->
                     overflowExportMap[num.number] = (overflowExportMap[num.number] ?: 0) + num.amount
@@ -170,7 +170,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
             val totalAmount = toExport.sumOf { it.overflowAmount }
             val record = ExportRecord(
                 batchNumber = currentBatch.value,
-                type = "ဘရိတ်ကျော်ငွေ (Overflow)",
+                type = "ဘရိတ်ကျော် တင်ကွက်",
                 totalAmount = totalAmount
             )
             val recordId = repository.insertExportRecord(record).toInt()
@@ -186,6 +186,9 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
 
 
     init {
+        viewModelScope.launch {
+            repository.purgeOverflowArtifacts()
+        }
         appPassword.value = prefs.getString("appPassword", "") ?: ""
         voucherFooterText.value = prefs.getString("voucherFooterText", "ထွက်လျော်မည်။") ?: "ထွက်လျော်မည်။"
         printerSettings.value = prefs.getString("printerSettings", "") ?: ""
@@ -299,18 +302,25 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
 
     private fun convertBurmeseToEnglishDigits(input: String): String { return input.map { char -> when (char) { '၀' -> '0'; '၁' -> '1'; '၂' -> '2'; '၃' -> '3'; '၄' -> '4'; '၅' -> '5'; '၆' -> '6'; '၇' -> '7'; '၈' -> '8'; '၉' -> '9'; else -> char } }.joinToString("") }
 
+private val VM_KS_REGEX                = Regex("(?i)ks")
+private val VM_SPACES_SEPARATORS_REGEX = Regex("\\s*([.,/+\\-_=:])\\s*")
+private val VM_SPACES_R_REGEX          = Regex("\\s*(?i)r\\s*")
+private val VM_SPACES_SPLIT_REGEX      = Regex("\\s+")
+private val VM_BLOCK_TAIL_REGEX        = Regex("([-:/.,_=]+)?(\\d+)(?:R(\\d+))?$")
+private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
+
     fun parseBets(input: String): List<Bet> {
         val convertedInput = convertBurmeseToEnglishDigits(input)
         val bets = mutableListOf<Bet>()
         
         // Remove 'ks' (case insensitive)
-        var text = convertedInput.replace(Regex("(?i)ks"), "")
+        var text = convertedInput.replace(VM_KS_REGEX, "")
         // Remove spaces around separators
-        text = text.replace(Regex("\\s*([.,/+\\-_=:])\\s*"), "$1")
+        text = text.replace(VM_SPACES_SEPARATORS_REGEX, "$1")
         // Remove spaces around 'R' (case insensitive)
-        text = text.replace(Regex("\\s*(?i)r\\s*"), "R")
+        text = text.replace(VM_SPACES_R_REGEX, "R")
         // Split by remaining spaces
-        val blocks = text.split(Regex("\\s+"))
+        val blocks = text.split(VM_SPACES_SPLIT_REGEX)
         
         for (block in blocks) {
             if (block.isEmpty()) continue
@@ -319,8 +329,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
             var amount1Str = ""
             var amount2Str = ""
             
-            val tailRegex = Regex("([-:/.,_=]+)?(\\d+)(?:R(\\d+))?$")
-            val match = tailRegex.find(block)
+            val match = VM_BLOCK_TAIL_REGEX.find(block)
             
             if (match != null) {
                 if (match.range.first == 0) {
@@ -344,7 +353,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
             val amount = amount1Str.toIntOrNull() ?: continue
             val rAmount = amount2Str.toIntOrNull()
             
-            val chunks = numbersStr.split(Regex("[.,/+\\-_:]+"))
+            val chunks = numbersStr.split(VM_NUMBER_CHUNKS_REGEX)
             for (chunk in chunks) {
                 if (chunk.isEmpty()) continue
                 val hasR = chunk.endsWith("R")

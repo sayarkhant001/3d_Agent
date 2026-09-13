@@ -200,18 +200,18 @@ object BluetoothPrinter {
         paint.textAlign = android.graphics.Paint.Align.CENTER
         canvas.drawText("${data.batchNumber}", circleX, circleY + 14f, paint)
 
-        // Title: "3D Voucher"
+        // Title: "3D ဘောင်ချာ"
         paint.color = Color.BLACK
         paint.textSize = 42f
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
         paint.textAlign = android.graphics.Paint.Align.LEFT
         val titleX = circleX + circleR + 14f
-        canvas.drawText("3D Voucher", titleX, circleY - 2f, paint)
+        canvas.drawText("3D ဘောင်ချာ", titleX, circleY - 2f, paint)
 
         // Subtitle with voucher number
         paint.textSize = 21f
         paint.typeface = android.graphics.Typeface.DEFAULT
-        canvas.drawText("Voucher No. ${data.voucherId}", titleX, circleY + 28f, paint)
+        canvas.drawText("ဘောင်ချာအမှတ် ${data.voucherId}", titleX, circleY + 28f, paint)
 
         y += headerH + 14f
 
@@ -247,10 +247,10 @@ object BluetoothPrinter {
         paint.typeface = android.graphics.Typeface.DEFAULT
         paint.textAlign = android.graphics.Paint.Align.LEFT
         paint.color = Color.BLACK
-        canvas.drawText("Date: ${data.date}", pad + 8f, y + lineH * 0.72f, paint)
+        canvas.drawText("ရက်စွဲ: ${data.date}", pad + 8f, y + lineH * 0.72f, paint)
         y += lineH
 
-        canvas.drawText("Name: ${data.customerName}", pad + 8f, y + lineH * 0.72f, paint)
+        canvas.drawText("ထိုးသူ: ${data.customerName}", pad + 8f, y + lineH * 0.72f, paint)
         y += lineH
         if (data.remark.isNotBlank()) {
             paint.textSize = 22f
@@ -311,7 +311,7 @@ object BluetoothPrinter {
         paint.typeface = android.graphics.Typeface.DEFAULT_BOLD
         paint.textAlign = android.graphics.Paint.Align.LEFT
         paint.color = Color.BLACK
-        canvas.drawText("Total", pad + 12f, y + bigLineH * 0.55f, paint)
+        canvas.drawText("စုစုပေါင်း", pad + 12f, y + bigLineH * 0.55f, paint)
         paint.textAlign = android.graphics.Paint.Align.RIGHT
         canvas.drawText("%,d Ks".format(data.totalAmount), width - pad - 12f, y + bigLineH * 0.55f, paint)
         y += bigLineH + 8f
@@ -348,7 +348,7 @@ object BluetoothPrinter {
         paint.style = android.graphics.Paint.Style.FILL
         paint.textSize = 18f
         paint.textAlign = android.graphics.Paint.Align.CENTER
-        canvas.drawText("--- cut here ---", width / 2f, y + 4f, paint)
+        canvas.drawText("- - - ဖြတ်ရန် - - -", width / 2f, y + 4f, paint)
 
         return bitmap
     }

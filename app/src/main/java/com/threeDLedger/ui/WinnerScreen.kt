@@ -1,5 +1,6 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
+import com.threeDLedger.ui.theme.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -37,7 +38,7 @@ import java.util.concurrent.TimeUnit
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-enum class WinType { EXACT, PERMUTATION, NEAR }
+enum class WinType { EXACT, TUWT }
 
 data class WinnerResult(
     val customerName: String,
@@ -54,7 +55,8 @@ data class VoucherWinSummary(
     val customerName: String,
     val customerId: Int,
     val bets: List<WinnerResult>,
-    val totalPayout: Double
+    val totalPayout: Double,
+    val totalBetAmount: Int = 0
 )
 
 data class AgentWinSummary(
@@ -62,9 +64,18 @@ data class AgentWinSummary(
     val customerId: Int,
     val vouchers: List<VoucherWinSummary>,
     val exactCount: Int,
-    val permCount: Int,
-    val nearCount: Int,
-    val totalPayout: Double
+    val tuwtCount: Int,
+    val totalPayout: Double,
+    val totalBet: Int = 0
+)
+
+data class OverflowWinResult(
+    val exportRecordId: Int,
+    val type: String,
+    val number: String,
+    val amount: Int,
+    val payoutAmount: Double,
+    val winType: WinType
 )
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -79,83 +90,146 @@ fun WinnerScreen(
     val currentBatch   = viewModel.currentBatch.collectAsStateWithLifecycle().value
     var targetBatch    by remember { mutableStateOf(currentBatch.toString()) }
     var exactMult      by remember { mutableStateOf("600") }
-    var permMult       by remember { mutableStateOf("100") }
-    var nearMult       by remember { mutableStateOf("10") }
+    var tuwtMult       by remember { mutableStateOf("100") }
     var isFetching     by remember { mutableStateOf(false) }
     var fetchStatus    by remember { mutableStateOf("") }
     var isFinalResult  by remember { mutableStateOf(false) }
     var resultSession  by remember { mutableStateOf("") }
-    var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher
+    var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher, 2=Overflow
 
-    val allBets      by viewModel.allBets.collectAsStateWithLifecycle()
-    val allVWB       by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
-    val allCustomers by viewModel.customers.collectAsStateWithLifecycle()
-    var results      by remember { mutableStateOf<List<WinnerResult>>(emptyList()) }
-    val coroutineScope = rememberCoroutineScope()
+    val allBets          by viewModel.allBets.collectAsStateWithLifecycle()
+    val allVWB           by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
+    val allCustomers     by viewModel.customers.collectAsStateWithLifecycle()
+    val allExportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
+    var results          by remember { mutableStateOf<List<WinnerResult>>(emptyList()) }
+    var overflowResults  by remember { mutableStateOf<List<OverflowWinResult>>(emptyList()) }
+    val coroutineScope   = rememberCoroutineScope()
 
     fun runCalc() {
         if (winningNumber.length != 3) return
         val batchInt = targetBatch.toIntOrNull() ?: currentBatch
-        val perms    = com.threeDLedger.logic.NumberGenerator.permutations(winningNumber).toSet()
+        val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(winningNumber).toSet() - setOf(winningNumber)
         val numInt   = winningNumber.toIntOrNull() ?: 0
         val minus1   = String.format("%03d", if (numInt == 0) 999 else numInt - 1)
         val plus1    = String.format("%03d", if (numInt == 999) 0 else numInt + 1)
-        val near     = setOf(minus1, plus1)
+        val near     = setOf(minus1, plus1) - setOf(winningNumber)
+        val tuwtSet  = allPerms + near
         val eM = exactMult.toDoubleOrNull() ?: 0.0
-        val pM = permMult.toDoubleOrNull()  ?: 0.0
-        val nM = nearMult.toDoubleOrNull()  ?: 0.0
+        val tM = tuwtMult.toDoubleOrNull()  ?: 0.0
 
+        // Lower-agent winnings (strictly excluding overflow vouchers and overflow customers)
         results = allBets.mapNotNull { bet ->
-            // Use allVWB (direct customerId field) to avoid @Relation null crash
             val vWB = allVWB.find { it.voucher.id == bet.voucherId } ?: return@mapNotNull null
             if (vWB.voucher.batchNumber != batchInt) return@mapNotNull null
             val customer = allCustomers.find { it.id == vWB.voucher.customerId } ?: return@mapNotNull null
+            if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true) ||
+                vWB.voucher.remark.contains("တင်ကွက်") || vWB.voucher.remark.contains("overflow", ignoreCase = true)) {
+                return@mapNotNull null
+            }
             val (win, wt) = when {
-                bet.number == winningNumber  -> Pair(bet.amount * eM, WinType.EXACT)
-                perms.contains(bet.number)   -> Pair(bet.amount * pM, WinType.PERMUTATION)
-                near.contains(bet.number)    -> Pair(bet.amount * nM, WinType.NEAR)
-                else                          -> Pair(0.0, WinType.EXACT)
+                bet.number == winningNumber -> Pair(bet.amount * eM, WinType.EXACT)
+                bet.number in tuwtSet       -> Pair(bet.amount * tM, WinType.TUWT)
+                else                        -> Pair(0.0, WinType.EXACT)
             }
             if (win <= 0) return@mapNotNull null
             WinnerResult(customer.name, customer.id, bet.voucherId, bet.number, bet.amount, win, wt)
         }.sortedWith(compareBy({ it.customerName }, { it.voucherId }))
 
+        // Upper-agent / Overflow winnings (winnings recovered from upper bookmaker)
+        overflowResults = allExportRecords
+            .filter { it.record.batchNumber == batchInt }
+            .flatMap { exp ->
+                exp.numbers.mapNotNull { en ->
+                    val (win, wt) = when {
+                        en.number == winningNumber -> Pair(en.amount * eM, WinType.EXACT)
+                        en.number in tuwtSet       -> Pair(en.amount * tM, WinType.TUWT)
+                        else                       -> Pair(0.0, WinType.EXACT)
+                    }
+                    if (win <= 0) return@mapNotNull null
+                    OverflowWinResult(exp.record.id, exp.record.type, en.number, en.amount, win, wt)
+                }
+            }
+
         // Persist winning number and multipliers for this batch
         viewModel.saveWinningNumber(winningNumber)
-        viewModel.saveMultipliers(eM, pM, nM)
+        viewModel.saveMultipliers(eM, tM, tM)
     }
 
-    // Auto-fetch on open — fills the number field only, NO calculation
+    // Auto-fetch on open — loads saved winning number if available, or fetches from live API
     LaunchedEffect(Unit) {
-        fetchWinningNumber(
-            onStart  = { isFetching = true; fetchStatus = "checking" },
-            onResult = { num, isFinal, session ->
-                if (!num.isNullOrEmpty()) winningNumber = num   // fill field, don't calc
-                isFinalResult = isFinal; resultSession = session
-                fetchStatus = if (num.isNullOrEmpty()) "error" else "ok"
-                isFetching = false
-            },
-            onError = { isFetching = false; fetchStatus = "error" }
-        )
-    }
-    // Calculation only happens when user explicitly taps ပေါက်သီ ကြောညာသည်။
-
-    // Derived grouped data
-    val agentSummaries: List<AgentWinSummary> = remember(results) {
-        results.groupBy { it.customerId }.map { (cid, rows) ->
-            val voucherGroups = rows.groupBy { it.voucherId }.map { (vid, vRows) ->
-                VoucherWinSummary(vid, vRows.first().customerName, cid, vRows, vRows.sumOf { it.payoutAmount })
-            }.sortedBy { it.voucherId }
-            AgentWinSummary(
-                customerName = rows.first().customerName,
-                customerId   = cid,
-                vouchers     = voucherGroups,
-                exactCount   = rows.count { it.winType == WinType.EXACT },
-                permCount    = rows.count { it.winType == WinType.PERMUTATION },
-                nearCount    = rows.count { it.winType == WinType.NEAR },
-                totalPayout  = rows.sumOf { it.payoutAmount }
+        val saved = viewModel.winningNumber.value
+        if (saved.length == 3) {
+            winningNumber = saved
+            runCalc()
+        } else {
+            fetchWinningNumber(
+                onStart  = { isFetching = true; fetchStatus = "checking" },
+                onResult = { num, isFinal, session ->
+                    if (!num.isNullOrEmpty()) winningNumber = num   // fill field, don't calc
+                    isFinalResult = isFinal; resultSession = session
+                    fetchStatus = if (num.isNullOrEmpty()) "error" else "ok"
+                    isFetching = false
+                },
+                onError = { isFetching = false; fetchStatus = "error" }
             )
-        }.sortedByDescending { it.totalPayout }
+        }
+    }
+    // Calculation only happens when user explicitly taps ပေါက်သီး ကြေညာသည် or auto-restored
+
+    // Derived grouped data — include ALL commissioners who placed bets in this batch
+    val batchInt = targetBatch.toIntOrNull() ?: currentBatch
+    val batchCustomerVouchers = remember(allVWB, batchInt, allCustomers) {
+        allVWB.filter { vwb ->
+            vwb.voucher.batchNumber == batchInt &&
+            !vwb.voucher.remark.contains("တင်ကွက်") &&
+            !vwb.voucher.remark.contains("overflow", ignoreCase = true)
+        }.filter { vwb ->
+            val cust = allCustomers.find { it.id == vwb.voucher.customerId }
+            cust != null && !cust.name.contains("တင်ကွက်") && !cust.name.contains("overflow", ignoreCase = true)
+        }
+    }
+
+    val agentSummaries: List<AgentWinSummary> = remember(results, batchCustomerVouchers, winningNumber) {
+        if (winningNumber.length != 3) {
+            emptyList()
+        } else {
+            val vouchersByCustomer = batchCustomerVouchers.groupBy { it.voucher.customerId }
+            vouchersByCustomer.map { (cid, vwbList) ->
+                val customerName = allCustomers.find { it.id == cid }?.name ?: "Unknown"
+                val voucherSummaries = vwbList.map { vwb ->
+                    val vWinningBets = results.filter { it.voucherId == vwb.voucher.id }
+                    val vPayout = vWinningBets.sumOf { it.payoutAmount }
+                    val vTotalBet = vwb.bets.sumOf { it.amount }
+                    VoucherWinSummary(
+                        voucherId = vwb.voucher.id,
+                        customerName = customerName,
+                        customerId = cid,
+                        bets = vWinningBets,
+                        totalPayout = vPayout,
+                        totalBetAmount = vTotalBet
+                    )
+                }.sortedWith(compareByDescending<VoucherWinSummary> { it.totalPayout }.thenBy { it.voucherId })
+
+                val totalPayout = voucherSummaries.sumOf { it.totalPayout }
+                val exactCount = voucherSummaries.sumOf { v -> v.bets.count { it.winType == WinType.EXACT } }
+                val tuwtCount = voucherSummaries.sumOf { v -> v.bets.count { it.winType == WinType.TUWT } }
+                val totalBet = voucherSummaries.sumOf { it.totalBetAmount }
+
+                AgentWinSummary(
+                    customerName = customerName,
+                    customerId = cid,
+                    vouchers = voucherSummaries,
+                    exactCount = exactCount,
+                    tuwtCount = tuwtCount,
+                    totalPayout = totalPayout,
+                    totalBet = totalBet
+                )
+            }.sortedWith(
+                compareByDescending<AgentWinSummary> { it.totalPayout }
+                    .thenByDescending { it.totalBet }
+                    .thenBy { it.customerName }
+            )
+        }
     }
 
     val grandTotal = results.sumOf { it.payoutAmount }
@@ -167,9 +241,15 @@ fun WinnerScreen(
                     Column {
                         Text("ပေါက်ဂဏန်း စာရင်း", fontWeight = FontWeight.Bold, fontSize = 18.sp,
                             color = MaterialTheme.colorScheme.onPrimary)
-                        if (results.isNotEmpty())
-                            Text("${results.size} ကြိမ် ပေါက် — %,.0f Ks".format(grandTotal),
-                                fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                        if (winningNumber.length == 3) {
+                            if (results.isNotEmpty()) {
+                                Text("${results.size} ကြိမ် ပေါက် — %,.0f Ks".format(grandTotal),
+                                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                            } else {
+                                Text("ပေါက်သူ မရှိပါ (အကြိမ်: $targetBatch)",
+                                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
@@ -192,8 +272,7 @@ fun WinnerScreen(
                 targetBatch = targetBatch, onBatchChange = { targetBatch = it },
                 winningNumber = winningNumber, onNumberChange = { v -> if (v.length <= 3 && v.all { it.isDigit() }) { winningNumber = v; fetchStatus = "" } },
                 exactMult = exactMult, onExactChange = { exactMult = it },
-                permMult  = permMult,  onPermChange  = { permMult  = it },
-                nearMult  = nearMult,  onNearChange  = { nearMult  = it },
+                tuwtMult  = tuwtMult,  onTuwtChange  = { tuwtMult  = it },
                 fetchStatus = fetchStatus, isFinalResult = isFinalResult, resultSession = resultSession, isFetching = isFetching,
                 onFetch = { coroutineScope.launch { fetchWinningNumber(
                     onStart  = { isFetching = true; fetchStatus = "checking" },
@@ -241,51 +320,103 @@ fun WinnerScreen(
                 }
             }
 
-            // ── No results placeholder ─────────────────────────────────────────
-            if (winningNumber.length == 3 && results.isEmpty()) {
-                item {
-                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                        Column(modifier = Modifier.padding(32.dp).fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.EmojiEvents, null, modifier = Modifier.size(40.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(8.dp))
-                            Text("ဤ batch တွင် ပေါက်သီး မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text("(Batch ${targetBatch}, 3D: $winningNumber)", fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val overflowWonTotal = overflowResults.sumOf { it.payoutAmount }
+
+            // ── Grand total bar & Tabs (Visible whenever winningNumber has 3 digits) ────
+            if (winningNumber.length == 3) {
+                // If no one won anything, show informational banner
+                if (results.isEmpty() && overflowResults.isEmpty()) {
+                    item {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.Info, null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text("ဤ အကြိမ်တွင် ပေါက်သီး မရှိပါ", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("(အကြိမ်: ${targetBatch}, ပေါက်ဂဏန်း: $winningNumber)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                         }
                     }
                 }
-            }
 
-            if (results.isNotEmpty()) {
                 // ── Tab bar ────────────────────────────────────────────────────
                 item {
                     TabRow(selectedTabIndex = selectedTab, containerColor = MaterialTheme.colorScheme.surface) {
                         Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                            text = { Text("ကိုယ်စားလှယ် (${agentSummaries.size})", fontSize = 13.sp) },
+                            text = { Text("ကိုယ်စားလှယ် (${agentSummaries.size})", fontSize = 12.sp) },
                             icon = { Icon(Icons.Default.Group, null, Modifier.size(16.dp)) }
                         )
                         Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                            text = { Text("ဘောင်ချာ (${agentSummaries.sumOf { it.vouchers.size }})", fontSize = 13.sp) },
+                            text = { Text("ဘောင်ချာ (${agentSummaries.sumOf { it.vouchers.size }})", fontSize = 12.sp) },
                             icon = { Icon(Icons.Default.Receipt, null, Modifier.size(16.dp)) }
+                        )
+                        Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 },
+                            text = { Text("တင်ကွက် (${overflowResults.size})", fontSize = 12.sp) },
+                            icon = { Icon(Icons.Default.Payment, null, Modifier.size(16.dp)) }
                         )
                     }
                 }
 
                 // ── Grand total bar ────────────────────────────────────────────
-                item { GrandTotalBar(results, grandTotal) }
+                item { GrandTotalBar(results, grandTotal, overflowResults, overflowWonTotal) }
 
-                if (selectedTab == 0) {
-                    // ── Agent Summary ──────────────────────────────────────────
-                    items(agentSummaries) { agent ->
-                        AgentSummaryCard(agent)
+                when (selectedTab) {
+                    0 -> {
+                        // ── Agent Summary ──────────────────────────────────────────
+                        if (agentSummaries.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("ဤ အကြိမ်တွင် ကိုယ်စားလှယ် မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        } else {
+                            items(agentSummaries) { agent ->
+                                AgentSummaryCard(agent)
+                            }
+                        }
                     }
-                } else {
-                    // ── Voucher Detail (all vouchers across agents) ────────────
-                    val allVouchers2 = agentSummaries.flatMap { it.vouchers }
-                    items(allVouchers2) { vs ->
-                        VoucherDetailCard(vs, winningNumber)
+                    1 -> {
+                        // ── Voucher Detail (all vouchers across agents) ────────────
+                        val allVouchers2 = agentSummaries.flatMap { it.vouchers }
+                        if (allVouchers2.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("ဤ အကြိမ်တွင် ဘောင်ချာ မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        } else {
+                            items(allVouchers2) { vs ->
+                                VoucherDetailCard(vs, winningNumber)
+                            }
+                        }
+                    }
+                    2 -> {
+                        // ── Overflow Upper-Agent Detail ────────────────────────────
+                        if (overflowResults.isEmpty()) {
+                            val batchOverflowCount = allExportRecords.count { it.record.batchNumber == (targetBatch.toIntOrNull() ?: currentBatch) }
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        if (batchOverflowCount == 0) "တင်ကွက် မှတ်တမ်း မရှိပါ"
+                                        else "တင်ကွက်တွင် ပေါက်ဂဏန်း မရှိပါ ($batchOverflowCount တင်ကွက်)",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else {
+                            items(overflowResults) { ov ->
+                                OverflowWinCard(ov)
+                            }
+                        }
                     }
                 }
             }
@@ -301,8 +432,7 @@ private fun InputCard(
     targetBatch: String, onBatchChange: (String) -> Unit,
     winningNumber: String, onNumberChange: (String) -> Unit,
     exactMult: String, onExactChange: (String) -> Unit,
-    permMult: String,  onPermChange:  (String) -> Unit,
-    nearMult: String,  onNearChange:  (String) -> Unit,
+    tuwtMult: String,  onTuwtChange:  (String) -> Unit,
     fetchStatus: String, isFinalResult: Boolean, resultSession: String, isFetching: Boolean,
     onFetch: () -> Unit, onRecalc: () -> Unit
 ) {
@@ -313,7 +443,7 @@ private fun InputCard(
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Batch
             OutlinedTextField(value = targetBatch, onValueChange = onBatchChange,
-                label = { Text("Batch No / အကြိမ်") },
+                label = { Text("အကြိမ်") },
                 leadingIcon = { Icon(Icons.Default.Numbers, null) },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
 
@@ -321,7 +451,7 @@ private fun InputCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f)) {
                     OutlinedTextField(value = winningNumber, onValueChange = onNumberChange,
-                        label = { Text("ပေါက်ဂဏန်း (3D)") },
+                        label = { Text("ပေါက်ဂဏန်း") },
                         leadingIcon = { Icon(Icons.Default.Star, null, tint = Color(0xFFFFD93D)) },
                         modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
                     if (fetchStatus.isNotEmpty()) {
@@ -334,9 +464,9 @@ private fun InputCard(
                             Box(Modifier.size(7.dp).clip(CircleShape).background(dotColor))
                             Spacer(Modifier.width(5.dp))
                             Text(when(fetchStatus) {
-                                "checking" -> "Firebase မှ ယူနေသည်..."
-                                "ok"       -> if (isFinalResult) "✓ Final ($resultSession)" else "⏳ Interim ($resultSession)"
-                                else       -> "Firebase ချိတ်မရ — ကိုယ်တိုင် ရိုက်ထည့်ပါ"
+                                "checking" -> "ရလဒ် စစ်ဆေးနေပါသည်..."
+                                "ok"       -> if (isFinalResult) "✓ အတည် ($resultSession)" else "⏳ စောင့်ဆိုင်းဆဲ ($resultSession)"
+                                else       -> "ချိတ်ဆက်မရပါ — ကိုယ်တိုင် ရိုက်ထည့်ပါ"
                             }, fontSize = 11.sp, color = dotColor, fontWeight = FontWeight.SemiBold)
                         }
                     }
@@ -346,17 +476,16 @@ private fun InputCard(
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp)) {
                     if (isFetching) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onPrimary)
-                    else { Icon(Icons.Default.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Fetch") }
+                    else { Icon(Icons.Default.Refresh, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("ရယူမည်") }
                 }
             }
 
             // Multipliers
-            Text("အဆ (Multiplier)", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
+            Text("အဆနှုန်းထားများ", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MultiplierField("ပေါက်သီး", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
-                MultiplierField("တွတ်",       permMult,  Color(0xFF6C63FF), Modifier.weight(1f), onPermChange)
-                MultiplierField("တွတ်",       nearMult,  Color(0xFF4ECDC4), Modifier.weight(1f), onNearChange)
+                MultiplierField("ပေါက်သီး (ဒဲ့)", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
+                MultiplierField("တွတ်",       tuwtMult,  Color(0xFF6C63FF), Modifier.weight(1f), onTuwtChange)
             }
 
             // ── Declare button ───────────────────────────────────────────────────
@@ -385,20 +514,86 @@ private fun InputCard(
 // ── Grand total bar ───────────────────────────────────────────────────────────
 
 @Composable
-private fun GrandTotalBar(results: List<WinnerResult>, grandTotal: Double) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-        elevation = CardDefaults.cardElevation(4.dp)) {
-        Row(modifier = Modifier.padding(14.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            WinChip("ပေါက်သီး", "${results.count { it.winType == WinType.EXACT }}", Color(0xFF43AA8B))
-            WinChip("တွတ်",       "${results.count { it.winType == WinType.PERMUTATION }}", Color(0xFF6C63FF))
-            WinChip("တွတ်",       "${results.count { it.winType == WinType.NEAR }}", Color(0xFF4ECDC4))
-            Column(horizontalAlignment = Alignment.End) {
-                Text("ပေးရမည့် စုစုပေါင်း", fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                Text("%,.0f Ks".format(grandTotal), fontWeight = FontWeight.ExtraBold, fontSize = 18.sp,
-                    fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onPrimaryContainer)
+private fun GrandTotalBar(
+    results: List<WinnerResult>,
+    grandTotal: Double,
+    overflowResults: List<OverflowWinResult>,
+    overflowWonTotal: Double
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(3.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                WinChip("ပေါက်သီး", "${results.count { it.winType == WinType.EXACT }}", Color(0xFF43AA8B))
+                WinChip("တွတ်",       "${results.count { it.winType == WinType.TUWT }}", Color(0xFF6C63FF))
+            }
+
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+            Spacer(Modifier.height(10.dp))
+
+            // To Pay (Red)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("အောက်ဒိုင်သို့ လျော်ရန်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "- %,.0f Ks".format(grandTotal),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 15.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFFDC2626)
+                )
+            }
+
+            // To Get from Upper Agent / Overflow (Green)
+            if (overflowWonTotal > 0) {
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("အထက်ဒိုင်မှ ရရန် (တင်ကွက်)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        "+ %,.0f Ks".format(overflowWonTotal),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 15.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF059669)
+                    )
+                }
+            }
+
+            // Net position
+            val netBalance = overflowWonTotal - grandTotal
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val netLabel = if (netBalance >= 0) "အသားတင် ကျန်ငွေ (ရရန်)" else "အသားတင် ကျန်ငွေ (ပေးရန်)"
+                val netColor = if (netBalance >= 0) Color(0xFF059669) else Color(0xFFDC2626)
+                Text(netLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "%,.0f Ks".format(netBalance),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = netColor
+                )
             }
         }
     }
@@ -408,7 +603,7 @@ private fun GrandTotalBar(results: List<WinnerResult>, grandTotal: Double) {
 private fun WinChip(label: String, count: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(count, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = color)
-        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
+        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -433,18 +628,37 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(agent.customerName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (agent.exactCount > 0) WinTypeBadge("ပေါက်သီး ×${agent.exactCount}", Color(0xFF43AA8B))
-                        if (agent.permCount  > 0) WinTypeBadge("တွတ် ×${agent.permCount}",       Color(0xFF6C63FF))
-                        if (agent.nearCount  > 0) WinTypeBadge("တွတ် ×${agent.nearCount}",       Color(0xFF4ECDC4))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (agent.exactCount > 0) WinTypeBadge("ဒဲ့ ×${agent.exactCount}", Color(0xFF43AA8B))
+                        if (agent.tuwtCount  > 0) WinTypeBadge("တွတ် ×${agent.tuwtCount}", Color(0xFF6C63FF))
+                        if (agent.exactCount == 0 && agent.tuwtCount == 0) {
+                            Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Text(
+                                    "မပေါက်ပါ",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("%,.0f Ks".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
-                        fontSize = 15.sp, fontFamily = FontFamily.Monospace,
-                        color = MaterialTheme.colorScheme.primary)
-                    Text("${agent.vouchers.size} ဘောင်ချာ", fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (agent.totalPayout > 0) {
+                        Text("%,.0f Ks".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp, fontFamily = FontFamily.Monospace,
+                            color = Color(0xFFDC2626))  // Red for payout to give
+                    } else {
+                        Text("0 Ks", fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp, fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text(
+                        "${agent.vouchers.size} ဘောင်ချာ  •  ထိုးငွေ %,d Ks".format(agent.totalBet),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -457,6 +671,76 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     agent.vouchers.forEach { vs -> VoucherDetailCard(vs, "", compact = true) }
                 }
+            }
+        }
+    }
+}
+
+// ── Overflow Upper-Agent Winning Card ─────────────────────────────────────────
+
+@Composable
+private fun OverflowWinCard(item: OverflowWinResult) {
+    val (color, label) = when (item.winType) {
+        WinType.EXACT -> Pair(Color(0xFF43AA8B), "ပေါက်သီး")
+        WinType.TUWT  -> Pair(Color(0xFF6C63FF), "တွတ်")
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(10.dp))
+                    .background(color.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    item.number,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 17.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = color
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    WinTypeBadge(label, color)
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        item.type,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "တင်ငွေ: %,d Ks".format(item.amount),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "အထက်ဒိုင်မှ ရရန်",
+                    fontSize = 10.sp,
+                    color = Color(0xFF059669),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "+%,.0f Ks".format(item.payoutAmount),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = Color(0xFF059669)  // Green for receive
+                )
             }
         }
     }
@@ -485,14 +769,35 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                     if (!compact)
                         Text(vs.customerName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                 }
-                Text("%,.0f Ks".format(vs.totalPayout), fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp, fontFamily = FontFamily.Monospace,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(end = 8.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    if (vs.totalPayout > 0) {
+                        Text("%,.0f Ks".format(vs.totalPayout), fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                            color = Color(0xFFDC2626),
+                            modifier = Modifier.padding(end = 4.dp))
+                    } else {
+                        Text("0 Ks", fontWeight = FontWeight.SemiBold,
+                            fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(end = 4.dp))
+                    }
+                    Text("ထိုးငွေ: %,d Ks".format(vs.totalBetAmount),
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             Spacer(Modifier.height(8.dp))
-            // Bet rows
-            vs.bets.forEach { r -> BetResultRow(r) }
+            // Bet rows or no win notice
+            if (vs.bets.isNotEmpty()) {
+                vs.bets.forEach { r -> BetResultRow(r) }
+            } else {
+                Text(
+                    "ပေါက်ဂဏန်း မရှိပါ",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 4.dp)
+                )
+            }
         }
     }
 }
@@ -502,9 +807,8 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
 @Composable
 private fun BetResultRow(result: WinnerResult) {
     val (color, label) = when (result.winType) {
-        WinType.EXACT       -> Pair(Color(0xFF43AA8B), "ပေါက်သီး")
-        WinType.PERMUTATION -> Pair(Color(0xFF6C63FF), "တွတ်")
-        WinType.NEAR        -> Pair(Color(0xFF4ECDC4), "တွတ်")
+        WinType.EXACT -> Pair(Color(0xFF43AA8B), "ပေါက်သီး")
+        WinType.TUWT  -> Pair(Color(0xFF6C63FF), "တွတ်")
     }
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically) {
@@ -595,25 +899,49 @@ private fun tryGloApi(): Pair<String, String>? {
         val json = JSONObject(raw)
         val resp = json.optJSONObject("response") ?: return null
 
-        // Draw date — may be under "period.date" or directly "date"
-        val date = resp.optJSONObject("period")?.optString("date", "")
-            ?: resp.optString("date", "")
+        // Draw date
+        val date = resp.optString("date", "").ifEmpty {
+            resp.optJSONObject("period")?.optString("date", "") ?: ""
+        }
 
-        // Prizes array — find prize with id "1" or name containing "ที่ 1"
-        val prizes = resp.optJSONArray("prizes") ?: return null
+        // Check official GLO modern structure: response.data.first.number[0].value
         var firstPrizeNum: String? = null
-        for (i in 0 until prizes.length()) {
-            val p    = prizes.getJSONObject(i)
-            val id   = p.optString("id", "")
-            val name = p.optString("name", "")
-            if (id == "1" || id == "first" || name.contains("ที่ 1")) {
-                val numArr = p.optJSONArray("number")
-                firstPrizeNum = if (numArr != null && numArr.length() > 0) {
-                    numArr.optString(0, "").takeIf { it.isNotEmpty() }
-                } else {
-                    p.optString("number", "").takeIf { it.isNotEmpty() }
+        val dataObj = resp.optJSONObject("data")
+        val firstObj = dataObj?.optJSONObject("first")
+        val numberArr = firstObj?.optJSONArray("number")
+        if (numberArr != null && numberArr.length() > 0) {
+            firstPrizeNum = numberArr.getJSONObject(0).optString("value", "").trim()
+        }
+
+        // If not found in data.first, check n3.straight3
+        if (firstPrizeNum.isNullOrEmpty()) {
+            val straight3 = resp.optJSONObject("n3")?.optJSONObject("straight3")?.optJSONArray("number")
+            if (straight3 != null && straight3.length() > 0) {
+                val s3Val = straight3.getJSONObject(0).optString("value", "").trim()
+                if (s3Val.length == 3) {
+                    return Pair(s3Val, date)
                 }
-                break
+            }
+        }
+
+        // Fallback: Check prizes array if present
+        if (firstPrizeNum.isNullOrEmpty()) {
+            val prizes = resp.optJSONArray("prizes")
+            if (prizes != null) {
+                for (i in 0 until prizes.length()) {
+                    val p    = prizes.getJSONObject(i)
+                    val id   = p.optString("id", "")
+                    val name = p.optString("name", "")
+                    if (id == "1" || id == "first" || name.contains("ที่ 1")) {
+                        val numArr = p.optJSONArray("number")
+                        firstPrizeNum = if (numArr != null && numArr.length() > 0) {
+                            numArr.optString(0, "").takeIf { it.isNotEmpty() }
+                        } else {
+                            p.optString("number", "").takeIf { it.isNotEmpty() }
+                        }
+                        break
+                    }
+                }
             }
         }
 

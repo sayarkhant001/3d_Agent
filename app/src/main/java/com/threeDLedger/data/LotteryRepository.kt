@@ -31,8 +31,10 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
 
     suspend fun insertVoucherWithBets(voucher: Voucher, bets: List<Bet>) {
         val voucherId = lotteryDao.insertVoucher(voucher).toInt()
-        val betsWithVoucherId = bets.map { it.copy(voucherId = voucherId) }
-        lotteryDao.insertBets(betsWithVoucherId)
+        bets.chunked(500).forEach { chunk ->
+            val betsWithVoucherId = chunk.map { it.copy(voucherId = voucherId) }
+            lotteryDao.insertBets(betsWithVoucherId)
+        }
     }
 
     suspend fun insertExportRecord(record: ExportRecord): Long {
@@ -62,5 +64,11 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
 
     suspend fun getVoucherDetails(voucherId: Int): VoucherWithBets? {
         return lotteryDao.getVoucherWithBets(voucherId)
+    }
+
+    suspend fun purgeOverflowArtifacts() {
+        lotteryDao.purgeOverflowCustomers()
+        lotteryDao.purgeOverflowVouchers()
+        lotteryDao.deleteOrphanedBets()
     }
 }

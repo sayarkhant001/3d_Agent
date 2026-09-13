@@ -58,3 +58,23 @@ val md_theme_dark_surface             = Color(0xFF064E3B)  // Dark emerald card
 val md_theme_dark_onSurface           = Color(0xFFECFDF5)
 val md_theme_dark_surfaceVariant      = Color(0xFF065F46)
 val md_theme_dark_onSurfaceVariant    = Color(0xFFA7F3D0)
+
+// ── Semantic Color Tokens for Screens ─────────────────────────────────────────
+val EmeraldPrimary      = Color(0xFF065F46)
+val EmeraldLight        = Color(0xFFD1FAE5)
+val EmeraldDark         = Color(0xFF022C22)
+val EmeraldMedium       = Color(0xFF047857)
+val EmeraldSoftBg       = Color(0xFFF0FDF4)
+
+val GoldAccent          = Color(0xFFD97706)
+val GoldContainer       = Color(0xFFFEF3C7)
+val GoldDark            = Color(0xFF92400E)
+
+val WinExactRed         = Color(0xFFDC2626)
+val WinExactBg          = Color(0xFFFEE2E2)
+val WinPermGold         = Color(0xFFD97706)
+val WinPermBg           = Color(0xFFFEF3C7)
+val WinNearBlue         = Color(0xFF2563EB)
+val WinNearBg           = Color(0xFFDBEAFE)
+
+val CardBorderSubtle    = Color(0xFFE2E8F0)

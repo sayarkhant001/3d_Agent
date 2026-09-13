@@ -37,6 +37,11 @@ fun String.myanmarToEnglish(): String {
     }.joinToString("")
 }
 
+private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_])\s*""")
+private val ROUND_MARKERS_REGEX    = Regex("""\s*[Rr/]\s*""")
+private val TAIL_AMOUNT_REGEX       = Regex("""[=:\-.,_]?(\d+)(?:R(\d+))?$""")
+private val NUM_PATTERN_REGEX       = Regex("""(\d{2,3})(R?)""")
+
 // Parse one line of pasted bet text into a list of (number, amount) pairs.
 // Handles ALL these real-world formats:
 //   723-372-245-309 = 2000         -> 4 numbers at 2000
@@ -53,14 +58,13 @@ fun parsePastedLine(raw: String): List<Pair<String, Int>> {
     if (line.isBlank()) return emptyList()
 
     // Step 1: collapse spaces around plain separators (NOT / -- handled below)
-    var text = line.replace(Regex("""\s*([=:\-.,_])\s*"""), "$1")
+    var text = line.replace(SEPARATOR_SPACES_REGEX, "$1")
 
     // Step 2: normalise R, r, AND / -> "R"  (/ is treated as Round, same as R)
-    text = text.replace(Regex("""\s*[Rr/]\s*"""), "R")
+    text = text.replace(ROUND_MARKERS_REGEX, "R")
 
     // Find the AMOUNT at the end: (optional separator)(digits)(optional R digits)$
-    val tailRegex = Regex("""[=:\-.,_]?(\d+)(?:R(\d+))?$""")
-    val tailMatch = tailRegex.find(text) ?: return emptyList()
+    val tailMatch = TAIL_AMOUNT_REGEX.find(text) ?: return emptyList()
 
     val amount  = tailMatch.groupValues[1].toIntOrNull() ?: return emptyList()
     val rAmount = tailMatch.groupValues[2].toIntOrNull()
@@ -72,10 +76,9 @@ fun parsePastedLine(raw: String): List<Pair<String, Int>> {
     // Step 3: extract (number, hasR) pairs using regex.
     // After normalisation "123/456/789=5000" -> "123R456R789=5000"
     // Pattern matches each 2-3 digit number and its optional trailing R
-    val numPattern = Regex("""(\d{2,3})(R?)""")
     val results = mutableListOf<Pair<String, Int>>()
 
-    for (match in numPattern.findAll(numbersStr)) {
+    for (match in NUM_PATTERN_REGEX.findAll(numbersStr)) {
         val baseNum = match.groupValues[1]
         val hasR    = match.groupValues[2] == "R"
 
@@ -197,7 +200,7 @@ fun BettingScreen(
     // For > 500: submits directly as a voucher so the list never lags.
     fun addBetsFromPasteAsync(text: String) {
         if (selectedCustomer == null && text.lines().size > 500) {
-            android.widget.Toast.makeText(context, "ထိုးသူ ရွေးပါ — large paste needs customer selected", android.widget.Toast.LENGTH_SHORT).show()
+            android.widget.Toast.makeText(context, "ထိုးသူ ဦးစွာရွေးချယ်ပေးပါ", android.widget.Toast.LENGTH_SHORT).show()
         }
         isParsing = true
         parseProgress = 0f
@@ -218,10 +221,10 @@ fun BettingScreen(
                             else allBets.add(Bet(voucherId = 0, number = num, amount = amt))
                         }
                     }
-                    if (i % 200 == 0) {
+                    if (i % 1000 == 0 || i == total - 1) {
                         withContext(Dispatchers.Main) {
-                            parseProgress = i.toFloat() / total
-                            parseStatus = " ကြောင်း ရှာနေသည်..."
+                            parseProgress = (i + 1).toFloat() / total
+                            parseStatus = "${i + 1} ကြောင်း စစ်ဆေးပြီး..."
                         }
                     }
                 }
@@ -236,12 +239,9 @@ fun BettingScreen(
                 // Large batch: submit straight to DB in one voucher to keep UI responsive
                 if (selectedCustomer != null) {
                     val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-                    // Split into chunks of 1000 bets per voucher so Room doesn't time out
-                    allBets.chunked(1000).forEach { chunk ->
-                        viewModel.addVoucherWithBetList(selectedCustomer!!, time, chunk, tempRemark)
-                    }
+                    viewModel.addVoucherWithBetList(selectedCustomer!!, time, allBets, tempRemark)
                     tempRemark = ""
-                    android.widget.Toast.makeText(context, " ကြောင်း ပေါက်သီး သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, "${allBets.size} ကြောင်း ထိုးကြေး သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
                 } else {
                     // No customer selected — still buffer (they can submit later)
                     pendingBets.addAll(allBets)
@@ -249,13 +249,13 @@ fun BettingScreen(
             }
 
             if (bannedCount > 0)
-                android.widget.Toast.makeText(context, " ကြောင်း ပိတ်ဂဏန်းများ ဖယ်ထုတ်ပြီး", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "$bannedCount ကြောင်း ပိတ်ဂဏန်းများ ဖယ်ထုတ်ပြီး", android.widget.Toast.LENGTH_SHORT).show()
             if (addedCount > 0 && addedCount <= 500)
-                android.widget.Toast.makeText(context, " ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(context, "$addedCount ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
 
             isParsing = false
             parseProgress = 1f
-            parseStatus = " ကြောင်း"
+            parseStatus = "$addedCount ကြောင်း ထည့်သွင်းပြီး"
         }
     }
 
@@ -344,7 +344,7 @@ fun BettingScreen(
                 onDismissRequest = { if (!isParsing) { showPasteDialog = false } },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Quick Bet — Paste", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text("အမြန်ထိုးရန် Paste ချပါ။", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         if (lineCount > 0)
                             Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
@@ -357,21 +357,43 @@ fun BettingScreen(
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Format hint
-                        Text(
-                            "446=1000  |  235-615=3000  |  456R=5000  |  123/456/789=5000",
-                            fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                        )
+                        // Format label — no example numbers shown
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .height(1.dp)
+                                    .weight(1f)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            )
+                            Text(
+                                "လက်ခံသော ပုံစံများ",
+                                fontSize = 11.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .height(1.dp)
+                                    .weight(1f)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            )
+                        }
 
-                        // Text input — BasicTextField so it never lags on huge pastes
+                        // Text input — placeholder vanishes on paste/type
                         OutlinedTextField(
                             value = pasteText,
                             onValueChange = { pasteText = it },
                             modifier = Modifier.fillMaxWidth().height(240.dp),
                             enabled = !isParsing,
                             placeholder = {
-                                Text("446=1000\n235-615=3000\n723-372-245-309=2000\n456R=5000\n123/456/789=10000\n...",
-                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f))
+                                Text(
+                                    "ဤနေရာတွင် Paste ချပါ...",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                )
                             }
                         )
 
@@ -419,31 +441,78 @@ fun BettingScreen(
         }
 
 
-        // --- CUSTOMER ROW ---
-        Box(
+        // --- CUSTOMER SELECTOR BAR ---
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expandedCustomer = true }
-                .padding(horizontal = 16.dp, vertical = 4.dp), 
-            contentAlignment = Alignment.Center
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         ) {
-            Row {
-                Text("ထိုးသူ : ", color = Color.Black, fontSize = 16.sp)
-                Text(customers.find { it.id == selectedCustomer }?.name ?: "ကော်မရှင် ရွေးပါ", color = Color.Black, fontSize = 16.sp)
-                Text(" , ဘောင်ချာများ ကြည့်ရန် နှိပ်ပါ", color = Color.Red, fontSize = 16.sp, modifier = Modifier.clickable {
-                    selectedCustomer?.let { onNavigateToCustomerVouchers(it) }
-                })
-            }
-            DropdownMenu(expanded = expandedCustomer, onDismissRequest = { expandedCustomer = false }) {
-                customers.forEach { customer ->
-                    DropdownMenuItem(
-                        text = { Text(customer.name) },
-                        onClick = {
-                            selectedCustomer = customer.id
-                            expandedCustomer = false
-                        }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clickable { expandedCustomer = true }
+                        .weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = primaryBlue,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "ထိုးသူ : ",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        customers.find { it.id == selectedCustomer }?.name ?: "ကော်မရှင် ရွေးပါ ▾",
+                        color = if (selectedCustomer != null) primaryBlue else MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
                     )
                 }
+
+                if (selectedCustomer != null) {
+                    Surface(
+                        onClick = { onNavigateToCustomerVouchers(selectedCustomer!!) },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            "ဘောင်ချာများ ကြည့်ရန်",
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            DropdownMenu(expanded = expandedCustomer, onDismissRequest = { expandedCustomer = false }) {
+                customers
+                    .filter { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) && !it.name.contains("upper", ignoreCase = true) }
+                    .forEach { customer ->
+                        DropdownMenuItem(
+                            text = { Text(customer.name, fontWeight = FontWeight.SemiBold) },
+                            onClick = {
+                                selectedCustomer = customer.id
+                                expandedCustomer = false
+                            }
+                        )
+                    }
             }
         }
 
@@ -471,7 +540,7 @@ fun BettingScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "#  ဂဏန်း",
+                    "စဉ်   ဂဏန်း",
                     color = Color.White,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -591,8 +660,8 @@ fun BettingScreen(
                             }
                         }
                         if (i < pendingBets.lastIndex)
-                            Divider(
-                                color = primaryBlue.copy(alpha = 0.07f),
+                            HorizontalDivider(
+                                color = primaryBlue.copy(alpha = 0.08f),
                                 thickness = 0.5.dp
                             )
                     }
@@ -687,6 +756,7 @@ fun BettingScreen(
         // --- SCROLLABLE SHORTCUT CHIPS ---
         val shortcuts = listOf(
             Triple("ဒဲ့",         true,  { currentBetType = "ဒဲ့" }),
+            Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
             Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
             Triple("လယ်",         true,  { currentBetType = "လယ်" }),
             Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
@@ -695,7 +765,6 @@ fun BettingScreen(
             Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),
             Triple("နောက်စီးရီး", false, { handleSpecial("နောက်စီးရီး") }),
             Triple("ဘရိတ်",       false, { handleSpecial("ဘရိတ်") }),
-            Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
             Triple("ရှေ့ပူး",      false, { handleSpecial("ရှေ့ပူး") }),
             Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
             Triple("အခွ",          false, { handleSpecial("အခွ") })
@@ -731,7 +800,7 @@ fun BettingScreen(
                 KeypadButton("4",  buttonTeal,   Modifier.weight(1f)) { appendText("4") }
                 KeypadButton("5",  buttonTeal,   Modifier.weight(1f)) { appendText("5") }
                 KeypadButton("6",  buttonTeal,   Modifier.weight(1f)) { appendText("6") }
-                KeypadButton("/",  buttonGreen,  Modifier.weight(1f)) { handleSpecial("R") }
+                KeypadButton("ထွိုင်", buttonGreen, Modifier.weight(1f)) { handleSpecial("ထွိုင်") }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 KeypadButton("7",  buttonTeal,   Modifier.weight(1f)) { appendText("7") }
@@ -756,9 +825,9 @@ fun KeypadButton(text: String, bgColor: Color, modifier: Modifier = Modifier, on
         onClick = onClick,
         modifier = modifier.aspectRatio(1.6f),
         colors = ButtonDefaults.buttonColors(containerColor = bgColor, contentColor = Color.White),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
         contentPadding = PaddingValues(0.dp)
     ) {
-        Text(text, fontSize = 15.sp, textAlign = TextAlign.Center)
+        Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
     }
 }

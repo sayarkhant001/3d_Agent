@@ -4,9 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Assessment
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,27 +22,27 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.ui.theme.*
 
 // ── Number category helper ─────────────────────────────────────────────────────
-private enum class NumCat { EXACT, PERMUTATION, NEAR, NONE }
+private enum class NumCat(val label: String, val color: Color, val bgColor: Color) {
+    EXACT("ဒဲ့ (ပေါက်)", WinExactRed, WinExactBg),
+    TUWT("တွတ်", WinPermGold, WinPermBg),
+    NONE("", Color.Transparent, Color.Transparent)
+}
 
 private fun categorize(number: String, winning: String): NumCat {
     if (winning.length != 3) return NumCat.NONE
     if (number == winning) return NumCat.EXACT
-    val perms = com.threeDLedger.logic.NumberGenerator.permutations(winning).toSet()
-    if (number in perms) return NumCat.PERMUTATION
+    val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(winning).toSet() - setOf(winning)
     val winInt = winning.toIntOrNull() ?: return NumCat.NONE
     val minus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
     val plus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
-    if (number == minus1 || number == plus1) return NumCat.NEAR
+    val near   = setOf(minus1, plus1) - setOf(winning)
+    val tuwtSet = allPerms + near
+    if (number in tuwtSet) return NumCat.TUWT
     return NumCat.NONE
 }
-
-// ── Colours ────────────────────────────────────────────────────────────────────
-private val OrangeHeader = Color(0xFFF57C00)
-private val OrangeRow    = Color(0xFFFFA000)
-private val OrangeFaint  = Color(0xFFFFF3E0)
-private val RedExact     = Color(0xFFD32F2F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,7 +53,6 @@ fun LedgerScreen(
 ) {
     val ledgerExposures by viewModel.ledgerExposures.collectAsStateWithLifecycle()
     val currentBatch    by viewModel.currentBatch.collectAsStateWithLifecycle()
-    // Winning number comes exclusively from WinnerScreen via viewModel
     val savedWinner     by viewModel.winningNumber.collectAsStateWithLifecycle()
 
     // All bet numbers sorted ascending
@@ -61,19 +64,17 @@ fun LedgerScreen(
     // After mode — only active when WinnerScreen has declared a winning number
     val isAfterMode = savedWinner.length == 3
 
-    // After-mode rows: EXACT → PERMUTATION → NEAR, only those actually bet
+    // After-mode rows: EXACT → TUWT → ALL OTHER BET NUMBERS (never hide bets!)
     val relevantRows: List<Pair<LedgerExposure, NumCat>> =
         if (isAfterMode) {
             allExposures
                 .map { it to categorize(it.number, savedWinner) }
-                .filter { (_, cat) -> cat != NumCat.NONE }
                 .sortedWith(
                     compareBy(
                         { when (it.second) {
-                            NumCat.EXACT       -> 0
-                            NumCat.PERMUTATION -> 1
-                            NumCat.NEAR        -> 2
-                            else               -> 3
+                            NumCat.EXACT -> 0
+                            NumCat.TUWT  -> 1
+                            else         -> 2
                         }},
                         { it.first.number.toIntOrNull() ?: 0 }
                     )
@@ -84,14 +85,29 @@ fun LedgerScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text("ဂဏန်းများ", color = Color.White, fontWeight = FontWeight.Bold)
+                    Column {
+                        Text("ဂဏန်းများ စာရင်း", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(if (isAfterMode) "ပေါက်သီး / တွတ် တိုက်စစ်ချက်" else "ထိုးထားသော ဂဏန်းများ", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = OrangeHeader)
+                actions = {
+                    if (isAfterMode) {
+                        TextButton(
+                            onClick = onNavigateToResult,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
+                        ) {
+                            Icon(Icons.Default.Assessment, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("ရှင်းတမ်း", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = EmeraldPrimary)
             )
         }
     ) { padding ->
@@ -99,76 +115,122 @@ fun LedgerScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(OrangeFaint)
+                .background(EmeraldSoftBg)
         ) {
             // ── Sub-header: batch number + winning number status ───────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(OrangeHeader)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 2.dp
             ) {
-                Text(
-                    "အကြိမ် :",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    "$currentBatch",
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.ExtraBold
-                )
-                Spacer(Modifier.width(20.dp))
-                if (isAfterMode) {
-                    Text(
-                        "ပေါက်ဂဏန်း :",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 13.sp
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        savedWinner,
-                        color = Color(0xFFFFE57F),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = FontFamily.Monospace,
-                        letterSpacing = 3.sp
-                    )
-                } else {
-                    Text(
-                        "ပေါက်ဂဏန်း မသတ်မှတ်ရသေးပါ",
-                        color = Color.White.copy(alpha = 0.55f),
-                        fontSize = 13.sp
-                    )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "အကြိမ် :",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "$currentBatch",
+                            color = EmeraldPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+
+                    if (isAfterMode) {
+                        val exactWonCount = relevantRows.count { it.second == NumCat.EXACT }
+                        val tuwtWonCount  = relevantRows.count { it.second == NumCat.TUWT }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = WinExactBg,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, WinExactRed.copy(alpha = 0.3f)),
+                                modifier = Modifier.clickable(onClick = onNavigateToResult)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("ပေါက်: ", color = WinExactRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        savedWinner,
+                                        color = WinExactRed,
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Black,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldLight else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    if (exactWonCount > 0 || tuwtWonCount > 0) "ဒဲ့ $exactWonCount | တွတ် $tuwtWonCount"
+                                    else "ပေါက်သီး မရှိပါ",
+                                    color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldDark else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "ပေါက်ဂဏန်း မသတ်မှတ်ရသေးပါ",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
 
             // ── Table header ──────────────────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(OrangeHeader)
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = EmeraldLight
             ) {
-                Text(
-                    "ဂဏန်းများ",
-                    color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-                )
-                Text(
-                    "ပမာဏ",
-                    color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    modifier = Modifier.weight(1f).padding(end = 12.dp),
-                    textAlign = TextAlign.End
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (isAfterMode) "ဂဏန်း နှင့် အမျိုးအစား" else "စဉ်   ဂဏန်း",
+                        color = EmeraldDark,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                    Text(
+                        "ထိုးငွေ ပမာဏ",
+                        color = EmeraldDark,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.End
+                    )
+                }
             }
 
-            // ── Rows ──────────────────────────────────────────────────────────
+            // ── Table Rows ──────────────────────────────────────────────────
             if (!isAfterMode) {
                 // BEFORE MODE — show all bet numbers
                 if (allExposures.isEmpty()) {
@@ -176,117 +238,211 @@ fun LedgerScreen(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "ထိုးမှု မရှိသေးပါ",
-                            color = OrangeHeader.copy(alpha = 0.5f),
-                            fontSize = 16.sp
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.ListAlt, null, tint = EmeraldPrimary.copy(alpha = 0.35f), modifier = Modifier.size(54.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "ထိုးမှု မရှိသေးပါ",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "ဘောင်ချာထည့်သွင်းပါက ဤနေရာတွင် ပေါ်လာပါမည်",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(allExposures) { exposure ->
-                            NumberTableRow(
-                                number    = exposure.number,
-                                amount    = exposure.totalBetAmount,
-                                bgColor   = OrangeRow,
-                                textColor = Color.White,
-                                onClick   = onNavigateToResult
-                            )
-                            Divider(color = Color.White.copy(alpha = 0.18f), thickness = 0.5.dp)
+                        itemsIndexed(allExposures) { idx, exposure ->
+                            val isEven = idx % 2 == 0
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(if (isEven) Color.White else EmeraldSoftBg)
+                                    .clickable(onClick = onNavigateToResult)
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Index
+                                Text(
+                                    "${idx + 1}.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.width(36.dp)
+                                )
+                                // Number
+                                Text(
+                                    exposure.number,
+                                    color = EmeraldPrimary,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 20.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    letterSpacing = 2.sp,
+                                    modifier = Modifier.weight(1.2f)
+                                )
+                                // Amount
+                                Text(
+                                    "%,d".format(exposure.totalBetAmount),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.End
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "Ks",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
                         }
                     }
                 }
             } else {
-                // AFTER MODE — only ပေါက်သီး / တွတ် numbers that were actually bet
+                // AFTER MODE — all bet numbers with winning numbers (ဒဲ့, တွတ်) highlighted at top
                 if (relevantRows.isEmpty()) {
                     Box(
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            "ပေါက်ဂဏန်း $savedWinner ကို မထိုးသူ မရှိပါ",
-                            color = OrangeHeader.copy(alpha = 0.6f),
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.ListAlt, null, tint = EmeraldPrimary.copy(alpha = 0.35f), modifier = Modifier.size(54.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "ထိုးမှု မရှိသေးပါ",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(relevantRows) { (exposure, cat) ->
-                            NumberTableRow(
-                                number    = exposure.number,
-                                amount    = exposure.totalBetAmount,
-                                bgColor   = if (cat == NumCat.EXACT) RedExact else OrangeRow,
-                                textColor = Color.White,
-                                onClick   = onNavigateToResult
-                            )
-                            Divider(color = Color.White.copy(alpha = 0.18f), thickness = 0.5.dp)
+                        itemsIndexed(relevantRows) { idx, (exposure, cat) ->
+                            val isEven = idx % 2 == 0
+                            val rowBg = when (cat) {
+                                NumCat.EXACT -> WinExactBg.copy(alpha = 0.45f)
+                                NumCat.TUWT  -> Color(0xFFFFF8E1)
+                                else         -> if (isEven) Color.White else EmeraldSoftBg
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(rowBg)
+                                    .clickable(onClick = onNavigateToResult)
+                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Index & Number & Category badge
+                                Row(
+                                    modifier = Modifier.weight(1.2f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "${idx + 1}.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.width(36.dp)
+                                    )
+                                    Text(
+                                        exposure.number,
+                                        color = when (cat) {
+                                            NumCat.EXACT -> WinExactRed
+                                            NumCat.TUWT  -> Color(0xFFB45309)
+                                            else         -> EmeraldPrimary
+                                        },
+                                        fontWeight = if (cat != NumCat.NONE) FontWeight.Black else FontWeight.ExtraBold,
+                                        fontSize = 20.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 2.sp
+                                    )
+                                    if (cat != NumCat.NONE) {
+                                        Spacer(Modifier.width(10.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = cat.bgColor
+                                        ) {
+                                            Text(
+                                                cat.label,
+                                                color = cat.color,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Amount
+                                Text(
+                                    "%,d".format(exposure.totalBetAmount),
+                                    color = if (cat == NumCat.EXACT) WinExactRed else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 17.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.weight(1f),
+                                    textAlign = TextAlign.End
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "Ks",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
                         }
                     }
                 }
             }
 
             // ── Footer — total of ALL bets ────────────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(OrangeHeader)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = EmeraldPrimary,
+                shadowElevation = 8.dp
             ) {
-                Text(
-                    "စုစုပေါင်း",
-                    color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp,
-                    modifier = Modifier.weight(1f), textAlign = TextAlign.Center
-                )
-                Text(
-                    "%,d".format(totalAll),
-                    color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.weight(1f).padding(end = 12.dp),
-                    textAlign = TextAlign.End
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "စုစုပေါင်း ထိုးကြေး",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            "%,d".format(totalAll),
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 19.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "Ks",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
             }
         }
-    }
-}
-
-// ── Reusable row ──────────────────────────────────────────────────────────────
-@Composable
-private fun NumberTableRow(
-    number   : String,
-    amount   : Int,
-    bgColor  : Color,
-    textColor: Color,
-    onClick  : () -> Unit = {}
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(bgColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            number,
-            color      = textColor,
-            fontWeight = FontWeight.Bold,
-            fontSize   = 18.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier   = Modifier.weight(1f),
-            textAlign  = TextAlign.Center
-        )
-        Text(
-            "%,d".format(amount),
-            color      = textColor,
-            fontWeight = FontWeight.Bold,
-            fontSize   = 18.sp,
-            fontFamily = FontFamily.Monospace,
-            modifier   = Modifier.weight(1f).padding(end = 12.dp),
-            textAlign  = TextAlign.End
-        )
     }
 }

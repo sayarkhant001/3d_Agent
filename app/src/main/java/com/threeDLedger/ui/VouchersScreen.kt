@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 
@@ -42,10 +42,13 @@ fun VouchersScreen(
     val allVouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
     
-    val filteredVouchers = if (initialCustomerId != null) {
+    val filteredVouchers = (if (initialCustomerId != null) {
         allVouchersWithBets.filter { it.voucher.customerId == initialCustomerId }
     } else {
         allVouchersWithBets
+    }).filter {
+        !it.voucher.remark.contains("တင်ကွက်") &&
+        !it.voucher.remark.contains("overflow", ignoreCase = true)
     }
 
     val clipboardManager = LocalClipboardManager.current
@@ -62,15 +65,22 @@ fun VouchersScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
-        }
+        },
+        containerColor = com.threeDLedger.ui.theme.EmeraldSoftBg
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
             items(filteredVouchers) { voucherWithBets ->
                 val customerName = vouchers.find { it.voucher.id == voucherWithBets.voucher.id }?.customer?.name ?: "Unknown"
                 
-                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, com.threeDLedger.ui.theme.CardBorderSubtle),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("No.${voucherWithBets.voucher.id} (အကြိမ်: ${voucherWithBets.voucher.batchNumber})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                        Text("ဘောင်ချာအမှတ်: ${voucherWithBets.voucher.id} (အကြိမ်: ${voucherWithBets.voucher.batchNumber})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                         Text("အမည်: $customerName")
                         
                         val dateString = SimpleDateFormat("yyyy.MM.dd/HH:mm:ss").format(Date(voucherWithBets.voucher.timestamp))
@@ -147,7 +157,7 @@ fun VouchersScreen(
                                     )
                                 }
                                 if (idx < voucherWithBets.bets.size - 1)
-                                    Divider(
+                                    HorizontalDivider(
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                                         thickness = 0.5.dp
                                     )
@@ -155,7 +165,7 @@ fun VouchersScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        Divider()
+                        HorizontalDivider(color = com.threeDLedger.ui.theme.CardBorderSubtle)
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Row(
@@ -172,9 +182,9 @@ fun VouchersScreen(
                             val remarkStr = if (voucherWithBets.voucher.remark.isNotEmpty()) " (${voucherWithBets.voucher.remark})" else ""
                             val textToCopy = buildString {
                                 appendLine("========================")
-                                appendLine("      3D VOUCHER")
+                                appendLine("      3D ဘောင်ချာ      ")
                                 appendLine("========================")
-                                appendLine(" No.${voucherWithBets.voucher.id}  အကြိမ် : ${voucherWithBets.voucher.batchNumber}")
+                                appendLine(" ဘောင်ချာအမှတ်-${voucherWithBets.voucher.id}  အကြိမ် : ${voucherWithBets.voucher.batchNumber}")
                                 appendLine(" ရက်စွဲ : $dateString")
                                 appendLine(" ထိုးသူ : $customerName$remarkStr")
                                 appendLine("------------------------")
@@ -189,7 +199,7 @@ fun VouchersScreen(
                                 appendLine("------------------------")
                                 appendLine(" $footerText")
                                 appendLine("========================")
-                                appendLine("      Thank You!      ")
+                                appendLine("      ကျေးဇူးတင်ပါသည်      ")
                                 appendLine("========================")
                             }
                             

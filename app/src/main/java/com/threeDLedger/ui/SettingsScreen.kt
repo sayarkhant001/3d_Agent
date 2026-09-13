@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
@@ -96,20 +96,20 @@ fun SettingsScreen(
             item { SettingsSectionHeader("မီနူး", Icons.Default.Menu) }
             item {
                 SettingsCard {
-                    SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "မရဂဏန်းများ",         "Ban လုပ်ထားသော ဂဏန်းများ") { showBannedDialog = true }
+                    SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "မရဂဏန်းများ",         "ပိတ်ထားသော ဂဏန်းများ") { showBannedDialog = true }
                     SettingsDivider()
-                    SettingsRow(Icons.Default.History,  Color(0xFF4ECDC4), "မှတ်တမ်းများ",         "Archive သမိုင်းများ",      onClick = onNavigateToArchive)
+                    SettingsRow(Icons.Default.History,  Color(0xFF4ECDC4), "မှတ်တမ်းများ",         "သိမ်းဆည်းထားသော မှတ်တမ်းဟောင်းများ", onClick = onNavigateToArchive)
                     SettingsDivider()
-                    SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ထွက်ဂဏန်းများ",        "Winner ဂဏန်းများ",         onClick = onNavigateToWinner)
+                    SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ထွက်ဂဏန်းများ",        "ပေါက်ဂဏန်း စာရင်း",        onClick = onNavigateToWinner)
                 }
             }
 
             item { SettingsSectionHeader("ဖွဲ့စည်းပုံ", Icons.Default.Settings) }
             item {
                 SettingsCard {
-                    SettingsRow(Icons.Default.Print, Color(0xFF6C63FF), "Printer Settings", "Bluetooth ပရင်တာ ချိတ်ဆက်မည်") { showPrinterDialog = true }
+                    SettingsRow(Icons.Default.Print, Color(0xFF6C63FF), "ပရင်တာ ဆက်တင်", "Bluetooth ပရင်တာ ချိတ်ဆက်မည်") { showPrinterDialog = true }
                     SettingsDivider()
-                    SettingsRow(Icons.Default.Lock,  Color(0xFF2EC4B6), "Change Password",  "စကားဝှက် ပြောင်းလဲမည်")         { showPasswordDialog = true }
+                    SettingsRow(Icons.Default.Lock,  Color(0xFF2EC4B6), "စကားဝှက် ပြောင်းရန်", "စကားဝှက် ပြောင်းလဲမည်")         { showPasswordDialog = true }
                 }
             }
 
@@ -146,7 +146,7 @@ fun SettingsScreen(
                 }
             }
 
-            item { SettingsSectionHeader("App Update", Icons.Default.SystemUpdate) }
+            item { SettingsSectionHeader("အက်ပ် အဆင့်မြှင့်တင်မှု", Icons.Default.SystemUpdate) }
             item {
                 UpdateCard(
                     currentVersion    = currentVersion,
@@ -171,7 +171,7 @@ fun SettingsScreen(
                 )
             }
 
-            item { SettingsSectionHeader("Danger Zone", Icons.Default.Warning, headerColor = errorColor) }
+            item { SettingsSectionHeader("သတိပြုရန် နေရာ", Icons.Default.Warning, headerColor = errorColor) }
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -179,8 +179,8 @@ fun SettingsScreen(
                     colors = CardDefaults.cardColors(containerColor = errorColor.copy(alpha = 0.08f)),
                     border = androidx.compose.foundation.BorderStroke(1.dp, errorColor.copy(alpha = 0.3f))
                 ) {
-                    SettingsRow(Icons.Default.Delete, errorColor, "Reset Data",
-                        "Data အားလုံး ဖျက်ပြီး Archive သိမ်းမည်", trailingColor = errorColor) { showResetDialog = true }
+                    SettingsRow(Icons.Default.Delete, errorColor, "ဒေတာ အားလုံး ရှင်းလင်းမည်",
+                        "ဒေတာ အားလုံး ဖျက်ပြီး မှတ်တမ်းသို့ သိမ်းမည်", trailingColor = errorColor) { showResetDialog = true }
                 }
             }
 
@@ -417,14 +417,14 @@ fun ChangePasswordDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
 fun ResetDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp)) },
-        title = { Text("Reset Data", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
-        text  = { Text("This will archive current data and delete archives older than 2 batches. Only commissions will remain active.\n\nAre you sure?") },
+        title = { Text("ဒေတာများ ရှင်းလင်းမည်", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+        text  = { Text("လက်ရှိဒေတာများကို မှတ်တမ်းအဖြစ် သိမ်းဆည်းပြီး ၂ ကြိမ်ထက် ကျော်လွန်သော မှတ်တမ်းဟောင်းများကို အလိုအလျောက် ရှင်းလင်းပါမည်။ ကော်မရှင်စာရင်းများသာ ကျန်ရှိပါမည်။\n\nဆက်လက် လုပ်ဆောင်မည်မှာ သေချာပါသလား?") },
         confirmButton = {
             Button(onClick = { viewModel.resetAndArchive(); onDismiss() },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                shape = RoundedCornerShape(10.dp)) { Text("Yes, Reset") }
+                shape = RoundedCornerShape(10.dp)) { Text("ရှင်းလင်းမည်") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("မလုပ်တော့ပါ") } }
     )
 }
 

@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.ui
+package com.threeDLedger.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -62,7 +62,7 @@ fun OverflowScreen(
     val totalBraked = brakedExposures.sumOf { keptAmount(it.totalBetAmount) }
     val totalOverflow = overflowExposures.sumOf { it.overflowAmount }
 
-    val orangeColor = MaterialTheme.colorScheme.tertiary
+    val orangeColor = MaterialTheme.colorScheme.primary
     val blueColor = MaterialTheme.colorScheme.primary
 
     var showBrakeDialog by remember { mutableStateOf(false) }
@@ -81,7 +81,7 @@ fun OverflowScreen(
                 OutlinedTextField(
                     value = brakeInput,
                     onValueChange = { brakeInput = it.filter { c -> c.isDigit() } },
-                    label = { Text("ဘရိတ် (Brake Limit)") },
+                    label = { Text("ဘရိတ် ပမာဏ") },
                     singleLine = true
                 )
             },
@@ -102,7 +102,7 @@ fun OverflowScreen(
     if (snapshot != null) {
         val voucherText = buildString {
             appendLine("========================")
-            appendLine("      တင်ကွက် VOUCHER    ")
+            appendLine("      တင်ကွက် ဘောင်ချာ    ")
             appendLine("========================")
             appendLine(" အကြိမ်   : ${snapshot.batch}")
             appendLine(" အချိန်   : ${snapshot.timestamp}")
@@ -113,7 +113,7 @@ fun OverflowScreen(
             appendLine("------------------------")
             appendLine(" စုစုပေါင်း : ${snapshot.total} Ks")
             appendLine("========================")
-            appendLine("   *** Upper Agent ***  ")
+            appendLine("   *** အထက်ဒိုင် တင်ကွက် ***  ")
             appendLine("========================")
         }
 
@@ -134,7 +134,7 @@ fun OverflowScreen(
                 Column(modifier = Modifier.padding(16.dp)) {
                     // ── Title ──
                     Text(
-                        "တင်ကွက် Voucher",
+                        "တင်ကွက် ဘောင်ချာ",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = blueColor,
@@ -214,7 +214,7 @@ fun OverflowScreen(
                                 )
                             }
                             if (index < snapshot.items.lastIndex) {
-                                Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                             }
                         }
                     }
@@ -249,15 +249,15 @@ fun OverflowScreen(
                                             batchNumber = snapshot.batch,
                                             voucherId = 0,
                                             date = snapshot.timestamp,
-                                            customerName = "Upper Agent (တင်ကွက်)",
+                                            customerName = "အထက်ဒိုင် (တင်ကွက်)",
                                             bets = snapshot.items,
                                             totalAmount = snapshot.total,
-                                            footerText = "*** Upper Agent Overflow ***"
+                                            footerText = "*** အထက်ဒိုင် တင်ကွက် ***"
                                         )
                                         val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
                                         com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
                                     } catch (e: Exception) {
-                                        android.widget.Toast.makeText(context, "ပရင်တာ error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                        android.widget.Toast.makeText(context, "ပရင်တာ အမှား: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
                                     }
                                 }
                             },
@@ -266,7 +266,7 @@ fun OverflowScreen(
                         ) {
                             Icon(Icons.Default.Print, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondary)
                             Spacer(Modifier.width(6.dp))
-                            Text("Print", color = MaterialTheme.colorScheme.onSecondary)
+                            Text("ပရင့်ထုတ်မည်", color = MaterialTheme.colorScheme.onSecondary)
                         }
 
                         // Copy button
@@ -275,14 +275,14 @@ fun OverflowScreen(
                                 val clipboardManager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                                 val clip = android.content.ClipData.newPlainText("Overflow Voucher", voucherText)
                                 clipboardManager.setPrimaryClip(clip)
-                                android.widget.Toast.makeText(context, "Copied!", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "ကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = blueColor)
                         ) {
                             Icon(Icons.Default.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                             Spacer(Modifier.width(6.dp))
-                            Text("Copy", color = MaterialTheme.colorScheme.onPrimary)
+                            Text("ကော်ပီကူးမည်", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
 
@@ -387,9 +387,9 @@ fun OverflowScreen(
             Row(modifier = Modifier.fillMaxSize().padding(4.dp)) {
                 // Left Table — Bets within brake limit (≤ brakeLimit, > 0)
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(4.dp)) {
-                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                        Text("ဘရိတ်အတွင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(vertical = 6.dp, horizontal = 4.dp)) {
+                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("ဘရိတ်အတွင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (brakedExposures.isEmpty()) {
@@ -409,7 +409,7 @@ fun OverflowScreen(
                                     textAlign = TextAlign.Center,
                                     color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                    fontSize = 14.sp
                                 )
                                 Text(
                                     "%,d".format(kept),
@@ -420,20 +420,20 @@ fun OverflowScreen(
                                     fontSize = 14.sp
                                 )
                             }
-                            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(4.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                        Text("%,d".format(totalBraked), color = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(vertical = 6.dp, horizontal = 4.dp)) {
+                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("%,d".format(totalBraked), color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 // Right Table — Overflow only
                 Column(modifier = Modifier.weight(1f).border(1.dp, MaterialTheme.colorScheme.error).padding(2.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error).padding(4.dp)) {
-                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                        Text("ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
+                    Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error).padding(vertical = 6.dp, horizontal = 4.dp)) {
+                        Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (overflowExposures.isEmpty()) {
@@ -456,7 +456,7 @@ fun OverflowScreen(
                                     textAlign = TextAlign.Center,
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                    fontSize = 14.sp
                                 )
                                 Text(
                                     "%,d".format(exposure.overflowAmount),
@@ -465,17 +465,17 @@ fun OverflowScreen(
                                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                     color = MaterialTheme.colorScheme.error,
                                     fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                    fontSize = 14.sp
                                 )
                             }
-                            Divider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
-                    Row(modifier = Modifier.fillMaxWidth().background(
-                        if (totalOverflow > 0) MaterialTheme.colorScheme.error else orangeColor
-                    ).padding(4.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 8.sp)
-                        Text("%,d".format(totalOverflow), color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 8.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    val rightFooterBg = if (totalOverflow > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.surfaceVariant
+                    val rightFooterFg = if (totalOverflow > 0) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurfaceVariant
+                    Row(modifier = Modifier.fillMaxWidth().background(rightFooterBg).padding(vertical = 6.dp, horizontal = 4.dp)) {
+                        Text("စုစုပေါင်း", color = rightFooterFg, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text("%,d".format(totalOverflow), color = rightFooterFg, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                     }
                 }
             }

@@ -1,9 +1,10 @@
 /**
  * MODULE 1: Scraper & Broadcaster
- * Fetches Myanmar 3D results from Thai Stock Exchange data
- * via thaistock2d.com API and pushes to Firebase (authenticated via service account).
+ * Fetches Myanmar 3D results directly from the official Government Lottery Office (GLO) Thailand API
+ * (https://www.glo.or.th/api/lottery/getLatestLottery)
+ * and pushes to Firebase (authenticated via service account).
  *
- * Cron: weekdays at 05:35 UTC (12:05 PM MMT) and 11:05 UTC (5:35 PM MMT)
+ * Thai 3D winning number = last 3 digits of the official 1st prize (รางวัลที่ 1).
  */
 
 export interface Env {
@@ -13,21 +14,52 @@ export interface Env {
   GOOGLE_SERVICE_ACCOUNT_JSON: string;
 }
 
-interface LiveResult {
-  set: string;
-  value: string;
-  open_time: string;
-  twod: string;
-  stock_date: string;
-  stock_datetime: string;
-  history_id: string | null;
+export interface GloLotteryData {
+  first?: {
+    price?: string;
+    number?: Array<{ round?: number; value: string }>;
+  };
+  last2?: {
+    price?: string;
+    number?: Array<{ round?: number; value: string }>;
+  };
+  last3f?: {
+    price?: string;
+    number?: Array<{ round?: number; value: string }>;
+  };
+  last3b?: {
+    price?: string;
+    number?: Array<{ round?: number; value: string }>;
+  };
+  near1?: {
+    price?: string;
+    number?: Array<{ round?: number; value: string }>;
+  };
 }
 
-interface LiveResponse {
-  server_time: string;
-  live: { set: string; value: string; time: string; twod: string; date: string; };
-  result: LiveResult[];
-  holiday: { status: string; date: string; name: string; };
+export interface GloResponse {
+  status: boolean;
+  statusCode?: number;
+  statusMessage?: string;
+  response?: {
+    date?: string;
+    pdf_url?: string;
+    youtube_url?: string;
+    data?: GloLotteryData;
+    n3?: {
+      straight3?: { price?: string; number?: Array<{ round?: number; value: string }> };
+      straight2?: { price?: string; number?: Array<{ round?: number; value: string }> };
+    };
+  };
+}
+
+export interface LotteryResult {
+  threeD: string;
+  twoD: string;
+  firstPrize: string;
+  date: string;
+  session: string;
+  isFinal: boolean;
 }
 
 export default {
@@ -36,7 +68,37 @@ export default {
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (request.method === 'GET') {
+    const url = new URL(request.url);
+
+    // Health/ping check
+    if (url.pathname === '/health' || url.pathname === '/ping') {
+      return new Response(JSON.stringify({ status: 'ok', service: '3d-scraper-worker' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Direct fetch test for GLO without needing Firebase credentials
+    if (url.pathname === '/latest-glo') {
+      try {
+        const result = await fetchFromGloLottery();
+        if (!result) {
+          return new Response(JSON.stringify({ status: 'error', message: 'Unable to fetch GLO data' }), {
+            status: 502,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify({ status: 'ok', data: result }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (e: any) {
+        return new Response(JSON.stringify({ status: 'error', message: e.message }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    if (request.method === 'GET' || request.method === 'POST') {
       try {
         await processDraw(env);
         return new Response(JSON.stringify({ status: 'ok', message: 'Draw processed' }), {
@@ -55,6 +117,9 @@ export default {
 // ── Firebase Auth via Service Account ────────────────────────────────────────
 
 async function getFirebaseToken(env: Env): Promise<string> {
+  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is missing');
+  }
   // Strip UTF-8 BOM if present; replace literal \n sequences with real newlines
   const rawJson = env.GOOGLE_SERVICE_ACCOUNT_JSON.replace(/^\uFEFF/, '').trim();
   const sa = JSON.parse(rawJson);
@@ -108,12 +173,19 @@ async function getFirebaseToken(env: Env): Promise<string> {
 
 // ── Main Logic ────────────────────────────────────────────────────────────────
 
-async function processDraw(env: Env) {
-  // 1. Get Firebase auth token
+export async function processDraw(env: Env) {
+  // 1. Fetch official lottery data from Thai GLO API
+  const result = await fetchFromGloLottery();
+  if (!result) {
+    await sendTelegramAlert(env, '⚠️ No official Thai 3D result available from GLO API.');
+    return;
+  }
+
+  // 2. Get Firebase auth token
   const token = await getFirebaseToken(env);
   const authHeaders = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  // 2. Check admin mode (non-blocking)
+  // 3. Check admin mode (non-blocking)
   try {
     const modeRes = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/mode.json`, {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -123,13 +195,6 @@ async function processDraw(env: Env) {
       if (mode === 'manual') { console.log('Manual mode, skipping.'); return; }
     }
   } catch (_) {}
-
-  // 3. Fetch from thaistock2d.com
-  const result = await fetchFromThaiStock();
-  if (!result) {
-    await sendTelegramAlert(env, '⚠️ No 3D result available. Market may still be open or holiday.');
-    return;
-  }
 
   // 4. Get current Firebase data for archiving
   let currentResults: Record<string, unknown> | null = null;
@@ -141,22 +206,22 @@ async function processDraw(env: Env) {
   } catch (_) {}
 
   // 5. Build update payload
-  const nextDate = calculateNextDrawDate(result.date);
+  const nextDate = calculateNextThaiDrawDate(result.date);
   const updates: Record<string, unknown> = {
     '3d_live_results/winning_number':   result.threeD,
     '3d_live_results/target_draw_date': nextDate,
-    '3d_live_results/set_value':        result.setValue,
-    '3d_live_results/trade_value':      result.tradeValue,
+    '3d_live_results/first_prize':      result.firstPrize,
     '3d_live_results/twod':             result.twoD,
     '3d_live_results/result_date':      result.date,
     '3d_live_results/result_time':      result.session,
     '3d_live_results/is_final':         result.isFinal,
+    '3d_live_results/source':           'Official Thai Government Lottery (GLO)',
     '3d_live_results/updated_at':       new Date().toISOString(),
-    '3d_lottery_status/state':          result.isFinal ? 'declared' : 'interim',
+    '3d_lottery_status/state':          'declared',
   };
 
   const anyRes = currentResults as any;
-  if (anyRes?.winning_number && anyRes?.is_final === true) {
+  if (anyRes?.winning_number && anyRes?.winning_number !== result.threeD) {
     updates['3d_live_results/previous_winning_number'] = anyRes.winning_number;
     updates['3d_live_results/previous_draw_date']      = anyRes.result_date || anyRes.target_draw_date;
   }
@@ -173,60 +238,58 @@ async function processDraw(env: Env) {
     throw new Error(`Firebase PATCH failed: ${patchRes.status} ${errText}`);
   }
 
-  // 7. Telegram
-  const label = result.isFinal ? '✅ FINAL' : '⏳ Interim';
+  // 7. Telegram Alert
   await sendTelegramAlert(env,
-    `${label} 3D — ${result.date} (${result.session})\n\n🎯 3D: ${result.threeD}\n📊 SET: ${result.setValue}\n💰 Value: ${result.tradeValue}\n🔢 2D: ${result.twoD}`
+    `🇹🇭 Official Thai Government Lottery (GLO)\n\n🎯 3D: ${result.threeD}\n🥇 1st Prize: ${result.firstPrize}\n🔢 2D: ${result.twoD}\n📅 Draw Date: ${result.date}\n⏭️ Next Draw: ${nextDate}`
   );
 }
 
-// Session priority order
-const SESSION_PRIORITY = ['16:30:00', '15:00:00', '12:00:00', '11:00:00'];
-const FINAL_SESSIONS   = new Set(['16:30:00', '15:00:00']);
-
-async function fetchFromThaiStock(): Promise<{
-  threeD: string; twoD: string; setValue: string; tradeValue: string;
-  date: string; session: string; isFinal: boolean;
-} | null> {
+export async function fetchFromGloLottery(): Promise<LotteryResult | null> {
   try {
-    const res  = await fetch('https://api.thaistock2d.com/live', { headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const data = await res.json() as LiveResponse;
+    const res = await fetch('https://www.glo.or.th/api/lottery/getLatestLottery', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      },
+      body: '{}'
+    });
 
-    if (data.holiday?.status === '1') return null;
+    if (!res.ok) {
+      console.error(`GLO API returned HTTP status ${res.status}`);
+      return null;
+    }
 
-    // Best session with real data
-    let best: LiveResult | null = null;
-    for (const t of SESSION_PRIORITY) {
-      const r = data.result.find(r => r.open_time === t);
-      if (r?.history_id && r.set !== '--' && r.value !== '--') { best = r; break; }
+    const json = await res.json() as GloResponse;
+    if (!json.status || !json.response?.data?.first?.number?.length) {
+      console.error('GLO response missing first prize data', json);
+      return null;
     }
-    if (!best) {
-      best = data.result.filter(r => r.history_id && r.set !== '--' && r.value !== '--').pop() ?? null;
-    }
-    if (!best) return null;
+
+    const firstPrize = json.response.data.first.number[0].value.trim();
+    if (firstPrize.length < 3) return null;
+
+    const threeD = firstPrize.slice(-3);
+    const twoD = json.response.data.last2?.number?.[0]?.value?.trim() ?? firstPrize.slice(-2);
+    const drawDate = json.response.date ?? new Date().toISOString().split('T')[0];
 
     return {
-      threeD:     extract3D(best.value),
-      twoD:       best.twod,
-      setValue:   best.set,
-      tradeValue: best.value,
-      date:       best.stock_date,
-      session:    best.open_time.substring(0, 5),
-      isFinal:    FINAL_SESSIONS.has(best.open_time),
+      threeD,
+      twoD,
+      firstPrize,
+      date: drawDate,
+      session: 'GLO Official Draw',
+      isFinal: true
     };
   } catch (e) {
-    console.error('fetchFromThaiStock error:', e);
+    console.error('fetchFromGloLottery error:', e);
     return null;
   }
 }
 
-function extract3D(value: string): string {
-  const clean = value.replace(/,/g, '');
-  return clean.split('.')[0].slice(-3).padStart(3, '0');
-}
-
 async function sendTelegramAlert(env: Env, message: string) {
-  if (!env.TELEGRAM_BOT_TOKEN) return;
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
   try {
     await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -236,9 +299,35 @@ async function sendTelegramAlert(env: Env, message: string) {
   } catch (_) {}
 }
 
-function calculateNextDrawDate(currentDate: string): string {
-  const d = new Date(currentDate);
-  d.setDate(d.getDate() + 1);
-  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
+export function calculateNextThaiDrawDate(currentDate: string): string {
+  const parts = currentDate.split('-');
+  let year = parseInt(parts[0], 10);
+  let month = parseInt(parts[1], 10); // 1-12
+  let day = parseInt(parts[2], 10);
+
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    const d = new Date();
+    year = d.getFullYear();
+    month = d.getMonth() + 1;
+    day = d.getDate();
+  }
+
+  let nextYear = year;
+  let nextMonth = month;
+  let nextDay = 16;
+
+  if (day >= 16) {
+    nextMonth = month + 1;
+    if (nextMonth > 12) {
+      nextMonth = 1;
+      nextYear += 1;
+    }
+    nextDay = 1;
+  } else {
+    nextDay = 16;
+  }
+
+  const mm = String(nextMonth).padStart(2, '0');
+  const dd = String(nextDay).padStart(2, '0');
+  return `${nextYear}-${mm}-${dd}`;
 }

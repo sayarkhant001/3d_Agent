@@ -1,6 +1,7 @@
 package com.threeDLedger.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
@@ -14,7 +15,14 @@ data class Customer(
     val paidAmount: Double = 0.0
 )
 
-@Entity(tableName = "vouchers")
+@Entity(
+    tableName = "vouchers",
+    indices = [
+        Index(value = ["customerId"]),
+        Index(value = ["batchNumber"]),
+        Index(value = ["isArchived"])
+    ]
+)
 @Serializable
 data class Voucher(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -28,7 +36,13 @@ data class Voucher(
     val remark: String = ""
 )
 
-@Entity(tableName = "bets")
+@Entity(
+    tableName = "bets",
+    indices = [
+        Index(value = ["voucherId"]),
+        Index(value = ["number"])
+    ]
+)
 @Serializable
 data class Bet(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -53,10 +67,17 @@ data class BannedNumber(
     val number: String
 )
 
-@Entity(tableName = "exported_numbers")
+@Entity(
+    tableName = "exported_numbers",
+    indices = [
+        Index(value = ["exportRecordId"]),
+        Index(value = ["number"])
+    ]
+)
 data class ExportedNumber(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val exportRecordId: Int,
     val number: String,
     val amount: Int
 )
+

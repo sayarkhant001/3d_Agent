@@ -19,8 +19,8 @@ android {
     minSdk = 24
     targetSdk = 36
     
-    val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
-    versionCode = runNumber + 1
+    val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 100
+    versionCode = runNumber
     versionName = "1.0.$runNumber"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
