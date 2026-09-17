@@ -7,6 +7,8 @@
  * Thai 3D winning number = last 3 digits of the official 1st prize (รางวัลที่ 1).
  */
 
+import { handleTelegramWebhook, sendTelegramMessage, getCleanBotToken } from './telegramBot';
+
 export interface Env {
   FIREBASE_DB_URL: string;
   TELEGRAM_BOT_TOKEN: string;
@@ -98,7 +100,48 @@ export default {
       }
     }
 
-    if (request.method === 'GET' || request.method === 'POST') {
+    // Telegram Bot Webhook endpoint
+    if (url.pathname === '/webhook' || url.pathname === '/telegram') {
+      return handleTelegramWebhook(request, env);
+    }
+
+    // Automatically set Telegram Webhook
+    if (url.pathname === '/set-webhook') {
+      const webhookUrl = url.searchParams.get('url') || `${url.origin}/webhook`;
+      const token = getCleanBotToken(env);
+      const tgRes = await fetch(
+        `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&allowed_updates=${encodeURIComponent(JSON.stringify(['message', 'callback_query']))}`
+      );
+      const tgData = await tgRes.json();
+      return new Response(JSON.stringify({ status: 'ok', webhookUrl, telegram: tgData }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Query Telegram Webhook status
+    if (url.pathname === '/webhook-info') {
+      const token = getCleanBotToken(env);
+      const tgRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+      const tgData = await tgRes.json();
+      return new Response(JSON.stringify(tgData, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Test send message
+    if (url.pathname === '/test-telegram') {
+      const res = await sendTelegramMessage(
+        env,
+        env.TELEGRAM_CHAT_ID,
+        '🔔 <b>3D Ledger Telegram Bot Test</b>\n\nCloudflare Worker မှ စမ်းသပ် တိုက်ရိုက် ပေးပို့ခြင်း ဖြစ်ပါသည်။'
+      );
+      return new Response(JSON.stringify(res, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Manual draw processing trigger
+    if (url.pathname === '/process-draw' || (url.pathname === '/' && request.method === 'POST')) {
       try {
         await processDraw(env);
         return new Response(JSON.stringify({ status: 'ok', message: 'Draw processed' }), {
@@ -110,13 +153,33 @@ export default {
         });
       }
     }
+
+    // Default root GET welcome
+    if (url.pathname === '/') {
+      return new Response(JSON.stringify({
+        service: '3d-scraper-worker & telegram-bot',
+        status: 'online',
+        endpoints: [
+          '/health',
+          '/latest-glo',
+          '/webhook (POST for Telegram)',
+          '/set-webhook',
+          '/webhook-info',
+          '/test-telegram',
+          '/process-draw'
+        ]
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     return new Response('Method not allowed', { status: 405 });
   }
 };
 
 // ── Firebase Auth via Service Account ────────────────────────────────────────
 
-async function getFirebaseToken(env: Env): Promise<string> {
+export async function getFirebaseToken(env: Env): Promise<string> {
   if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
     throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is missing');
   }
@@ -246,6 +309,8 @@ export async function processDraw(env: Env) {
 
 export async function fetchFromGloLottery(): Promise<LotteryResult | null> {
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     const res = await fetch('https://www.glo.or.th/api/lottery/getLatestLottery', {
       method: 'POST',
       headers: {
@@ -253,8 +318,10 @@ export async function fetchFromGloLottery(): Promise<LotteryResult | null> {
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
-      body: '{}'
+      body: '{}',
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       console.error(`GLO API returned HTTP status ${res.status}`);
@@ -289,9 +356,10 @@ export async function fetchFromGloLottery(): Promise<LotteryResult | null> {
 }
 
 async function sendTelegramAlert(env: Env, message: string) {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) return;
+  const token = getCleanBotToken(env);
+  if (!token || !env.TELEGRAM_CHAT_ID) return;
   try {
-    await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: message })

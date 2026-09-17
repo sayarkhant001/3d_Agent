@@ -123,7 +123,9 @@ fun WinnerScreen(
             if (vWB.voucher.batchNumber != batchInt) return@mapNotNull null
             val customer = allCustomers.find { it.id == vWB.voucher.customerId } ?: return@mapNotNull null
             if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true) ||
-                vWB.voucher.remark.contains("တင်ကွက်") || vWB.voucher.remark.contains("overflow", ignoreCase = true)) {
+                customer.name.contains("upper", ignoreCase = true) || customer.name.contains("အထက်ဒိုင်") ||
+                vWB.voucher.remark.contains("တင်ကွက်") || vWB.voucher.remark.contains("overflow", ignoreCase = true) ||
+                vWB.voucher.remark.contains("upper", ignoreCase = true) || vWB.voucher.remark.contains("အထက်ဒိုင်")) {
                 return@mapNotNull null
             }
             val (win, wt) = when {
@@ -177,38 +179,49 @@ fun WinnerScreen(
     // Calculation only happens when user explicitly taps ပေါက်သီး ကြေညာသည် or auto-restored
 
     // Derived grouped data — include ALL commissioners who placed bets in this batch
+    // Derived grouped data — include ALL commissioners whether they won or not
     val batchInt = targetBatch.toIntOrNull() ?: currentBatch
-    val batchCustomerVouchers = remember(allVWB, batchInt, allCustomers) {
+    val eligibleCustomers = remember(allCustomers) {
+        allCustomers.filter {
+            !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) &&
+            !it.name.contains("upper", ignoreCase = true) && !it.name.contains("အထက်ဒိုင်")
+        }
+    }
+    val batchCustomerVouchers = remember(allVWB, batchInt, eligibleCustomers) {
+        val validIds = eligibleCustomers.map { it.id }.toSet()
         allVWB.filter { vwb ->
             vwb.voucher.batchNumber == batchInt &&
+            validIds.contains(vwb.voucher.customerId) &&
             !vwb.voucher.remark.contains("တင်ကွက်") &&
-            !vwb.voucher.remark.contains("overflow", ignoreCase = true)
-        }.filter { vwb ->
-            val cust = allCustomers.find { it.id == vwb.voucher.customerId }
-            cust != null && !cust.name.contains("တင်ကွက်") && !cust.name.contains("overflow", ignoreCase = true)
+            !vwb.voucher.remark.contains("overflow", ignoreCase = true) &&
+            !vwb.voucher.remark.contains("upper", ignoreCase = true) &&
+            !vwb.voucher.remark.contains("အထက်ဒိုင်")
         }
     }
 
-    val agentSummaries: List<AgentWinSummary> = remember(results, batchCustomerVouchers, winningNumber) {
+    val agentSummaries: List<AgentWinSummary> = remember(results, batchCustomerVouchers, winningNumber, eligibleCustomers) {
         if (winningNumber.length != 3) {
             emptyList()
         } else {
-            val vouchersByCustomer = batchCustomerVouchers.groupBy { it.voucher.customerId }
-            vouchersByCustomer.map { (cid, vwbList) ->
-                val customerName = allCustomers.find { it.id == cid }?.name ?: "Unknown"
+            eligibleCustomers.map { cust ->
+                val vwbList = batchCustomerVouchers.filter { it.voucher.customerId == cust.id }
                 val voucherSummaries = vwbList.map { vwb ->
                     val vWinningBets = results.filter { it.voucherId == vwb.voucher.id }
                     val vPayout = vWinningBets.sumOf { it.payoutAmount }
                     val vTotalBet = vwb.bets.sumOf { it.amount }
                     VoucherWinSummary(
                         voucherId = vwb.voucher.id,
-                        customerName = customerName,
-                        customerId = cid,
+                        customerName = cust.name,
+                        customerId = cust.id,
                         bets = vWinningBets,
                         totalPayout = vPayout,
                         totalBetAmount = vTotalBet
                     )
-                }.sortedWith(compareByDescending<VoucherWinSummary> { it.totalPayout }.thenBy { it.voucherId })
+                }.sortedWith(
+                    compareByDescending<VoucherWinSummary> { it.totalPayout }
+                        .thenByDescending { it.totalBetAmount }
+                        .thenBy { it.voucherId }
+                )
 
                 val totalPayout = voucherSummaries.sumOf { it.totalPayout }
                 val exactCount = voucherSummaries.sumOf { v -> v.bets.count { it.winType == WinType.EXACT } }
@@ -216,8 +229,8 @@ fun WinnerScreen(
                 val totalBet = voucherSummaries.sumOf { it.totalBetAmount }
 
                 AgentWinSummary(
-                    customerName = customerName,
-                    customerId = cid,
+                    customerName = cust.name,
+                    customerId = cust.id,
                     vouchers = voucherSummaries,
                     exactCount = exactCount,
                     tuwtCount = tuwtCount,
@@ -230,6 +243,15 @@ fun WinnerScreen(
                     .thenBy { it.customerName }
             )
         }
+    }
+
+    val allVouchers2 = remember(agentSummaries) {
+        agentSummaries.flatMap { it.vouchers }
+            .sortedWith(
+                compareByDescending<VoucherWinSummary> { it.totalPayout }
+                    .thenByDescending { it.totalBetAmount }
+                    .thenBy { it.voucherId }
+            )
     }
 
     val grandTotal = results.sumOf { it.payoutAmount }
@@ -385,8 +407,6 @@ fun WinnerScreen(
                         }
                     }
                     1 -> {
-                        // ── Voucher Detail (all vouchers across agents) ────────────
-                        val allVouchers2 = agentSummaries.flatMap { it.vouchers }
                         if (allVouchers2.isEmpty()) {
                             item {
                                 Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {

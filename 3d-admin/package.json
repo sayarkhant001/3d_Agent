@@ -8,6 +8,7 @@
     "build": "vite build",
     "deploy": "vite build && wrangler pages deploy dist --project-name=3d-admin",
     "lint": "oxlint",
+    "test": "node --test test/*.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -46,7 +46,7 @@ data class ExportRecordWithNumbers(
 
 @Dao
 interface LotteryDao {
-    @Query("SELECT * FROM customers ORDER BY name ASC")
+    @Query("SELECT * FROM customers WHERE name NOT LIKE '%တင်ကွက်%' AND name NOT LIKE '%overflow%' AND name NOT LIKE '%upper%' AND name NOT LIKE '%အထက်ဒိုင်%' ORDER BY name ASC")
     fun getAllCustomers(): Flow<List<Customer>>
 
     @Query("SELECT * FROM banned_numbers")
@@ -73,10 +73,10 @@ interface LotteryDao {
     @Query("DELETE FROM exported_numbers WHERE exportRecordId NOT IN (SELECT id FROM export_records)")
     suspend fun deleteOrphanedExportedNumbers()
 
-    @Query("DELETE FROM customers WHERE name LIKE '%တင်ကွက်%' OR name LIKE '%overflow%' OR name LIKE '%upper%'")
+    @Query("DELETE FROM customers WHERE name LIKE '%တင်ကွက်%' OR name LIKE '%overflow%' OR name LIKE '%upper%' OR name LIKE '%အထက်ဒိုင်%'")
     suspend fun purgeOverflowCustomers()
 
-    @Query("DELETE FROM vouchers WHERE remark LIKE '%တင်ကွက်%' OR remark LIKE '%overflow%'")
+    @Query("DELETE FROM vouchers WHERE remark LIKE '%တင်ကွက်%' OR remark LIKE '%overflow%' OR remark LIKE '%upper%' OR remark LIKE '%အထက်ဒိုင်%'")
     suspend fun purgeOverflowVouchers()
 
 

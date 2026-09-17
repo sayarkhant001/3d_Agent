@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,7 +69,7 @@ fun OverflowScreen(
     var showBrakeDialog by remember { mutableStateOf(false) }
 
     // Overflow voucher dialog state — holds a snapshot taken at the moment "တင်မည်" was pressed
-    data class OverflowSnapshot(val items: List<Pair<String, Int>>, val total: Int, val timestamp: String, val batch: Int)
+    data class OverflowSnapshot(val voucherId: Int, val items: List<Pair<String, Int>>, val total: Int, val timestamp: String, val batch: Int)
     var overflowSnapshot by remember { mutableStateOf<OverflowSnapshot?>(null) }
 
     // ── Brake Limit Dialog ──────────────────────────────────────────────────
@@ -101,20 +102,17 @@ fun OverflowScreen(
     val snapshot = overflowSnapshot
     if (snapshot != null) {
         val voucherText = buildString {
-            appendLine("========================")
             appendLine("      တင်ကွက် ဘောင်ချာ    ")
-            appendLine("========================")
+            appendLine(" ဘောင်ချာ : #${snapshot.voucherId}")
             appendLine(" အကြိမ်   : ${snapshot.batch}")
             appendLine(" အချိန်   : ${snapshot.timestamp}")
             appendLine("------------------------")
-            snapshot.items.forEach { (num, amt) ->
-                appendLine(" ${num.padEnd(5)} = $amt")
+            snapshot.items.forEachIndexed { idx, (num, amt) ->
+                appendLine(" ${idx + 1}. $num = $amt")
             }
             appendLine("------------------------")
             appendLine(" စုစုပေါင်း : ${snapshot.total} Ks")
-            appendLine("========================")
-            appendLine("   *** အထက်ဒိုင် တင်ကွက် ***  ")
-            appendLine("========================")
+            appendLine("   * အထက်ဒိုင် တင်ကွက် *  ")
         }
 
         Dialog(
@@ -166,6 +164,13 @@ fun OverflowScreen(
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
                         Text(
+                            "စဉ်",
+                            color = MaterialTheme.colorScheme.onTertiary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(44.dp),
+                            textAlign = TextAlign.Start
+                        )
+                        Text(
                             "ဂဏန်း",
                             color = MaterialTheme.colorScheme.onTertiary,
                             fontWeight = FontWeight.Bold,
@@ -198,6 +203,12 @@ fun OverflowScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Text(
+                                    "${index + 1}.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.width(44.dp)
+                                )
                                 Text(
                                     num,
                                     fontWeight = FontWeight.Bold,
@@ -341,13 +352,12 @@ fun OverflowScreen(
                 Button(
                     onClick = {
                         if (overflowExposures.isNotEmpty()) {
-                            // Snapshot BEFORE export so we can display what was sent
                             val items = overflowExposures.map { it.number to it.overflowAmount }
                             val total = overflowExposures.sumOf { it.overflowAmount }
-                            val ts = SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date())
-                            overflowSnapshot = OverflowSnapshot(items, total, ts, currentBatch)
-                            // Record export in DB — overflowAmount will recalculate to 0 reactively
-                            viewModel.exportOverflow()
+                            val ts = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
+                            viewModel.exportOverflow { recordId ->
+                                overflowSnapshot = OverflowSnapshot(recordId, items, total, ts, currentBatch)
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f).height(48.dp),

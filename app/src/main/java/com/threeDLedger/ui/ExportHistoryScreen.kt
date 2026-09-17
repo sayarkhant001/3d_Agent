@@ -118,21 +118,19 @@ private fun ExportRecordCard(
     val headerColor = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
     val sortedNumbers = export.numbers.sortedByDescending { it.amount }
 
+    val voucherDate = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(export.record.timestamp))
     val voucherText = buildString {
-        appendLine("========================")
-        appendLine("   တင်ကွက် မှတ်တမ်း     ")
-        appendLine("========================")
-        appendLine(" ဘောင်ချာ  : #${export.record.id}")
-        appendLine(" အကြိမ်    : ${export.record.batchNumber}")
-        appendLine(" အချိန်    : $dateString")
-        appendLine(" အမျိုးအစား: ${export.record.type}")
+        appendLine("      တင်ကွက် ဘောင်ချာ    ")
+        appendLine(" ဘောင်ချာ : #${export.record.id}")
+        appendLine(" အကြိမ်   : ${export.record.batchNumber}")
+        appendLine(" အချိန်   : $voucherDate")
         appendLine("------------------------")
-        sortedNumbers.forEach { num ->
-            appendLine(" ${num.number.padEnd(5)} = ${num.amount}")
+        sortedNumbers.forEachIndexed { idx, num ->
+            appendLine(" ${idx + 1}. ${num.number} = ${num.amount}")
         }
         appendLine("------------------------")
         appendLine(" စုစုပေါင်း : %,d Ks".format(export.record.totalAmount))
-        appendLine("========================")
+        appendLine("   * အထက်ဒိုင် တင်ကွက် *  ")
     }
 
     Card(
@@ -233,6 +231,13 @@ private fun ExportRecordCard(
                             .padding(horizontal = 8.dp, vertical = 6.dp)
                     ) {
                         Text(
+                            "စဉ်",
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(40.dp),
+                            textAlign = TextAlign.Start,
+                            fontSize = 13.sp
+                        )
+                        Text(
                             "ဂဏန်း",
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f),
@@ -265,6 +270,12 @@ private fun ExportRecordCard(
                                     .padding(horizontal = 8.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Text(
+                                    "${index + 1}.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.width(40.dp)
+                                )
                                 Text(
                                     num.number,
                                     fontWeight = FontWeight.Bold,

@@ -126,18 +126,19 @@ fun CommissionerResultScreen(
         ) - setOf(winningNumber)
 
         allCustomers.mapNotNull { customer ->
-            if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true)) return@mapNotNull null
+            if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true) ||
+                customer.name.contains("upper", ignoreCase = true) || customer.name.contains("အထက်ဒိုင်")) return@mapNotNull null
             val agentVouchers = batchVouchers.filter { 
                 it.voucher.customerId == customer.id &&
                 !it.voucher.remark.contains("တင်ကွက်") &&
-                !it.voucher.remark.contains("overflow", ignoreCase = true)
+                !it.voucher.remark.contains("overflow", ignoreCase = true) &&
+                !it.voucher.remark.contains("upper", ignoreCase = true) &&
+                !it.voucher.remark.contains("အထက်ဒိုင်")
             }
-            if (agentVouchers.isEmpty()) return@mapNotNull null
             val bets     = agentVouchers.flatMap { it.bets }
             val totalBet = bets.sumOf { it.amount }.toLong()
-            if (totalBet == 0L) return@mapNotNull null
 
-            // Fixed accounting bug: commissionRate is decimal fraction (0.15 = 15%)
+            // Commission calculation: commissionRate is decimal fraction (0.15 = 15%)
             val commission   = (totalBet * customer.commissionRate).toLong()
             val netAfterComm = totalBet - commission
             val exactBets    = bets.filter { it.number == winningNumber }
@@ -149,13 +150,18 @@ fun CommissionerResultScreen(
             val totalPayout  = exactPayout + tuwtPayout
             val balance      = netAfterComm - totalPayout
             val paid         = (paidMap[customer.id] ?: 0.0).toLong()
+            val remaining    = if (balance >= 0) balance - paid else balance + paid
 
             AgentSettlement(
                 customer, totalBet, commission, netAfterComm,
                 exactBetAmt, exactPayout, tuwtBetAmt, tuwtPayout,
-                totalPayout, balance, paid, balance - paid
+                totalPayout, balance, paid, remaining
             )
-        }.sortedBy { it.customer.id }
+        }.sortedWith(
+            compareByDescending<AgentSettlement> { it.totalPayout }
+                .thenByDescending { it.totalBet }
+                .thenBy { it.customer.name }
+        )
     }
 
     val grandTotal   = settlements.sumOf { it.totalBet }
@@ -462,7 +468,7 @@ fun CommissionerResultScreen(
 
 // ── Settlement Card ────────────────────────────────────────────────────────────
 @Composable
-private fun AgentSettlementCard(
+fun AgentSettlementCard(
     settlement : AgentSettlement,
     onTapDetail: () -> Unit,
     onEditPaid : () -> Unit

@@ -61,25 +61,42 @@ fun LedgerScreen(
         .sortedBy { it.number.toIntOrNull() ?: 0 }
     val totalAll = allExposures.sumOf { it.totalBetAmount }
 
+    // Multipliers for payout calculation
+    val exactMult by viewModel.savedExactMult.collectAsStateWithLifecycle()
+    val tuwtMult  by viewModel.savedPermMult.collectAsStateWithLifecycle()
+
     // After mode — only active when WinnerScreen has declared a winning number
     val isAfterMode = savedWinner.length == 3
 
-    // After-mode rows: EXACT → TUWT → ALL OTHER BET NUMBERS (never hide bets!)
+    // After-mode rows: ONLY winning number and TUT numbers! Other numbers disappear!
     val relevantRows: List<Pair<LedgerExposure, NumCat>> =
         if (isAfterMode) {
-            allExposures
-                .map { it to categorize(it.number, savedWinner) }
-                .sortedWith(
-                    compareBy(
-                        { when (it.second) {
-                            NumCat.EXACT -> 0
-                            NumCat.TUWT  -> 1
-                            else         -> 2
-                        }},
-                        { it.first.number.toIntOrNull() ?: 0 }
-                    )
-                )
+            val exposureMap = allExposures.associateBy { it.number }
+            val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(savedWinner).toSet() - setOf(savedWinner)
+            val winInt = savedWinner.toIntOrNull() ?: 0
+            val minus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
+            val plus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
+            val near   = setOf(minus1, plus1) - setOf(savedWinner)
+            val tuwtSet = allPerms + near
+
+            val exactExp = exposureMap[savedWinner] ?: LedgerExposure(savedWinner, 0, 0, 0, 0)
+            val exactRow = exactExp to NumCat.EXACT
+
+            val tuwtRows = tuwtSet.sorted().map { num ->
+                (exposureMap[num] ?: LedgerExposure(num, 0, 0, 0, 0)) to NumCat.TUWT
+            }
+
+            listOf(exactRow) + tuwtRows
         } else emptyList()
+
+    val exactWonBets = relevantRows.filter { it.second == NumCat.EXACT }.sumOf { it.first.totalBetAmount }
+    val tuwtWonBets  = relevantRows.filter { it.second == NumCat.TUWT }.sumOf { it.first.totalBetAmount }
+    val totalWonBets = exactWonBets + tuwtWonBets
+
+    val exactPayout = exactWonBets * exactMult
+    val tuwtPayout  = tuwtWonBets * tuwtMult
+    val totalPayout = exactPayout + tuwtPayout
+    val netBalance  = totalAll - totalPayout
 
     Scaffold(
         topBar = {
@@ -406,40 +423,89 @@ fun LedgerScreen(
                 }
             }
 
-            // ── Footer — total of ALL bets ────────────────────────────────────
+            // ── Footer — Under bar with totals, winning payouts & net balance ─
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = EmeraldPrimary,
                 shadowElevation = 8.dp
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "စုစုပေါင်း ထိုးကြေး",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isAfterMode) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        // Row 1: Total Bets & Won Bets
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("စုစုပေါင်း ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                                Text("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("ပေါက်ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                                Text("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.2f), thickness = 0.5.dp)
+
+                        // Row 2: Total Payout & Net Profit/Loss
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("စုစုပေါင်း လျော်ကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                                Text("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (netBalance >= 0) "အသားတင် အမြတ် : " else "အသားတင် အရှုံး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                                Text(
+                                    "${if (netBalance >= 0) "+" else ""}${"%,.0f Ks".format(netBalance)}",
+                                    color = if (netBalance >= 0) Color(0xFF69F0AE) else Color(0xFFFF5252),
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 15.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            "%,d".format(totalAll),
+                            "စုစုပေါင်း ထိုးကြေး",
                             color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 19.sp,
-                            fontFamily = FontFamily.Monospace
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
                         )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            "Ks",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                "%,d".format(totalAll),
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 19.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Ks",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 13.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             }

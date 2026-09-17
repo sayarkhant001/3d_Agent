@@ -41,9 +41,41 @@ private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_])\s*""")
 private val ROUND_MARKERS_REGEX    = Regex("""\s*[Rr/]\s*""")
 private val TAIL_AMOUNT_REGEX       = Regex("""[=:\-.,_]?(\d+)(?:R(\d+))?$""")
 private val NUM_PATTERN_REGEX       = Regex("""(\d{2,3})(R?)""")
+private val CURRENCY_SUFFIX_REGEX   = Regex("""(?i)\s*(?:ks|ကျပ်)\s*$""")
+
+// Check if a line is voucher metadata/header/footer/timestamp to ignore
+fun isVoucherMetadataLine(raw: String): Boolean {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return true
+    
+    // Pure separators: ---, ===, ***, ___
+    if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' }) return true
+    
+    val lower = trimmed.lowercase()
+    if (lower.contains("တင်ကွက်") || 
+        lower.contains("ဘောင်ချာ") || 
+        lower.contains("အကြိမ်") || 
+        lower.contains("အချိန်") || 
+        lower.contains("စုစုပေါင်း") || 
+        lower.contains("အထက်ဒိုင်") || 
+        lower.contains("ရက်စွဲ") ||
+        lower.contains("voucher") ||
+        lower.contains("batch") ||
+        lower.contains("time") ||
+        lower.contains("total")) {
+        return true
+    }
+    
+    // Protect date and timestamp lines (e.g. 13/09/2026 or 11:57:45)
+    if (Regex("""\d{1,2}[/-]\d{1,2}[/-]\d{2,4}""").containsMatchIn(trimmed)) return true
+    if (Regex("""\d{1,2}:\d{2}(?::\d{2})?""").containsMatchIn(trimmed)) return true
+    
+    return false
+}
 
 // Parse one line of pasted bet text into a list of (number, amount) pairs.
 // Handles ALL these real-world formats:
+//   108   = 50                     -> 1 number at 50 (from overflow voucher)
 //   723-372-245-309 = 2000         -> 4 numbers at 2000
 //   446=1000                       -> 1 number at 1000
 //   235-615 = 3000                 -> 2 numbers at 3000
@@ -53,9 +85,25 @@ private val NUM_PATTERN_REGEX       = Regex("""(\d{2,3})(R?)""")
 //   123/456/789=5000               -> 123+perms, 456+perms, 789+perms at 5000
 //   185-217-378-549 = 10000        -> 4 numbers at 10000
 fun parsePastedLine(raw: String): List<Pair<String, Int>> {
-    // Convert Myanmar digits -> English and trim
-    val line = raw.trim().myanmarToEnglish()
+    if (isVoucherMetadataLine(raw)) return emptyList()
+
+    // Convert Myanmar digits -> English, strip currency suffix, and trim
+    var line = raw.trim().myanmarToEnglish().replace(CURRENCY_SUFFIX_REGEX, "").trim()
     if (line.isBlank()) return emptyList()
+
+    // Strip leading serial numbers or list indices e.g. "1. ", "2. ", "10) ", "1- ", "1: "
+    line = line.replace(Regex("""^\s*\d+[\.\)\-:]\s*"""), "").trim()
+    if (line.isBlank()) return emptyList()
+
+    // Direct single bet format check e.g. "108 = 50", "108=50", "108-50"
+    val directMatch = Regex("""^(\d{2,3})\s*[=:\-]\s*(\d+)$""").matchEntire(line)
+    if (directMatch != null) {
+        val num = directMatch.groupValues[1]
+        val amt = directMatch.groupValues[2].toIntOrNull()
+        if (amt != null && amt > 0) {
+            return listOf(num to amt)
+        }
+    }
 
     // Step 1: collapse spaces around plain separators (NOT / -- handled below)
     var text = line.replace(SEPARATOR_SPACES_REGEX, "$1")
@@ -357,29 +405,30 @@ fun BettingScreen(
                 },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Format label — no example numbers shown
+                        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .height(1.dp)
-                                    .weight(1f)
-                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            )
                             Text(
-                                "လက်ခံသော ပုံစံများ",
+                                "စာကြောင်းအလိုက် / တင်ကွက် ဘောင်ချာ",
                                 fontSize = 11.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            Box(
-                                modifier = Modifier
-                                    .height(1.dp)
-                                    .weight(1f)
-                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            )
+                            FilledTonalButton(
+                                onClick = {
+                                    val clip = clipboardManager.getText()?.text
+                                    if (!clip.isNullOrBlank()) {
+                                        pasteText = clip
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("📋 Clipboard ကူးယူမည်", fontSize = 11.sp)
+                            }
                         }
 
                         // Text input — placeholder vanishes on paste/type

@@ -3,11 +3,13 @@ package com.threeDLedger.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.threeDLedger.data.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -58,6 +60,14 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
 
     // Winning number declared for the current batch (persisted per batch key)
     val winningNumber = MutableStateFlow("")
+
+    init {
+        loadWinningNumber()
+        brakeLimit.value = prefs.getInt("brakeLimit", 3000)
+        viewModelScope.launch {
+            repository.purgeOverflowArtifacts()
+        }
+    }
 
     fun saveWinningNumber(number: String) {
         winningNumber.value = number
@@ -161,7 +171,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         results.sortedByDescending { it.netHeldAmount }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun exportOverflow() {
+    fun exportOverflow(onComplete: ((Int) -> Unit)? = null) {
         val currentExposures = ledgerExposures.value
         val toExport = currentExposures.filter { it.overflowAmount > 0 }
         if (toExport.isEmpty()) return
@@ -179,6 +189,9 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
                 ExportedNumber(exportRecordId = recordId, number = it.number, amount = it.overflowAmount)
             }
             repository.insertExportedNumbers(exportNumbers)
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke(recordId)
+            }
             // NOTE: Do NOT insert a Voucher here — that would inflate betMap and
             // prevent overflowAmount from clearing after export.
         }

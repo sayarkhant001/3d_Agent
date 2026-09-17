@@ -27,3 +27,6 @@ body.json
 *.log
 log*.txt
 .vscode/
+.venv/
+venv/
+__pycache__/

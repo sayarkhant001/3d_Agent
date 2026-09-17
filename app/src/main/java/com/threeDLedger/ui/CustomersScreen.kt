@@ -49,7 +49,9 @@ fun CustomersScreen(
                 val cv = allVWB.filter { 
                     it.voucher.customerId == c.id && 
                     !it.voucher.remark.contains("တင်ကွက်") && 
-                    !it.voucher.remark.contains("overflow", ignoreCase = true) 
+                    !it.voucher.remark.contains("overflow", ignoreCase = true) &&
+                    !it.voucher.remark.contains("upper", ignoreCase = true) &&
+                    !it.voucher.remark.contains("အထက်ဒိုင်")
                 }
                 val total = cv.sumOf { it.voucher.totalAmount }
                 val cut   = (total * c.commissionRate).toInt()
@@ -103,7 +105,7 @@ fun CustomersScreen(
                                     fontSize = 18.sp
                                 )
                                 Text(
-                                    "စာရင်းသွင်းထားသူ ${customers.count { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) }} ဦး",
+                                    "စာရင်းသွင်းထားသူ ${customers.count { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) && !it.name.contains("upper", ignoreCase = true) && !it.name.contains("အထက်ဒိုင်") }} ဦး",
                                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                                     fontSize = 11.sp
                                 )
@@ -160,7 +162,10 @@ fun CustomersScreen(
                     val filtered = remember(customers, searchQuery) {
                         customers
                             .filter { it.name.contains(searchQuery, ignoreCase = true) }
-                            .filter { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) }
+                            .filter { 
+                                !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) &&
+                                !it.name.contains("upper", ignoreCase = true) && !it.name.contains("အထက်ဒိုင်")
+                            }
                     }
 
                     if (filtered.isEmpty()) {
