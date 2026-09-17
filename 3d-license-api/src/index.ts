@@ -109,96 +109,53 @@ export default {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         },
       });
     }
 
     if (request.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
+      return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
+        status: 405,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
-    const corsHeaders = {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    };
+    const url = new URL(request.url);
+    const targetPath = url.pathname === '/' ? '/activate' : url.pathname;
+    const targetUrl = `https://3d-scraper-worker.khaingkhantkyaw001.workers.dev${targetPath}${url.search}`;
 
     try {
-      const body = await request.json() as { cd_key?: string; device_fingerprint?: string };
-      const { cd_key, device_fingerprint } = body;
+      const headers = new Headers(request.headers);
+      headers.set('Host', '3d-scraper-worker.khaingkhantkyaw001.workers.dev');
 
-      // 1. Validate format (XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX, 32 hex chars)
-      const keyRegex = /^[A-Z0-9]{4}(-[A-Z0-9]{4}){7}$/;
-      if (!cd_key || !keyRegex.test(cd_key) || !device_fingerprint) {
-        return new Response(JSON.stringify({ error: 'Invalid key format. Expected 32-character key.' }), {
-          status: 400, headers: corsHeaders,
-        });
-      }
+      const bodyBuffer = await request.arrayBuffer();
 
-      // 2. Get Firebase access token from service account
-      const accessToken = await getFirebaseAccessToken(env.FIREBASE_SERVICE_ACCOUNT);
-
-      // 3. Check Firebase for key
-      const fbUrl = `${env.FIREBASE_DB_URL}/3d_licenses/keys/${cd_key}.json?access_token=${accessToken}`;
-      const fbRes = await fetch(fbUrl);
-      const keyData = await fbRes.json() as {
-        status?: string;
-        duration?: string | number;
-      } | null;
-
-      if (!keyData || keyData.status !== 'available') {
-        return new Response(JSON.stringify({ error: 'Activation failed' }), {
-          status: 400, headers: corsHeaders,
-        });
-      }
-
-      // 4. Calculate expiration based on key type from Admin Dashboard
-      //    - "trial"    → 3 days from now
-      //    - number     → that many days from now (custom duration)
-      //    - "lifetime"  → no expiration (no 'exp' field)
-      const nowSeconds = Math.floor(Date.now() / 1000);
-      const jwtPayload: Record<string, unknown> = {
-        cd_key,
-        device_fingerprint,
-        iat: nowSeconds,
-      };
-
-      if (keyData.duration === 'trial') {
-        jwtPayload.exp = nowSeconds + (3 * 24 * 60 * 60); // +3 days
-        jwtPayload.duration_type = 'trial';
-      } else if (typeof keyData.duration === 'number') {
-        jwtPayload.exp = nowSeconds + (keyData.duration * 24 * 60 * 60); // +N days
-        jwtPayload.duration_type = 'custom';
-        jwtPayload.duration_days = keyData.duration;
-      } else if (keyData.duration === 'lifetime') {
-        jwtPayload.duration_type = 'lifetime';
-      }
-
-      // 5. Sign app JWT with HMAC-SHA256
-      const token = await signAppJWT(jwtPayload, env.JWT_SECRET);
-
-      // 6. Claim the key in Firebase
-      await fetch(fbUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: 'claimed',
-          claimed_by: device_fingerprint,
-          activated_at: Date.now(),
-        }),
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        headers: headers,
+        body: bodyBuffer,
       });
 
-      // 7. Return token to Android app
-      return new Response(JSON.stringify({
-        token,
-        duration_type: jwtPayload.duration_type,
-        expires_at: jwtPayload.exp || null,
-      }), { headers: corsHeaders });
+      const responseBody = await res.arrayBuffer();
+      const newHeaders = new Headers(res.headers);
+      newHeaders.set('Access-Control-Allow-Origin', '*');
 
+      return new Response(responseBody, {
+        status: res.status,
+        headers: newHeaders,
+      });
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: 'Internal Server Error', detail: e.message }), {
-        status: 500, headers: corsHeaders,
+      return new Response(JSON.stringify({ error: 'License Gateway Error', detail: e.message }), {
+        status: 502,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
       });
     }
   },

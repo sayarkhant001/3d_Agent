@@ -317,38 +317,65 @@ These exact scenarios are validated by automated unit tests in [`CalculationVeri
 
 ---
 
-### Telegram Bot Commands & Interactive Menu
+### Telegram Bot Admin Control Center & Key Management
 
-Users and commissioners can access the bot directly via Telegram:
+The Telegram Bot is strictly configured as an **Admin-Only Management Console** (`TELEGRAM_CHAT_ID: 5684146708`). Unauthorized users are automatically blocked.
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
-│                    3D LEDGER TELEGRAM BOT                  │
+│         👑 3D LEDGER စီမံခန့်ခွဲမှု စင်တာ (ADMIN CONTROL)      │
 ├────────────────────────────────────────────────────────────┤
-│  🎯 နောက်ဆုံး 3D ရလဒ်          │  🔢 တွတ် ဂဏန်းများ         │
+│  ➕ ကုတ်အသစ် ထုတ်ရန်           │  📋 အသုံးပြုမှု စောင့်ကြည့်      │
 ├────────────────────────────────┼───────────────────────────┤
-│  📊 ဆော့ဝဲလ် အခြေအနေ         │  ❓ အကူအညီ               │
-└────────────────────────────────┴───────────────────────────┘
+│  ⚡ Auto-Approve: ဖွင့်/ပိတ်     │  ⏳ စောင့်ဆိုင်းဆဲများ        │
+├────────────────────────────────┼───────────────────────────┤
+│  📊 အရောင်း အစီရင်ခံစာ          │  🚫 ကုတ် ပိတ်သိမ်းရန်          │
+├────────────────────────────────┼───────────────────────────┤
+│  🎯 ပေါက်မဲ လက်ဖြင့် သတ်မှတ်     │  📦 အပတ်စဉ် ကြည့်ရှု         │
+├────────────────────────────────┴───────────────────────────┤
+│               🔄 မီနူး အသစ်ပြန်ဖွင့် (Refresh)               │
+└────────────────────────────────────────────────────────────┘
 ```
 
-#### User Commands
+#### Key Management & Dual Authorization Workflow
 
-| Command | Description | Example |
-| :--- | :--- | :--- |
-| `/start` | Launches the interactive Myanmar menu with inline buttons | `/start` |
-| `/live`, `/3d`, `/result` | Fetches the latest official Thai GLO First Prize, 3D, and 2D | `/live` |
-| `/tut [number]` | Generates the complete တွတ် set (permutations + near $\pm 1$) | `/tut 108` |
-| `/check <number>` | Checks whether your number is a direct winner or a တွတ် winner | `/check 801` |
-| `/batch` | Displays the active lottery batch number and draw date | `/batch` |
-| `/status` | Displays system connectivity and scraper health | `/status` |
-| `/help` | Displays command usage documentation | `/help` |
+1. **Key Generation (`/gen [days] [price]` or `[➕ ကုတ်အသစ် ထုတ်ရန်]`)**:
+   - Generates unique 32-character keys (`XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX`).
+   - Durations: `7 days` (5,000 MMK), `30 days` (15,000 MMK), `90 days` (35,000 MMK), `1 year` (100,000 MMK), `lifetime` (250,000 MMK).
+   - Saved in Firebase Realtime Database at `/3d_licenses/keys/{key}` with `status: "available"`.
 
-#### Admin Commands (Protected by `TELEGRAM_CHAT_ID`)
+2. **Dual Authorization Modes**:
+   - **Auto-Approve Mode (`/autoapprove` or `[⚡ Auto-Approve]` button)**:
+     - When toggled **ON**, user entering a valid key on Android is instantly activated and granted access without waiting for admin approval.
+     - Telegram Bot alerts the admin: `⚡ [Auto-Approved] Key Activated! Device: <model>`.
+   - **Manual Telegram Approval Mode**:
+     - When toggled **OFF**, user entering a valid key is put into `pending_approval` state.
+     - The Android app displays an animated waiting screen (`Admin ၏ ခွင့်ပြုချက်ကို စောင့်ဆိုင်းနေပါသည်`) and polls every 3 seconds.
+     - The Admin immediately receives an interactive Telegram notification:
+       ```text
+       🔔 ခွင့်ပြုချက် တောင်းခံလွှာ အသစ် (New Activation Request)
+       🔑 ကုတ်နံပါတ်: A1B2-C3D4-...
+       📱 ဖုန်းမော်ဒယ်: Samsung Galaxy A54
+       🆔 ID: a1b2c3d4...
+       ⏳ သက်တမ်း: 30 ရက်
+       [✅ ခွင့်ပြုမည် (Approve)]  [❌ ငြင်းပယ်မည် (Reject)]
+       ```
+     - Tapping **Approve** immediately unlocks the Android app. Tapping **Reject** resets the key to available.
 
-| Command | Description | Example |
-| :--- | :--- | :--- |
-| `/setbatch <number>` | Opens or switches the active lottery batch | `/setbatch 16` |
-| `/setwinner <number>` | Manually declares the 3D winning number and alerts users | `/setwinner 108` |
+3. **Key Revocation (`/revoke <key>` or `[🚫 ကုတ် ပိတ်သိမ်းရန်]`)**:
+   - Immediately invalidates the key in Firebase (`status: "revoked"`).
+   - The Android app enforces real-time revocation on startup and resume, clearing local credentials and kicking revoked devices to the activation screen.
+
+4. **Sales & Usage Report (`/report` or `[📊 အရောင်း အစီရင်ခံစာ]`)**:
+   - Total keys generated, active devices, unsold available keys, pending requests, and revoked keys.
+   - Total estimated revenue in MMK.
+   - Breakdown by duration tier.
+
+5. **Manual Winning & Tut Declaration (`/setwinner <3-digit number>` or `[🎯 ပေါက်မဲ လက်ဖြင့် သတ်မှတ်]`)**:
+   - Admin can manually declare the official 3D winning number (e.g. `/setwinner 108`).
+   - Automatically computes all unified တွတ် numbers (permutations + near $\pm 1$).
+   - Locks Firebase `3d_lottery_config/mode` to `manual` to prevent automated scraper overwrites.
+   - Broadcasts the declared numbers immediately to all connected devices.
 
 ---
 

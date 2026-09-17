@@ -6,7 +6,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 
 object NetworkClient {
-    private const val BASE_URL = "https://3d-license-api.khaingkhantkyaw001.workers.dev"
+    private const val BASE_URL = "https://3d-scraper-worker.khaingkhantkyaw001.workers.dev"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY

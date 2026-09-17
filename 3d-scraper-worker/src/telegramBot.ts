@@ -1,7 +1,9 @@
 /**
- * Full Telegram Bot Engine for 3D Ledger & Official Thai GLO Lottery
- * Handles Webhooks, Commands (/start, /live, /tut, /check, /status, /batch),
- * Callback Queries, Inline Keyboards, and Admin Controls.
+ * Admin-Only Telegram Bot Engine for 3D Ledger & License Control
+ * Strict Admin Access: Only TELEGRAM_CHAT_ID has management authorization.
+ * Features: Key Generation, Monitoring, Revocation, Sales Reporting,
+ * Dual Authorization (Manual Telegram Approval vs Auto-Approve),
+ * and Manual Winning Number & Tut Declaration.
  */
 
 import { Env, fetchFromGloLottery, getFirebaseToken } from './index';
@@ -54,6 +56,24 @@ export interface TelegramUpdate {
   callback_query?: TelegramCallbackQuery;
 }
 
+// ── License Key Record ────────────────────────────────────────────────────────
+
+export interface LicenseKeyRecord {
+  cd_key: string;
+  duration: 'trial' | number | 'lifetime';
+  duration_label: string;
+  price: number;
+  status: 'available' | 'pending_approval' | 'active' | 'revoked';
+  created_at: number;
+  device_fingerprint?: string;
+  device_model?: string;
+  requested_at?: number;
+  activated_at?: number;
+  expires_at?: number | null;
+  approved_by?: string;
+  revoked_at?: number;
+}
+
 // ── တွတ် (Tut) Calculation Engine ─────────────────────────────────────────────
 
 export interface TutResult {
@@ -98,11 +118,33 @@ export function calculateTutNumbers(winningNumber: string): TutResult {
   return { winningNumber, permutations, nearMisses, allTut };
 }
 
+// ── CD Key Generator (32 hex/alphanumeric chars in 8 blocks) ──────────────────
+
+export function generateCdKey(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // omit ambiguous 0, O, 1, I
+  const randomBytes = new Uint8Array(32);
+  crypto.getRandomValues(randomBytes);
+  const blocks: string[] = [];
+  let byteIdx = 0;
+  for (let b = 0; b < 8; b++) {
+    let block = '';
+    for (let i = 0; i < 4; i++) {
+      block += chars[randomBytes[byteIdx++] % chars.length];
+    }
+    blocks.push(block);
+  }
+  return blocks.join('-');
+}
+
 // ── Telegram API Helpers ──────────────────────────────────────────────────────
 
 export function getCleanBotToken(env: Env): string {
   const t = (env.TELEGRAM_BOT_TOKEN || '').trim();
   return t.startsWith('bot') ? t.substring(3) : t;
+}
+
+export function isAdmin(senderId: number | string, env: Env): boolean {
+  return String(senderId).trim() === String(env.TELEGRAM_CHAT_ID).trim();
 }
 
 export async function sendTelegramMessage(
@@ -132,226 +174,390 @@ export async function sendTelegramMessage(
   return res.json();
 }
 
-export async function answerCallbackQuery(env: Env, callbackQueryId: string, text?: string) {
+export async function editTelegramMessage(
+  env: Env,
+  chatId: number | string,
+  messageId: number,
+  text: string,
+  replyMarkup?: InlineKeyboardMarkup,
+  parseMode: 'HTML' | 'MarkdownV2' | 'Markdown' = 'HTML'
+) {
+  const token = getCleanBotToken(env);
+  if (!token) return null;
+  const payload: Record<string, unknown> = {
+    chat_id: chatId,
+    message_id: messageId,
+    text: text,
+    parse_mode: parseMode,
+    disable_web_page_preview: true,
+  };
+  if (replyMarkup) {
+    payload.reply_markup = replyMarkup;
+  }
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/editMessageText`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+}
+
+export async function answerCallbackQuery(env: Env, callbackQueryId: string, text?: string, showAlert = false) {
   const token = getCleanBotToken(env);
   if (!token) return;
   await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ callback_query_id: callbackQueryId, text }),
+    body: JSON.stringify({ callback_query_id: callbackQueryId, text, show_alert: showAlert }),
   });
 }
 
-// ── Keyboards ─────────────────────────────────────────────────────────────────
+// ── Firebase Helpers for Licensing ────────────────────────────────────────────
 
-export function getMainInlineKeyboard(): InlineKeyboardMarkup {
+export async function getAutoApproveConfig(env: Env): Promise<boolean> {
+  try {
+    const token = await getFirebaseToken(env);
+    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/config/auto_approve.json`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const val = await res.json();
+      return val === true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+export async function setAutoApproveConfig(env: Env, enabled: boolean): Promise<boolean> {
+  try {
+    const token = await getFirebaseToken(env);
+    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/config/auto_approve.json`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(enabled)
+    });
+    return res.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function getAllLicenseKeys(env: Env): Promise<Record<string, LicenseKeyRecord>> {
+  try {
+    const token = await getFirebaseToken(env);
+    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys.json`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return (data && typeof data === 'object') ? data : {};
+    }
+  } catch (_) {}
+  return {};
+}
+
+export async function saveLicenseKey(env: Env, keyRecord: LicenseKeyRecord): Promise<boolean> {
+  try {
+    const token = await getFirebaseToken(env);
+    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${keyRecord.cd_key}.json`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(keyRecord)
+    });
+    return res.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function approveLicenseKey(env: Env, cdKey: string): Promise<{ ok: boolean; record?: LicenseKeyRecord }> {
+  try {
+    const token = await getFirebaseToken(env);
+    const getRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${cdKey}.json`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!getRes.ok) return { ok: false };
+    const record = await getRes.json() as LicenseKeyRecord | null;
+    if (!record) return { ok: false };
+
+    const now = Date.now();
+    let expiresAt: number | null = null;
+    if (typeof record.duration === 'number') {
+      expiresAt = now + (record.duration * 24 * 60 * 60 * 1000);
+    } else if (record.duration === 'trial') {
+      expiresAt = now + (3 * 24 * 60 * 60 * 1000);
+    }
+
+    const updates: Partial<LicenseKeyRecord> = {
+      status: 'active',
+      approved_by: 'telegram_admin',
+      activated_at: now,
+      expires_at: expiresAt,
+      device_fingerprint: record.device_fingerprint || 'approved_by_admin'
+    };
+
+    const patchRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${cdKey}.json`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    });
+
+    return { ok: patchRes.ok, record: { ...record, ...updates } };
+  } catch (_) {
+    return { ok: false };
+  }
+}
+
+export async function rejectLicenseKey(env: Env, cdKey: string): Promise<boolean> {
+  try {
+    const token = await getFirebaseToken(env);
+    const patchRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${cdKey}.json`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'available',
+        device_fingerprint: null,
+        device_model: null,
+        requested_at: null
+      })
+    });
+    return patchRes.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+export async function revokeLicenseKey(env: Env, cdKey: string): Promise<boolean> {
+  try {
+    const token = await getFirebaseToken(env);
+    const patchRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${cdKey}.json`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'revoked',
+        revoked_at: Date.now()
+      })
+    });
+    return patchRes.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+// ── Admin Keyboards ───────────────────────────────────────────────────────────
+
+export function getAdminMainMenuKeyboard(autoApprove: boolean, pendingCount = 0): InlineKeyboardMarkup {
+  const pendingLabel = pendingCount > 0 ? `⏳ စောင့်ဆိုင်းဆဲ (${pendingCount}) 🔔` : `⏳ စောင့်ဆိုင်းဆဲ (၀)`;
+  const autoLabel = autoApprove ? '⚡ Auto-Approve: ဖွင့်ထားသည် ✅' : '⚡ Auto-Approve: ပိတ်ထားသည် ❌';
+
   return {
     inline_keyboard: [
       [
-        { text: '🎯 နောက်ဆုံး 3D ရလဒ်', callback_data: 'cb_live' },
-        { text: '🔢 တွတ် ဂဏန်းများ', callback_data: 'cb_tut' }
+        { text: '➕ ကုတ်အသစ် ထုတ်ရန်', callback_data: 'm_gen_menu' },
+        { text: '📋 အသုံးပြုမှု စောင့်ကြည့်', callback_data: 'm_keys_active' }
       ],
       [
-        { text: '📊 စနစ် အခြေအနေ', callback_data: 'cb_status' },
-        { text: '📖 အသုံးပြုနည်း', callback_data: 'cb_help' }
+        { text: autoLabel, callback_data: 'm_toggle_auto' },
+        { text: pendingLabel, callback_data: 'm_keys_pending' }
+      ],
+      [
+        { text: '📊 အရောင်း အစီရင်ခံစာ', callback_data: 'm_report' },
+        { text: '🚫 ကုတ် ပိတ်သိမ်းရန်', callback_data: 'm_revoke_list' }
+      ],
+      [
+        { text: '🎯 ပေါက်မဲ လက်ဖြင့် သတ်မှတ်', callback_data: 'm_declare_menu' },
+        { text: '📦 အပတ်စဉ် ကြည့်ရှု', callback_data: 'm_batch' }
+      ],
+      [
+        { text: '🔄 မီနူး အသစ်ပြန်ဖွင့် (Refresh)', callback_data: 'm_refresh' }
       ]
     ]
   };
 }
 
-// ── Message Builders ──────────────────────────────────────────────────────────
-
-export function buildStartMessage(): string {
-  return `✨ <b>3D Ledger တရားဝင် Telegram Bot မှ ကြိုဆိုပါသည်</b> ✨\n\n` +
-    `ထိုင်းအစိုးရ ထီပေါက်စဉ် (GLO) တရားဝင် 3D ရလဒ်များနှင့် ပေါက်သီးတွတ် စာရင်းများကို ဤနေရာတွင် အချိန်နှင့်တပြေးညီ ကြည့်ရှုနိုင်ပါသည်။\n\n` +
-    `<b>အသုံးပြုနိုင်သော ခလုတ်များနှင့် အမိန့်များ:</b>\n` +
-    `• /live - တရားဝင် 3D ပေါက်ဂဏန်း ကြည့်မည်\n` +
-    `• /tut &lt;ဂဏန်း&gt; - တွတ် ဂဏန်းများ တွက်ချက်မည်\n` +
-    `• /check &lt;ဂဏန်း&gt; - ထိုးဂဏန်း ပေါက်/မပေါက် စစ်ဆေးမည်\n` +
-    `• /batch - လက်ရှိ အကြိမ်နံပါတ် ကြည့်မည်\n` +
-    `• /status - စနစ် အခြေအနေ စစ်ဆေးမည်\n` +
-    `• /help - အကူအညီနှင့် အသေးစိတ် ကြည့်မည်\n\n` +
-    `<i>အောက်ပါ ခလုတ်များကို နှိပ်၍ အလွယ်တကူ စစ်ဆေးနိုင်ပါသည် 👇</i>`;
+export function getKeyGenKeyboard(): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: '⏱️ ၇ ရက် (7 Days) - 5,000 ကျပ်', callback_data: 'gen:7:5000:7_ရက်' }
+      ],
+      [
+        { text: '📅 ၃၀ ရက် (1 Month) - 15,000 ကျပ်', callback_data: 'gen:30:15000:30_ရက်' }
+      ],
+      [
+        { text: '🗓️ ၉၀ ရက် (3 Months) - 35,000 ကျပ်', callback_data: 'gen:90:35000:90_ရက်' }
+      ],
+      [
+        { text: '📆 ၁ နှစ် (1 Year) - 100,000 ကျပ်', callback_data: 'gen:365:100000:1_နှစ်' }
+      ],
+      [
+        { text: '♾️ တစ်သက်တာ (Lifetime) - 250,000 ကျပ်', callback_data: 'gen:lifetime:250000:တစ်သက်တာ' }
+      ],
+      [
+        { text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }
+      ]
+    ]
+  };
 }
 
-export function buildHelpMessage(): string {
-  return `📖 <b>3D Ledger Bot အသုံးပြုနည်း လမ်းညွှန်</b>\n\n` +
-    `<b>1. ပေါက်ဂဏန်း ကြည့်ရှုခြင်း:</b>\n` +
-    `• <code>/live</code> သို့မဟုတ် <code>/3d</code> - ထိုင်းထီပေါက်စဉ် (၁ လုံး၊ ၂ လုံး၊ ၃ လုံး) တိုက်ရိုက် ရယူမည်။\n\n` +
-    `<b>2. တွတ် (Tut) တွက်ချက်ခြင်း:</b>\n` +
-    `• <code>/tut</code> - လက်ရှိ ထွက်ဂဏန်း၏ တွတ် ဂဏန်းများကို တွက်ပေးပါသည်။\n` +
-    `• <code>/tut 108</code> - မိမိလိုချင်သော ဂဏန်း၏ အပြန် ၅ ကွက် နှင့် ကပ်သီး ၂ ကွက် (စုစုပေါင်း ၇ ကွက်) ကို တွက်ပေးပါသည်။\n\n` +
-    `<b>3. ထိုးဂဏန်း တိုက်စစ်ခြင်း:</b>\n` +
-    `• <code>/check 108</code> - ထိုးထားသော ဂဏန်း ပေါက်သီး (ဒဲ့) သို့မဟုတ် တွတ် ပေါက်သီး ဟုတ်/မဟုတ် စစ်ဆေးပေးပါသည်။\n\n` +
-    `<b>4. ဒိုင်ချုပ် စီမံခန့်ခွဲမှု (Admin Commands):</b>\n` +
-    `• <code>/setbatch 16</code> - လက်ရှိ အကြိမ် အမှတ် ပြောင်းလဲမည်\n` +
-    `• <code>/setwinner 108</code> - ပေါက်ဂဏန်း လက်စွဲ သတ်မှတ်မည်`;
+export function getApprovalKeyboard(cdKey: string): InlineKeyboardMarkup {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ ခွင့်ပြုမည် (Approve)', callback_data: `act_app:${cdKey}` },
+        { text: '❌ ငြင်းပယ်မည် (Reject)', callback_data: `act_rej:${cdKey}` }
+      ]
+    ]
+  };
 }
 
-export async function buildLiveResultMessage(env: Env): Promise<string> {
-  // 1. Try fetching from official GLO
-  const glo = await fetchFromGloLottery();
-  if (glo && glo.threeD) {
-    const tut = calculateTutNumbers(glo.threeD);
-    const tutListStr = tut.allTut.join(', ');
+// ── Admin Message Builders ────────────────────────────────────────────────────
 
-    return `🎯 <b>ထိုင်းအစိုးရ ထီပေါက်စဉ် (GLO) တရားဝင် 3D ရလဒ်</b> 🎯\n\n` +
-      `📅 <b>ထွက်သည့် ရက်စွဲ:</b> ${glo.date || 'လတ်တလော'}\n` +
-      `🏆 <b>ပထမဆု (၆ လုံး):</b> <code>${glo.firstPrize || '-'}</code>\n` +
-      `✨ <b>3D ပေါက်ဂဏန်း (ဒဲ့):</b> <code>${glo.threeD}</code>\n` +
-      `🎲 <b>2D ပေါက်ဂဏန်း:</b> <code>${glo.twoD || '-'}</code>\n\n` +
-      `--------------------------------\n` +
-      `🔢 <b>တွတ် ဂဏန်းများ (${tut.allTut.length} ကွက်):</b>\n` +
-      `<code>${tutListStr}</code>\n` +
-      `• <i>အပြန်:</i> ${tut.permutations.join(', ') || 'မရှိပါ'}\n` +
-      `• <i>ကပ်သီး:</i> ${tut.nearMisses.join(', ')}\n` +
-      `--------------------------------\n` +
-      `⚡ <i>တရားဝင် GLO Website မှ တိုက်ရိုက် ထုတ်ပြန်ထားခြင်း ဖြစ်ပါသည်။</i>`;
-  }
+export async function buildAdminDashboardMessage(env: Env): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
+  const autoApprove = await getAutoApproveConfig(env);
+  const keys = await getAllLicenseKeys(env);
+  const list = Object.values(keys);
 
-  // 2. Fallback to Firebase live results
-  try {
-    const fbRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`);
-    if (fbRes.ok) {
-      const data = await fbRes.json() as Record<string, any>;
-      if (data && data.number) {
-        const num = String(data.number);
-        const tut = calculateTutNumbers(num);
-        return `🎯 <b>3D ပေါက်ဂဏန်း ရလဒ် (သိုလှောင်မှု မှ)</b> 🎯\n\n` +
-          `📅 <b>ရက်စွဲ:</b> ${data.date || '-'}\n` +
-          `✨ <b>3D ပေါက်ဂဏန်း (ဒဲ့):</b> <code>${num}</code>\n` +
-          `🔢 <b>တွတ် ဂဏန်းများ:</b> <code>${tut.allTut.join(', ')}</code>\n\n` +
-          `⚡ <i>GLO API သို့မဟုတ် ဆာဗာမှ ထုတ်ပြန်ထားပါသည်။</i>`;
-      }
+  const activeCount = list.filter(k => k.status === 'active').length;
+  const pendingCount = list.filter(k => k.status === 'pending_approval').length;
+  const availableCount = list.filter(k => k.status === 'available').length;
+  const revokedCount = list.filter(k => k.status === 'revoked').length;
+
+  const text = `👑 <b>3D LEDGER စီမံခန့်ခွဲမှု စင်တာ (ADMIN CONTROL)</b>\n\n` +
+    `👋 မင်္ဂလာပါ <b>ဒိုင်ချုပ် / စီမံခန့်ခွဲသူ (Admin)</b>\n` +
+    `ဆော့ဝဲလ် အသုံးပြုခွင့်ကုတ်များ၊ အတည်ပြုချက်များနှင့် ပေါက်မဲများကို ဤနေရာမှ တိုက်ရိုက် စီမံခန့်ခွဲနိုင်ပါသည်။\n\n` +
+    `⚡ <b>အလိုအလျောက် ခွင့်ပြုစနစ်:</b> ${autoApprove ? '🟢 ဖွင့်ထားသည် (AUTO-ON)' : '🔴 ပိတ်ထားသည် (MANUAL-OFF)'}\n` +
+    `<i>(Auto-Approve ဖွင့်ထားပါက ကုတ်မှန်သည်နှင့် စနစ်မှ အလိုအလျောက် ပွင့်သွားမည် ဖြစ်ပြီး ပိတ်ထားပါက Telegram တွင် တစ်ခုချင်း အတည်ပြုပေးရပါမည်)</i>\n\n` +
+    `📊 <b>ကုတ်နံပါတ် အကျဉ်းချုပ်:</b>\n` +
+    `• 🟢 အသုံးပြုဆဲ: <b>${activeCount}</b> ခု\n` +
+    `• ⏳ ခွင့်ပြုချက် စောင့်ဆိုင်းဆဲ: <b>${pendingCount}</b> ခု\n` +
+    `• ⚪ ရောင်းရန် အသင့်ရှိ: <b>${availableCount}</b> ခု\n` +
+    `• 🔴 ပိတ်သိမ်းထား: <b>${revokedCount}</b> ခု\n\n` +
+    `<i>အောက်ပါ ခလုတ်များမှ ရွေးချယ်ဆောင်ရွက်နိုင်ပါသည် 👇</i>`;
+
+  return { text, keyboard: getAdminMainMenuKeyboard(autoApprove, pendingCount) };
+}
+
+export async function buildSalesReportMessage(env: Env): Promise<string> {
+  const keys = await getAllLicenseKeys(env);
+  const list = Object.values(keys);
+
+  let totalSales = 0;
+  let activeCount = 0;
+  let availableCount = 0;
+  let pendingCount = 0;
+  let revokedCount = 0;
+
+  const durationStats: Record<string, { count: number; sales: number }> = {};
+
+  for (const k of list) {
+    const dur = String(k.duration_label || k.duration || 'အခြား');
+    if (!durationStats[dur]) durationStats[dur] = { count: 0, sales: 0 };
+    durationStats[dur].count += 1;
+
+    if (k.status === 'active') {
+      activeCount += 1;
+      const price = Number(k.price || 0);
+      totalSales += price;
+      durationStats[dur].sales += price;
+    } else if (k.status === 'available') {
+      availableCount += 1;
+    } else if (k.status === 'pending_approval') {
+      pendingCount += 1;
+    } else if (k.status === 'revoked') {
+      revokedCount += 1;
     }
-  } catch (_) {}
+  }
 
-  return `⚠️ <b>ပေါက်ဂဏန်း အချက်အလက် မရရှိသေးပါ</b>\n\nလက်ရှိတွင် တရားဝင် ထွက်ဂဏန်း မရှိသေးပါ သို့မဟုတ် ရလဒ် စောင့်ဆိုင်းနေဆဲ ဖြစ်ပါသည်။`;
+  let breakdownStr = '';
+  for (const [dur, stat] of Object.entries(durationStats)) {
+    breakdownStr += `• <b>${dur}:</b> ${stat.count} ခု (ရောင်းရ: ${stat.sales.toLocaleString()} ကျပ်)\n`;
+  }
+
+  return `📊 <b>3D LEDGER အရောင်းနှင့် အသုံးပြုမှု အစီရင်ခံစာ</b>\n\n` +
+    `💰 <b>စုစုပေါင်း ရောင်းရငွေ (ခန့်မှန်း):</b> <code>${totalSales.toLocaleString()}</code> ကျပ်\n\n` +
+    `📌 <b>ကုတ်နံပါတ် အခြေအနေများ:</b>\n` +
+    `• 🟢 လက်ရှိ အသုံးပြုနေသော ဖုန်းများ: <b>${activeCount}</b> လုံး\n` +
+    `• ⚪ ရောင်းရန် လက်ကျန် ကုတ်များ: <b>${availableCount}</b> ခု\n` +
+    `• ⏳ စောင့်ဆိုင်းနေသော တောင်းခံချက်များ: <b>${pendingCount}</b> ခု\n` +
+    `• 🔴 ပိတ်သိမ်းထားသော ကုတ်များ: <b>${revokedCount}</b> ခု\n` +
+    `• 🔢 စုစုပေါင်း ထုတ်ခဲ့သော ကုတ်: <b>${list.length}</b> ခု\n\n` +
+    `📈 <b>သက်တမ်းအလိုက် ခွဲခြမ်းစိတ်ဖြာချက်:</b>\n` +
+    `${breakdownStr || '• မရှိသေးပါ'}\n` +
+    `<i>မှတ်ချက်: စာရင်းများသည် Firebase ဒေတာဘေ့စ်မှ တိုက်ရိုက်ရယူထားခြင်း ဖြစ်ပါသည်။</i>`;
 }
 
-export async function buildTutMessage(env: Env, inputNumber?: string): Promise<string> {
-  let targetNum = inputNumber?.trim();
+export async function buildActiveKeysMessage(env: Env): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
+  const keys = await getAllLicenseKeys(env);
+  const activeList = Object.values(keys).filter(k => k.status === 'active');
 
-  // If no number provided, get the latest winning number from GLO or Firebase
-  if (!targetNum || !/^\d{3}$/.test(targetNum)) {
-    const glo = await fetchFromGloLottery();
-    if (glo && glo.threeD) {
-      targetNum = glo.threeD;
-    } else {
-      try {
-        const fbRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results/number.json`);
-        if (fbRes.ok) {
-          const num = await fbRes.json();
-          if (num && String(num).length === 3) targetNum = String(num);
-        }
-      } catch (_) {}
+  if (activeList.length === 0) {
+    return {
+      text: `📋 <b>အသုံးပြုဆဲ ကုတ်များ စာရင်း</b>\n\nလက်ရှိတွင် အသုံးပြုနေသော ကုတ်နံပါတ် မရှိသေးပါ။`,
+      keyboard: { inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]] }
+    };
+  }
+
+  let text = `📋 <b>အသုံးပြုဆဲ ကုတ်များ စာရင်း (${activeList.length} ခု)</b>\n\n`;
+  const keyboard: InlineKeyboardButton[][] = [];
+
+  const now = Date.now();
+  for (let i = 0; i < Math.min(activeList.length, 10); i++) {
+    const k = activeList[i];
+    let daysLeft = 'မကန့်သတ် (Lifetime)';
+    if (k.expires_at) {
+      const diff = Math.max(0, Math.ceil((k.expires_at - now) / (1000 * 60 * 60 * 24)));
+      daysLeft = `${diff} ရက် ကျန်`;
     }
+
+    const shortKey = k.cd_key.length > 14 ? `${k.cd_key.substring(0, 9)}...${k.cd_key.substring(k.cd_key.length - 4)}` : k.cd_key;
+    text += `<b>${i + 1}.</b> <code>${k.cd_key}</code>\n` +
+      `   📱 ဖုန်း: ${k.device_model || 'အမည်မသိ'}\n` +
+      `   ⏳ သက်တမ်း: ${k.duration_label || k.duration} (${daysLeft})\n\n`;
+
+    keyboard.push([
+      { text: `🚫 ပိတ်သိမ်းမည်: ${shortKey}`, callback_data: `rev_conf:${k.cd_key}` }
+    ]);
   }
 
-  if (!targetNum || !/^\d{3}$/.test(targetNum)) {
-    return `⚠️ <b>တွတ် တွက်ရန် ၃ လုံးဂဏန်း ရိုက်ထည့်ပေးပါ</b>\n\nဥပမာ: <code>/tut 108</code> သို့မဟုတ် <code>/tut 212</code>`;
-  }
-
-  const tut = calculateTutNumbers(targetNum);
-
-  return `🔢 <b>3D တွတ် (Tut) တွက်ချက်မှု ရလဒ်</b>\n\n` +
-    `✨ <b>မူရင်း/ပေါက်ဂဏန်း:</b> <code>${targetNum}</code>\n\n` +
-    `📌 <b>အပြန် (Permutations - ${tut.permutations.length} ကွက်):</b>\n` +
-    `<code>${tut.permutations.length > 0 ? tut.permutations.join(', ') : 'မရှိပါ'}</code>\n\n` +
-    `📌 <b>ကပ်သီး (+1, -1 Near Misses - ${tut.nearMisses.length} ကွက်):</b>\n` +
-    `<code>${tut.nearMisses.join(', ')}</code>\n\n` +
-    `--------------------------------\n` +
-    `⭐ <b>စုစုပေါင်း တွတ် ဂဏန်း (${tut.allTut.length} ကွက်):</b>\n` +
-    `<code>${tut.allTut.join(', ')}</code>\n` +
-    `--------------------------------\n` +
-    `<i>မှတ်ချက်: ဒဲ့ဂဏန်း ${targetNum} ကို တွတ်ထဲတွင် ထည့်သွင်းမတွက်ပါ။</i>`;
+  keyboard.push([{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]);
+  return { text, keyboard: { inline_keyboard: keyboard } };
 }
 
-export async function buildCheckMessage(env: Env, betNumber: string): Promise<string> {
-  const clean = betNumber.trim();
-  if (!/^\d{3}$/.test(clean)) {
-    return `⚠️ <b>စစ်ဆေးရန် ၃ လုံးဂဏန်း ထည့်ပေးပါ</b>\n\nဥပမာ: <code>/check 108</code>`;
+export async function buildPendingApprovalsMessage(env: Env): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
+  const keys = await getAllLicenseKeys(env);
+  const pendingList = Object.values(keys).filter(k => k.status === 'pending_approval');
+
+  if (pendingList.length === 0) {
+    return {
+      text: `🎉 <b>စောင့်ဆိုင်းနေသော ခွင့်ပြုချက် မရှိပါ</b>\n\nလက်ရှိတွင် အတည်ပြုရန် စောင့်ဆိုင်းနေသော ဖုန်း မရှိပါ။`,
+      keyboard: { inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]] }
+    };
   }
 
-  let winNum = '';
-  const glo = await fetchFromGloLottery();
-  if (glo && glo.threeD) {
-    winNum = glo.threeD;
-  } else {
-    try {
-      const fbRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results/number.json`);
-      if (fbRes.ok) {
-        const n = await fbRes.json();
-        if (n && String(n).length === 3) winNum = String(n);
-      }
-    } catch (_) {}
+  let text = `⏳ <b>ခွင့်ပြုချက် စောင့်ဆိုင်းဆဲ စာရင်း (${pendingList.length} ခု)</b>\n\n` +
+    `<i>အောက်ပါ ဖုန်းများသည် ကုတ်မှန်ကန်စွာ ရိုက်ထည့်ထားပြီး Admin ၏ ခွင့်ပြုချက်ကို စောင့်ဆိုင်းနေပါသည် 👇</i>\n\n`;
+
+  const keyboard: InlineKeyboardButton[][] = [];
+
+  for (let i = 0; i < Math.min(pendingList.length, 5); i++) {
+    const k = pendingList[i];
+    const timeStr = k.requested_at ? new Date(k.requested_at).toLocaleTimeString('my-MM') : 'လတ်တလော';
+    text += `<b>${i + 1}.</b> 🔑 <code>${k.cd_key}</code>\n` +
+      `   📱 ဖုန်းမော်ဒယ်: <b>${k.device_model || 'အမည်မသိ မိုဘိုင်း'}</b>\n` +
+      `   🆔 Fingerprint: <code>${k.device_fingerprint || '-'}</code>\n` +
+      `   ⏳ သက်တမ်း: <b>${k.duration_label || k.duration}</b>\n` +
+      `   ⏰ တောင်းဆိုချိန်: ${timeStr}\n\n`;
+
+    keyboard.push([
+      { text: `✅ ခွင့်ပြုမည် (${i + 1})`, callback_data: `act_app:${k.cd_key}` },
+      { text: `❌ ငြင်းပယ်မည် (${i + 1})`, callback_data: `act_rej:${k.cd_key}` }
+    ]);
   }
 
-  if (!winNum) {
-    return `⚠️ <b>စစ်ဆေးရန် ပေါက်ဂဏန်း မရှိသေးပါ</b>\n\nထီပေါက်စဉ် ထွက်ရှိပြီးမှ စစ်ဆေးနိုင်ပါမည်။`;
-  }
-
-  if (clean === winNum) {
-    return `🎉🎉🎉 <b>ဂုဏ်ယူပါသည်! ပေါက်သီး (ဒဲ့) ထွက်ပါသည်!</b> 🎉🎉🎉\n\n` +
-      `✨ <b>ထိုးဂဏန်း:</b> <code>${clean}</code>\n` +
-      `🏆 <b>ပေါက်ဂဏန်း:</b> <code>${winNum}</code> (ဒဲ့)\n\n` +
-      `<b>အဆ ၆၀၀ ဖြင့် လျော်ကြေး ရရှိပါမည်။</b>`;
-  }
-
-  const tut = calculateTutNumbers(winNum);
-  if (tut.allTut.includes(clean)) {
-    const isPerm = tut.permutations.includes(clean);
-    const typeLabel = isPerm ? 'အပြန် တွတ်' : 'ကပ်သီး တွတ်';
-
-    return `🎊 <b>ဂုဏ်ယူပါသည်! တွတ် (Tut) ပေါက်သီး ထွက်ပါသည်!</b> 🎊\n\n` +
-      `✨ <b>ထိုးဂဏန်း:</b> <code>${clean}</code>\n` +
-      `🎯 <b>ပေါက်ဂဏန်း:</b> <code>${winNum}</code>\n` +
-      `🏷️ <b>အမျိုးအစား:</b> ${typeLabel}\n\n` +
-      `<b>တွတ်ဆ (အဆ ၁၀၀) ဖြင့် လျော်ကြေး ရရှိပါမည်။</b>`;
-  }
-
-  return `❌ <b>မပေါက်သေးပါ ခင်ဗျာ</b>\n\n` +
-    `• ထိုးဂဏန်း: <code>${clean}</code>\n` +
-    `• ပေါက်ဂဏန်း (ဒဲ့): <code>${winNum}</code>\n` +
-    `• တွတ် ဂဏန်းများ: <code>${tut.allTut.join(', ')}</code>\n\n` +
-    `<i>နောက်တစ်ကြိမ်တွင် ကံကောင်းပါစေ!</i>`;
-}
-
-export async function buildStatusMessage(env: Env): Promise<string> {
-  let gloStatus = 'စစ်ဆေးနေဆဲ...';
-  let fbStatus = 'စစ်ဆေးနေဆဲ...';
-  let batchNum = '1';
-  let mode = 'auto';
-
-  try {
-    const g = await fetchFromGloLottery();
-    gloStatus = g ? '🟢 ပုံမှန် ချိတ်ဆက်ရရှိသည်' : '🟡 တုန့်ပြန်မှု မရှိပါ';
-  } catch (_) {
-    gloStatus = '🔴 ချိတ်ဆက်မှု မအောင်မြင်ပါ';
-  }
-
-  try {
-    const bRes = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json`);
-    if (bRes.ok) {
-      const b = await bRes.json();
-      if (b) batchNum = String(b);
-      fbStatus = '🟢 ချိတ်ဆက်မှု ကောင်းမွန်သည်';
-    }
-    const mRes = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/mode.json`);
-    if (mRes.ok) {
-      const m = await mRes.json();
-      if (m) mode = String(m);
-    }
-  } catch (_) {
-    fbStatus = '🔴 ချိတ်ဆက်မှု မအောင်မြင်ပါ';
-  }
-
-  return `📊 <b>3D Ledger စနစ် အခြေအနေ စစ်ဆေးချက်</b>\n\n` +
-    `• <b>ထိုင်း GLO တရားဝင် API:</b> ${gloStatus}\n` +
-    `• <b>Firebase ဒေတာဘေ့စ်:</b> ${fbStatus}\n` +
-    `• <b>လက်ရှိ ဖွင့်ထားသော အကြိမ်:</b> #${batchNum}\n` +
-    `• <b>ထုတ်ပြန်မှု စနစ်ပုံစံ (Mode):</b> ${mode.toUpperCase()}\n` +
-    `• <b>ဆာဗာ ပလက်ဖောင်း:</b> Cloudflare Workers Global Edge`;
+  keyboard.push([{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]);
+  return { text, keyboard: { inline_keyboard: keyboard } };
 }
 
 // ── Webhook Handler ───────────────────────────────────────────────────────────
@@ -368,26 +574,245 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     return new Response('Invalid JSON', { status: 400 });
   }
 
-  // 1. Handle Callback Queries (Inline Button Clicks)
+  // 1. Handle Callback Queries (Button Clicks)
   if (update.callback_query) {
     const cq = update.callback_query;
     const data = cq.data || '';
     const chatId = cq.message?.chat.id || cq.from.id;
+    const messageId = cq.message?.message_id;
+
+    // Strict Admin Check for callback queries
+    if (!isAdmin(chatId, env)) {
+      await answerCallbackQuery(env, cq.id, '⛔ ခွင့်ပြုချက် မရှိပါ (Unauthorized)', true);
+      return new Response(JSON.stringify({ status: 'unauthorized' }), { headers: { 'Content-Type': 'application/json' } });
+    }
 
     await answerCallbackQuery(env, cq.id);
 
-    if (data === 'cb_live') {
-      const msg = await buildLiveResultMessage(env);
-      await sendTelegramMessage(env, chatId, msg, getMainInlineKeyboard());
-    } else if (data === 'cb_tut') {
-      const msg = await buildTutMessage(env);
-      await sendTelegramMessage(env, chatId, msg, getMainInlineKeyboard());
-    } else if (data === 'cb_status') {
-      const msg = await buildStatusMessage(env);
-      await sendTelegramMessage(env, chatId, msg, getMainInlineKeyboard());
-    } else if (data === 'cb_help') {
-      const msg = buildHelpMessage();
-      await sendTelegramMessage(env, chatId, msg, getMainInlineKeyboard());
+    // Main Menu
+    if (data === 'm_main' || data === 'm_refresh') {
+      const dash = await buildAdminDashboardMessage(env);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, dash.text, dash.keyboard);
+      } else {
+        await sendTelegramMessage(env, chatId, dash.text, dash.keyboard);
+      }
+    }
+
+    // Key Generation Menu
+    else if (data === 'm_gen_menu') {
+      const text = `➕ <b>ကုတ်အသစ် ထုတ်ယူရန် သက်တမ်း ရွေးချယ်ပါ</b>\n\n` +
+        `အသုံးပြုသူထံ ရောင်းချလိုသော သက်တမ်းနှင့် ဈေးနှုန်းကို အောက်ပါ ခလုတ်များမှ ရွေးချယ်ပါ 👇`;
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, text, getKeyGenKeyboard());
+      } else {
+        await sendTelegramMessage(env, chatId, text, getKeyGenKeyboard());
+      }
+    }
+
+    // Generate Key Execution: gen:<days>:<price>:<label>
+    else if (data.startsWith('gen:')) {
+      const [, daysStr, priceStr, label] = data.split(':');
+      const newKey = generateCdKey();
+      const price = parseInt(priceStr, 10) || 0;
+      const duration = daysStr === 'lifetime' ? 'lifetime' : (daysStr === 'trial' ? 'trial' : (parseInt(daysStr, 10) || 30));
+      const durLabel = decodeURIComponent(label || daysStr).replace(/_/g, ' ');
+
+      const record: LicenseKeyRecord = {
+        cd_key: newKey,
+        duration: duration,
+        duration_label: durLabel,
+        price: price,
+        status: 'available',
+        created_at: Date.now()
+      };
+
+      const saved = await saveLicenseKey(env, record);
+      if (saved) {
+        const text = `✅ <b>လိုင်စင်ကုတ် အသစ် ထုတ်ယူပြီးပါပြီ</b>\n\n` +
+          `🔑 <b>ကုတ်နံပါတ် (CD-Key):</b>\n` +
+          `<code>${newKey}</code>\n\n` +
+          `⏳ <b>သက်တမ်း:</b> <b>${durLabel}</b>\n` +
+          `💰 <b>ဈေးနှုန်း:</b> <b>${price.toLocaleString()} ကျပ်</b>\n` +
+          `📌 <b>အခြေအနေ:</b> ⚪ ရောင်းရန် အသင့်ရှိသည် (Available)\n` +
+          `⏰ <b>ထုတ်သည့်အချိန်:</b> ${new Date().toLocaleTimeString('my-MM')}\n\n` +
+          `<i>အသုံးပြုသူထံ ပေးပို့ရန် အထက်ပါ ကုတ်နံပါတ်ကို ကူးယူ (Copy) ၍ အသုံးပြုနိုင်ပါသည်။</i>`;
+
+        const kb: InlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '➕ နောက်ထပ် ကုတ်ထုတ်မည်', callback_data: 'm_gen_menu' }],
+            [{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]
+          ]
+        };
+
+        if (messageId) {
+          await editTelegramMessage(env, chatId, messageId, text, kb);
+        } else {
+          await sendTelegramMessage(env, chatId, text, kb);
+        }
+      } else {
+        await sendTelegramMessage(env, chatId, '❌ <i>ကုတ် သိမ်းဆည်းခြင်း မအောင်မြင်ပါ</i>');
+      }
+    }
+
+    // Toggle Auto-Approve
+    else if (data === 'm_toggle_auto') {
+      const current = await getAutoApproveConfig(env);
+      const updated = !current;
+      await setAutoApproveConfig(env, updated);
+
+      const alertMsg = updated
+        ? '⚡ Auto-Approve ဖွင့်လိုက်ပါပြီ (အလိုအလျောက် အတည်ပြုမည်)'
+        : '⚡ Auto-Approve ပိတ်လိုက်ပါပြီ (Telegram မှ တစ်ခုချင်း ခွင့်ပြုရပါမည်)';
+      await answerCallbackQuery(env, cq.id, alertMsg, true);
+
+      const dash = await buildAdminDashboardMessage(env);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, dash.text, dash.keyboard);
+      }
+    }
+
+    // Active Keys Monitor
+    else if (data === 'm_keys_active') {
+      const res = await buildActiveKeysMessage(env);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
+      } else {
+        await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      }
+    }
+
+    // Pending Keys Monitor
+    else if (data === 'm_keys_pending') {
+      const res = await buildPendingApprovalsMessage(env);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
+      } else {
+        await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      }
+    }
+
+    // Approve Activation Request: act_app:<key>
+    else if (data.startsWith('act_app:')) {
+      const keyToApprove = data.split(':')[1];
+      const result = await approveLicenseKey(env, keyToApprove);
+      if (result.ok) {
+        await answerCallbackQuery(env, cq.id, '✅ အသုံးပြုခွင့် ပေးလိုက်ပါပြီ!', true);
+        const text = `✅ <b>အသုံးပြုခွင့် အတည်ပြုပြီးပါပြီ (Approved)</b>\n\n` +
+          `🔑 ကုတ်နံပါတ်: <code>${keyToApprove}</code>\n` +
+          `📱 ဖုန်း: <b>${result.record?.device_model || 'အသုံးပြုသူ မိုဘိုင်း'}</b>\n` +
+          `⏳ သက်တမ်း: <b>${result.record?.duration_label || result.record?.duration}</b>\n` +
+          `စနစ်မှ အသုံးပြုခွင့် ဖွင့်ပေးလိုက်ပါပြီ။ ဖုန်းတွင် ချက်ချင်း ပွင့်သွားပါမည်။`;
+        if (messageId) {
+          await editTelegramMessage(env, chatId, messageId, text, {
+            inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]]
+          });
+        }
+      } else {
+        await answerCallbackQuery(env, cq.id, '❌ ခွင့်ပြုခြင်း မအောင်မြင်ပါ', true);
+      }
+    }
+
+    // Reject Activation Request: act_rej:<key>
+    else if (data.startsWith('act_rej:')) {
+      const keyToReject = data.split(':')[1];
+      await rejectLicenseKey(env, keyToReject);
+      await answerCallbackQuery(env, cq.id, '❌ ငြင်းပယ်လိုက်ပါပြီ', true);
+      const text = `❌ <b>အသုံးပြုခွင့် ငြင်းပယ်လိုက်ပါသည် (Rejected)</b>\n\n` +
+        `🔑 ကုတ်နံပါတ်: <code>${keyToReject}</code>\n` +
+        `အဆိုပါ တောင်းဆိုမှုကို ပယ်ဖျက်လိုက်ပါပြီ။ ကုတ်အား အခြားဖုန်းတွင် ပြန်လည်အသုံးပြုနိုင်ပါသည်။`;
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, text, {
+          inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]]
+        });
+      }
+    }
+
+    // Confirm Revoke Key: rev_conf:<key>
+    else if (data.startsWith('rev_conf:')) {
+      const keyToRevoke = data.split(':')[1];
+      const text = `⚠️ <b>ကုတ် ပိတ်သိမ်းရန် သေချာပါသလား?</b>\n\n` +
+        `🔑 <code>${keyToRevoke}</code>\n\n` +
+        `ဤကုတ်ကို ပိတ်သိမ်းလိုက်ပါက အဆိုပါ ဖုန်းတွင် ဆော့ဝဲလ် အသုံးပြုခွင့် ချက်ချင်း ရပ်ဆိုင်းသွားပါမည်!`;
+      const kb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: '🔴 ဟုတ်ကဲ့၊ ပိတ်သိမ်းမည်', callback_data: `rev_do:${keyToRevoke}` },
+            { text: '❌ မလုပ်တော့ပါ', callback_data: 'm_keys_active' }
+          ]
+        ]
+      };
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, text, kb);
+      }
+    }
+
+    // Execute Revoke Key: rev_do:<key>
+    else if (data.startsWith('rev_do:')) {
+      const keyToRevoke = data.split(':')[1];
+      await revokeLicenseKey(env, keyToRevoke);
+      await answerCallbackQuery(env, cq.id, '🔴 ကုတ် ပိတ်သိမ်းပြီးပါပြီ', true);
+      const text = `🔴 <b>လိုင်စင်ကုတ် ပိတ်သိမ်းပြီးပါပြီ (Revoked)</b>\n\n` +
+        `🔑 <code>${keyToRevoke}</code>\n` +
+        `အဆိုပါ ဖုန်းတွင် ဆော့ဝဲလ် အသုံးပြုခွင့်ကို အပြီးအပိုင် ရပ်ဆိုင်းလိုက်ပါပြီ။`;
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, text, {
+          inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]]
+        });
+      }
+    }
+
+    // Sales Report
+    else if (data === 'm_report') {
+      const rep = await buildSalesReportMessage(env);
+      const kb: InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]]
+      };
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, rep, kb);
+      } else {
+        await sendTelegramMessage(env, chatId, rep, kb);
+      }
+    }
+
+    // Revoke List View
+    else if (data === 'm_revoke_list') {
+      const res = await buildActiveKeysMessage(env);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
+      }
+    }
+
+    // Declare Winner Menu
+    else if (data === 'm_declare_menu') {
+      const text = `🎯 <b>ပေါက်မဲ လက်ဖြင့် ကြေညာရန် (Manual Winner Declaration)</b>\n\n` +
+        `အမိန့်ဖြင့် ပေါက်ဂဏန်း သတ်မှတ်လိုပါက အောက်ပါအတိုင်း စာပို့ပေးပါ:\n` +
+        `<code>/setwinner 108</code>\n\n` +
+        `<i>မှတ်ချက်: စနစ်မှ ပေါက်သီးနှင့် တွတ်ဂဏန်းများ (အပြန် ၅ ကွက် + ကပ်သီး ၂ ကွက်) ကို အလိုအလျောက် တွက်ချက်ကာ ဆာဗာတွင် Manual Mode အဖြစ် သတ်မှတ်ပေးမည် ဖြစ်ပါသည်။</i>`;
+      const kb: InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]]
+      };
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, text, kb);
+      } else {
+        await sendTelegramMessage(env, chatId, text, kb);
+      }
+    }
+
+    // Batch View
+    else if (data === 'm_batch') {
+      let b = '1';
+      try {
+        const res = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json`);
+        if (res.ok) b = String(await res.json() || '1');
+      } catch (_) {}
+      const text = `📦 <b>လက်ရှိ ဖွင့်လှစ်ထားသော အကြိမ်:</b> #${b}\n\nအကြိမ် ပြောင်းလဲလိုပါက <code>/setbatch 16</code> စသည်ဖြင့် စာပို့ပေးပါ။`;
+      const kb: InlineKeyboardMarkup = {
+        inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]]
+      };
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, text, kb);
+      }
     }
 
     return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } });
@@ -398,101 +823,117 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     const msg = update.message;
     const text = msg.text.trim();
     const chatId = msg.chat.id;
-    const senderId = msg.from?.id ? String(msg.from.id) : '';
-    const isAdmin = senderId === env.TELEGRAM_CHAT_ID;
+    const senderId = msg.from?.id ? String(msg.from.id) : String(chatId);
 
-    // Command: /start
-    if (text.startsWith('/start')) {
-      const reply = buildStartMessage();
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
+    // STRICT ADMIN AUTHORIZATION CHECK
+    if (!isAdmin(senderId, env)) {
+      await sendTelegramMessage(
+        env,
+        chatId,
+        `⛔ <b>ခွင့်ပြုချက် မရှိပါ (Access Denied)</b>\n\n` +
+        `ဤ Telegram Bot သည် <b>3D Ledger စနစ် စီမံခန့်ခွဲသူ (Admin)</b> သီးသန့် အသုံးပြုရန် ဖြစ်ပါသည်။\n\n` +
+        `သင့် Telegram ID (<code>${senderId}</code>) တွင် အသုံးပြုခွင့် မရှိပါ။`
+      );
+      return new Response('unauthorized', { status: 200 });
+    }
+
+    // Command: /start or /menu or /admin
+    if (text === '/start' || text === '/menu' || text === '/admin') {
+      const dash = await buildAdminDashboardMessage(env);
+      await sendTelegramMessage(env, chatId, dash.text, dash.keyboard);
       return new Response('ok');
     }
 
-    // Command: /help
-    if (text.startsWith('/help')) {
-      const reply = buildHelpMessage();
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
+    // Command: /autoapprove (Toggle)
+    if (text.startsWith('/autoapprove') || text.startsWith('/auto')) {
+      const current = await getAutoApproveConfig(env);
+      const updated = !current;
+      await setAutoApproveConfig(env, updated);
+      const alertMsg = updated
+        ? '⚡ <b>Auto-Approve: ဖွင့်လိုက်ပါပြီ (ON)</b>\nကုတ်မှန်ကန်စွာ ရိုက်ထည့်သည်နှင့် စနစ်မှ အလိုအလျောက် ချက်ချင်း အတည်ပြုပေးပါမည်။'
+        : '⚡ <b>Auto-Approve: ပိတ်လိုက်ပါပြီ (OFF)</b>\nအသုံးပြုသူ ကုတ်ရိုက်ထည့်ပါက Telegram သို့ ခွင့်ပြုချက် တောင်းခံလွှာ ရောက်ရှိမည်ဖြစ်ပြီး Admin ခွင့်ပြုမှသာ ပွင့်ပါမည်။';
+      await sendTelegramMessage(env, chatId, alertMsg);
+      const dash = await buildAdminDashboardMessage(env);
+      await sendTelegramMessage(env, chatId, dash.text, dash.keyboard);
       return new Response('ok');
     }
 
-    // Command: /live or /3d or /result
-    if (text.startsWith('/live') || text.startsWith('/3d') || text.startsWith('/result')) {
-      const reply = await buildLiveResultMessage(env);
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
-      return new Response('ok');
-    }
-
-    // Command: /tut [number]
-    if (text.startsWith('/tut') || text.startsWith('/twut')) {
+    // Command: /gen [days] [price]
+    if (text.startsWith('/gen')) {
       const parts = text.split(/\s+/);
-      const inputNum = parts.length > 1 ? parts[1] : undefined;
-      const reply = await buildTutMessage(env, inputNum);
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
+      const daysStr = parts.length > 1 ? parts[1] : '30';
+      const priceStr = parts.length > 2 ? parts[2] : '15000';
+      const newKey = generateCdKey();
+      const price = parseInt(priceStr, 10) || 15000;
+      const duration = daysStr === 'lifetime' ? 'lifetime' : (parseInt(daysStr, 10) || 30);
+      const durLabel = daysStr === 'lifetime' ? 'တစ်သက်တာ (Lifetime)' : `${duration} ရက်`;
+
+      const record: LicenseKeyRecord = {
+        cd_key: newKey,
+        duration: duration,
+        duration_label: durLabel,
+        price: price,
+        status: 'available',
+        created_at: Date.now()
+      };
+
+      const saved = await saveLicenseKey(env, record);
+      if (saved) {
+        await sendTelegramMessage(
+          env,
+          chatId,
+          `✅ <b>လိုင်စင်ကုတ် အသစ် ထုတ်ယူပြီးပါပြီ</b>\n\n` +
+          `🔑 <b>ကုတ်နံပါတ်:</b>\n<code>${newKey}</code>\n\n` +
+          `⏳ သက်တမ်း: <b>${durLabel}</b>\n` +
+          `💰 ဈေးနှုန်း: <b>${price.toLocaleString()} ကျပ်</b>\n` +
+          `📌 အခြေအနေ: ⚪ အသင့်ရှိသည် (Available)`
+        );
+      } else {
+        await sendTelegramMessage(env, chatId, '❌ ကုတ် သိမ်းဆည်းခြင်း မအောင်မြင်ပါ');
+      }
       return new Response('ok');
     }
 
-    // Command: /check <number>
-    if (text.startsWith('/check')) {
+    // Command: /keys
+    if (text.startsWith('/keys')) {
+      const res = await buildActiveKeysMessage(env);
+      await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      return new Response('ok');
+    }
+
+    // Command: /pending
+    if (text.startsWith('/pending')) {
+      const res = await buildPendingApprovalsMessage(env);
+      await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      return new Response('ok');
+    }
+
+    // Command: /report
+    if (text.startsWith('/report')) {
+      const rep = await buildSalesReportMessage(env);
+      await sendTelegramMessage(env, chatId, rep);
+      return new Response('ok');
+    }
+
+    // Command: /revoke <key>
+    if (text.startsWith('/revoke')) {
       const parts = text.split(/\s+/);
-      const inputNum = parts.length > 1 ? parts[1] : '';
-      const reply = await buildCheckMessage(env, inputNum);
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
-      return new Response('ok');
-    }
-
-    // Command: /status
-    if (text.startsWith('/status')) {
-      const reply = await buildStatusMessage(env);
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
-      return new Response('ok');
-    }
-
-    // Command: /batch
-    if (text.startsWith('/batch')) {
-      let b = '1';
-      try {
-        const res = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json`);
-        if (res.ok) b = String(await res.json() || '1');
-      } catch (_) {}
-      await sendTelegramMessage(env, chatId, `🏷️ <b>လက်ရှိ ဖွင့်လှစ်ထားသော အကြိမ်:</b> #${b}`);
-      return new Response('ok');
-    }
-
-    // ── Admin Commands ────────────────────────────────────────────────────────
-
-    // Admin Command: /setbatch <number>
-    if (text.startsWith('/setbatch')) {
-      if (!isAdmin) {
-        await sendTelegramMessage(env, chatId, '⚠️ <i>ဤအမိန့်ကို စီမံခန့်ခွဲသူ (Admin) သာ ပြုလုပ်ခွင့်ရှိပါသည်။</i>');
+      const targetKey = parts.length > 1 ? parts[1].trim() : '';
+      if (!targetKey) {
+        await sendTelegramMessage(env, chatId, '⚠️ ပိတ်သိမ်းမည့် ကုတ်နံပါတ် ထည့်ပေးပါ။ ဥပမာ: <code>/revoke XXXX-XXXX...</code>');
         return new Response('ok');
       }
-      const parts = text.split(/\s+/);
-      const newBatch = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
-      if (isNaN(newBatch) || newBatch <= 0) {
-        await sendTelegramMessage(env, chatId, '⚠️ <i>မှန်ကန်သော အကြိမ်နံပါတ် ရိုက်ထည့်ပေးပါ။ ဥပမာ: /setbatch 16</i>');
-        return new Response('ok');
-      }
-
-      try {
-        const token = await getFirebaseToken(env);
-        await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json?auth=${token}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newBatch)
-        });
-        await sendTelegramMessage(env, chatId, `✅ <b>အကြိမ်နံပါတ် #${newBatch} သို့ အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ။</b>`);
-      } catch (err: any) {
-        await sendTelegramMessage(env, chatId, `❌ <i>ပြောင်းလဲမှု မအောင်မြင်ပါ: ${err.message}</i>`);
+      const ok = await revokeLicenseKey(env, targetKey);
+      if (ok) {
+        await sendTelegramMessage(env, chatId, `🔴 <b>ကုတ်နံပါတ် <code>${targetKey}</code> အား ပိတ်သိမ်း (Revoke) လိုက်ပါပြီ။</b>`);
+      } else {
+        await sendTelegramMessage(env, chatId, '❌ ပိတ်သိမ်းမှု မအောင်မြင်ပါ');
       }
       return new Response('ok');
     }
 
-    // Admin Command: /setwinner <3-digit number>
+    // Command: /setwinner <3-digit number>
     if (text.startsWith('/setwinner')) {
-      if (!isAdmin) {
-        await sendTelegramMessage(env, chatId, '⚠️ <i>ဤအမိန့်ကို စီမံခန့်ခွဲသူ (Admin) သာ ပြုလုပ်ခွင့်ရှိပါသည်။</i>');
-        return new Response('ok');
-      }
       const parts = text.split(/\s+/);
       const num = parts.length > 1 ? parts[1].trim() : '';
       if (!/^\d{3}$/.test(num)) {
@@ -503,21 +944,40 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       try {
         const token = await getFirebaseToken(env);
         const dateStr = new Date().toISOString().split('T')[0];
-        const payload = {
-          number: num,
-          date: dateStr,
-          status: 'declared',
-          updatedAt: Date.now()
-        };
-        await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json?auth=${token}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
         const tut = calculateTutNumbers(num);
-        await sendTelegramMessage(env, chatId,
-          `✅ <b>ပေါက်သီး #${num} ကို လက်စွဲ သတ်မှတ်ပြီးပါပြီ။</b>\n\n` +
-          `🔢 တွတ် ဂဏန်းများ: <code>${tut.allTut.join(', ')}</code>`
+
+        const updates: Record<string, unknown> = {
+          '3d_live_results/winning_number': num,
+          '3d_live_results/first_prize': `000${num}`,
+          '3d_live_results/twod': num.slice(-2),
+          '3d_live_results/tuwt_set': tut.allTut,
+          '3d_live_results/result_date': dateStr,
+          '3d_live_results/is_final': true,
+          '3d_live_results/updated_at': new Date().toISOString(),
+          '3d_lottery_status/state': 'declared',
+          '3d_lottery_config/mode': 'manual'
+        };
+
+        await fetch(`${env.FIREBASE_DB_URL}/.json`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+
+        await sendTelegramMessage(
+          env,
+          chatId,
+          `🎯 <b>3D ပေါက်ဂဏန်း အောင်မြင်စွာ ကြေညာပြီးပါပြီ</b>\n\n` +
+          `✨ <b>ပေါက်သီး (ဒဲ့):</b> <code>${num}</code>\n` +
+          `📅 <b>ရက်စွဲ:</b> ${dateStr}\n` +
+          `🔒 <b>မုဒ်:</b> MANUAL OVERRIDE\n\n` +
+          `--------------------------------\n` +
+          `🔢 <b>တွတ် ဂဏန်းများ (${tut.allTut.length} ကွက်):</b>\n` +
+          `<code>${tut.allTut.join(', ')}</code>\n` +
+          `• <i>အပြန်:</i> ${tut.permutations.join(', ') || 'မရှိပါ'}\n` +
+          `• <i>ကပ်သီး:</i> ${tut.nearMisses.join(', ')}\n` +
+          `--------------------------------\n` +
+          `<i>Android အက်ပ်များနှင့် ဆာဗာအားလုံးတွင် ချက်ချင်း ရောင်ပြန်ဟပ်ပါမည်။</i>`
         );
       } catch (err: any) {
         await sendTelegramMessage(env, chatId, `❌ <i>သတ်မှတ်မှု မအောင်မြင်ပါ: ${err.message}</i>`);
@@ -525,20 +985,32 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    // Fallback: If 3-digit number sent directly, treat as /check
-    if (/^\d{3}$/.test(text)) {
-      const reply = await buildCheckMessage(env, text);
-      await sendTelegramMessage(env, chatId, reply, getMainInlineKeyboard());
+    // Command: /setbatch <number>
+    if (text.startsWith('/setbatch')) {
+      const parts = text.split(/\s+/);
+      const newBatch = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+      if (isNaN(newBatch) || newBatch <= 0) {
+        await sendTelegramMessage(env, chatId, '⚠️ <i>မှန်ကန်သော အကြိမ်နံပါတ် ရိုက်ထည့်ပေးပါ။ ဥပမာ: /setbatch 16</i>');
+        return new Response('ok');
+      }
+
+      try {
+        const token = await getFirebaseToken(env);
+        await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(newBatch)
+        });
+        await sendTelegramMessage(env, chatId, `✅ <b>အကြိမ်နံပါတ် #${newBatch} သို့ အောင်မြင်စွာ ပြောင်းလဲပြီးပါပြီ။</b>`);
+      } catch (err: any) {
+        await sendTelegramMessage(env, chatId, `❌ <i>ပြောင်းလဲမှု မအောင်မြင်ပါ: ${err.message}</i>`);
+      }
       return new Response('ok');
     }
 
-    // Unknown command fallback
-    await sendTelegramMessage(
-      env,
-      chatId,
-      `❓ <b>နားမလည်သော စာသား ဖြစ်ပါသည်</b>\n\nအမိန့်များ ကြည့်ရှုရန် <code>/help</code> သို့မဟုတ် အောက်ပါ ခလုတ်ကို နှိပ်ပါ။`,
-      getMainInlineKeyboard()
-    );
+    // Fallback: Show Main Dashboard
+    const dash = await buildAdminDashboardMessage(env);
+    await sendTelegramMessage(env, chatId, dash.text, dash.keyboard);
   }
 
   return new Response('ok');

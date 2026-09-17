@@ -6,7 +6,7 @@ import {
 } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import worker, { calculateNextThaiDrawDate } from "../src/index";
-import { calculateTutNumbers } from "../src/telegramBot";
+import { calculateTutNumbers, generateCdKey } from "../src/telegramBot";
 
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
@@ -96,7 +96,7 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 			update_id: 1002,
 			callback_query: {
 				id: "cq_12345",
-				data: "cb_help",
+				data: "m_main",
 				from: { id: 5684146708, is_bot: false, first_name: "TestUser" },
 				message: {
 					message_id: 2,
@@ -116,5 +116,41 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 		const response = await worker.fetch(request, env, ctx);
 		await waitOnExecutionContext(ctx);
 		expect(response.status).toBe(200);
+	});
+
+	it("generates compliant 32-character CD keys in 8 blocks", () => {
+		const key = generateCdKey();
+		expect(key).toMatch(/^[A-Z0-9]{4}(-[A-Z0-9]{4}){7}$/);
+		const parts = key.split("-");
+		expect(parts.length).toBe(8);
+		for (const part of parts) {
+			expect(part.length).toBe(4);
+		}
+	});
+
+	it("blocks unauthorized users from admin commands", async () => {
+		const unauthorizedPayload = {
+			update_id: 1003,
+			message: {
+				message_id: 3,
+				chat: { id: 999999999, type: "private" },
+				date: Math.floor(Date.now() / 1000),
+				text: "/start",
+				from: { id: 999999999, is_bot: false, first_name: "RandomHacker" }
+			}
+		};
+
+		const request = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(unauthorizedPayload)
+		});
+
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(response.status).toBe(200);
+		const text = await response.text();
+		expect(text).toBe("unauthorized");
 	});
 });
