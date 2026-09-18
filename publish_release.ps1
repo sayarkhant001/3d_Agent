@@ -2,7 +2,8 @@ param(
     [string]$Tag = "",
     [string]$Notes = "Official 3D Ledger Production Release",
     [switch]$BuildOnly = $false,
-    [switch]$NoBroadcast = $false
+    [switch]$NoBroadcast = $false,
+    [switch]$SkipBuild = $false
 )
 
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -27,20 +28,20 @@ Write-Host "📝 Release Notes: $Notes" -ForegroundColor Yellow
 
 # 2. Build or Locate APK
 Write-Host "`n🔨 [Step 1/3] Compiling hardened APK with Gradle..." -ForegroundColor Green
-$apk = Get-ChildItem -Path "app\build\outputs\apk\release\*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1
+$apk = $null
 
-if (-not $apk) {
-    if (Test-Path "my-upload-key.jks") {
-        Write-Host "Building Release APK with R8 obfuscation..."
-        .\gradlew.bat assembleRelease --no-daemon
-        $apk = Get-ChildItem -Path "app\build\outputs\apk\release\*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1
-    }
-
-    if (-not $apk -or -not (Test-Path $apk.FullName)) {
-        Write-Host "Building Debug APK (signed with debug keystore)..."
+if (-not $SkipBuild) {
+    Write-Host "Compiling fresh Release APK with R8 obfuscation and resource shrinking..."
+    .\gradlew.bat assembleRelease --no-daemon
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "assembleRelease failed or missing release signing, attempting debug fallback..."
         .\gradlew.bat assembleDebug --no-daemon
-        $apk = Get-ChildItem -Path "app\build\outputs\apk\debug\*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1
     }
+}
+
+$apk = Get-ChildItem -Path "app\build\outputs\apk\release\*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $apk) {
+    $apk = Get-ChildItem -Path "app\build\outputs\apk\debug\*.apk" -ErrorAction SilentlyContinue | Select-Object -First 1
 }
 
 if (-not $apk -or -not (Test-Path $apk.FullName)) {
