@@ -129,36 +129,68 @@ fun UpdateDialogHandler(owner: String, repo: String) {
             icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = {
                 Text(
-                    "Update ရှိနေပါသည်",
+                    "Update ဗားရှင်း အသစ် ရှိနေပါသည်",
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Version: ${info.version}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     if (info.releaseNotes.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
                         Text(
                             info.releaseNotes.take(200).let { if (info.releaseNotes.length > 200) "$it…" else it },
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Telegram Bot မှလည်း APK အား လွယ်ကူ လျင်မြန်စွာ ဒေါင်းလုဒ် ရယူနိုင်ပါသည်။",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    if (GitHubUpdater.canInstallUnknownApps(context)) {
-                        startDownloadAndInstall(info)
-                    } else {
-                        showUpdateDialog = false
-                        showPermissionDialog = true
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            if (GitHubUpdater.canInstallUnknownApps(context)) {
+                                startDownloadAndInstall(info)
+                            } else {
+                                showUpdateDialog = false
+                                showPermissionDialog = true
+                            }
+                        }
+                    ) {
+                        Text("တိုက်ရိုက် Update လုပ်မည်")
                     }
-                }) {
-                    Text("Update လုပ်မည်")
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            val tgUrl = "https://t.me/threed_ledger_bot?start=download"
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(tgUrl)).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                android.widget.Toast.makeText(context, "Telegram အက်ပ် ဖွင့်မရပါ", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Text("📱 Telegram Bot မှ ရယူမည်")
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showUpdateDialog = false }) {
+                TextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { showUpdateDialog = false }
+                ) {
                     Text("နောက်မှ")
                 }
             }
@@ -227,14 +259,35 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.height(4.dp))
-                        Button(
-                            onClick = {
-                                showProgressDialog = false
-                                downloadError = null
-                            },
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("ပိတ်မည်")
+                            OutlinedButton(
+                                onClick = {
+                                    val tgUrl = "https://t.me/threed_ledger_bot?start=download"
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(tgUrl)).apply {
+                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        android.widget.Toast.makeText(context, "Telegram အက်ပ် ဖွင့်မရပါ", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("📱 Telegram Bot မှ ဒေါင်းလုဒ်လုပ်မည်")
+                            }
+                            Button(
+                                onClick = {
+                                    showProgressDialog = false
+                                    downloadError = null
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("ပိတ်မည်")
+                            }
                         }
                     } else if (isInstalling) {
                         // ── Installing spinner ──

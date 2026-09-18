@@ -20,8 +20,33 @@ object GitHubUpdater {
 
     data class UpdateInfo(val version: String, val releaseNotes: String, val downloadUrl: String)
 
-    // ── Check GitHub for the latest release ─────────────────────────────────
+    // ── Check for the latest release (Worker primary, GitHub fallback) ──────
     suspend fun checkForUpdates(owner: String, repo: String): UpdateInfo? = withContext(Dispatchers.IO) {
+        // 1. First attempt: Cloudflare Worker / Firebase RTDB (unthrottled, fast edge)
+        try {
+            val workerUrl = URL("https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/api/app/latest")
+            val conn = workerUrl.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 6000
+            conn.readTimeout = 6000
+            if (conn.responseCode == 200) {
+                val response = conn.inputStream.bufferedReader().use { it.readText() }
+                val root = JSONObject(response)
+                if (root.optString("status") == "ok" && !root.isNull("release")) {
+                    val rel = root.getJSONObject("release")
+                    val vName = rel.optString("version_name", "")
+                    val dlUrl = rel.optString("download_url", "")
+                    val notes = rel.optString("release_notes", "စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ")
+                    if (vName.isNotBlank() && dlUrl.isNotBlank()) {
+                        return@withContext UpdateInfo(vName, notes, dlUrl)
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Fall back to GitHub API on worker network failure
+        }
+
+        // 2. Second attempt: GitHub Releases API fallback
         try {
             val url = URL("https://api.github.com/repos/$owner/$repo/releases/latest")
             val connection = url.openConnection() as HttpURLConnection
