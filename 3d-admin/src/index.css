@@ -684,3 +684,154 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Device Changeable Badges */
+.device-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+.device-badge.changeable {
+  background: rgba(0, 200, 151, 0.15);
+  color: var(--accent-success);
+  border: 1px solid rgba(0, 200, 151, 0.3);
+}
+.device-badge.locked {
+  background: rgba(160, 160, 184, 0.15);
+  color: var(--text-secondary);
+  border: 1px solid rgba(160, 160, 184, 0.25);
+}
+
+/* Quick Count Chips */
+.chip-group {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.chip-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.chip-btn:hover, .chip-btn.active {
+  background: var(--accent-primary);
+  color: white;
+  border-color: var(--accent-primary);
+}
+
+/* Sale Plan Sync Cards */
+.plan-sync-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Segmented Switch for Device Switching Mode */
+.device-switch-toggle-card {
+  background: var(--bg-primary);
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  margin-top: 10px;
+}
+
+.segmented-switch {
+  display: flex;
+  gap: 8px;
+  background: var(--bg-card);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin-top: 8px;
+}
+
+.segment-btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.segment-btn.active-on {
+  background: rgba(0, 200, 151, 0.18);
+  color: var(--accent-success);
+  border-color: rgba(0, 200, 151, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 200, 151, 0.15);
+}
+
+.segment-btn.active-off {
+  background: rgba(160, 160, 184, 0.18);
+  color: var(--text-primary);
+  border-color: rgba(160, 160, 184, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* GLO Live Banner & Stats */
+.glo-live-banner {
+  background: linear-gradient(135deg, rgba(108, 99, 255, 0.12) 0%, rgba(0, 200, 151, 0.08) 100%);
+  border: 1px solid rgba(108, 99, 255, 0.25);
+  border-radius: var(--radius);
+  margin-bottom: 24px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.glo-stat-box {
+  background: var(--bg-primary);
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  text-align: center;
+  min-width: 110px;
+}
+
+.sync-status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sync-status-indicator.synced {
+  background: rgba(0, 200, 151, 0.15);
+  color: var(--accent-success);
+  border: 1px solid rgba(0, 200, 151, 0.3);
+}
+
+.sync-status-indicator.out-of-sync {
+  background: rgba(255, 179, 71, 0.15);
+  color: var(--accent-warning);
+  border: 1px solid rgba(255, 179, 71, 0.3);
+}

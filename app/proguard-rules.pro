@@ -1,52 +1,74 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# -----------------------------------------------------------------------------
+# 3D LEDGER ANTI-REVERSE ENGINEERING & R8 COMPILATION HARDENING RULES
+# -----------------------------------------------------------------------------
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# 1. Obfuscation & Package Flattening
+-repackageclasses 'com.threeDLedger.obf'
+-allowaccessmodification
+-overloadaggressively
+-renamesourcefileattribute ""
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
-
-# MODULE 5: ProGuard Rules
+# 2. Strip Debug Information and Source File metadata
+# Drops LineNumberTable and LocalVariableTable to prevent decompilers from reconstructing variable names
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 
-# Jetpack Compose
--keep class androidx.compose.** { *; }
+# 3. Strip All Debug Logging in Production
+-assumenosideeffects class android.util.Log {
+    public static boolean isLoggable(java.lang.String, int);
+    public static int v(...);
+    public static int d(...);
+    public static int i(...);
+    public static int w(...);
+}
 
-# Retrofit / OkHttp
+# 4. Entry Points (Activities, Services, Application)
+-keep public class com.threeDLedger.MainActivity { *; }
+-keep public class com.threeDLedger.logic.LotteryMessagingService { *; }
+
+# 5. Serialization & Network Models (Preserve JSON field names for Moshi/Retrofit)
+-keepclassmembers class com.threeDLedger.network.** {
+    <fields>;
+}
+-keep class com.threeDLedger.network.** { *; }
+-dontwarn com.threeDLedger.network.**
+
+# 6. Room Database & Local Entities
+-keep class androidx.room.** { *; }
+-dontwarn androidx.room.**
+-keep class * extends androidx.room.RoomDatabase { *; }
+-keep class com.threeDLedger.data.** { *; }
+-keepclassmembers class com.threeDLedger.data.** {
+    <fields>;
+}
+
+# 7. Jetpack Compose
+-keep class androidx.compose.** { *; }
+-dontwarn androidx.compose.**
+
+# 8. Retrofit / OkHttp / Okio
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -keep class retrofit2.** { *; }
+-dontwarn retrofit2.**
 
-# Kotlin Coroutines
+# 9. Kotlin Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 -keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
+-dontwarn kotlinx.coroutines.**
 
-# Firebase
+# 10. Firebase & Google Services
 -keep class com.google.firebase.** { *; }
 -dontwarn com.google.firebase.**
-
-# Custom Data Classes (Licensing / Payload)
-# -keep class com.example.models.** { *; }
-
-# Networking Models
--keep class com.example.network.** { *; }
-
-# Firebase Messaging & Database
 -keep class com.google.firebase.messaging.** { *; }
 -keep class com.google.firebase.database.** { *; }
 
+# 11. Anti-Reverse Engineering & Output Stripping
+-assumenosideeffects class java.lang.System {
+    public static void println(...);
+    public static void print(...);
+}
+-flattenpackagehierarchy 'com.threeDLedger.obf'
+-optimizationpasses 5
+
+# -----------------------------------------------------------------------------

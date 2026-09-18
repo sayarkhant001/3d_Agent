@@ -6,11 +6,64 @@ import './index.css';
 
 import { calculateTutNumbers } from './tutLogic';
 
+const DEFAULT_SALE_PLANS = {
+  trial_3d: {
+    id: 'trial_3d',
+    name: '၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (3-Day Free Trial)',
+    duration: 'trial',
+    duration_label: '၃ ရက် စမ်းသပ်ခွင့် (72 နာရီ)',
+    price: 0,
+    device_changeable: false,
+    description: 'ဖုန်း ၁ လုံး (စက်ပြောင်းမရပါ - ၇၂ နာရီ)',
+    enabled: true,
+  },
+  one_year: {
+    id: 'one_year',
+    name: '၁ နှစ် သက်တမ်း (1-Year Plan)',
+    duration: 365,
+    duration_label: '၁ နှစ် (365 ရက်)',
+    price: 180000,
+    device_changeable: true,
+    description: 'ဖုန်း ၁ လုံး (ဖုန်းအသစ်သို့ စက်ပြောင်းလဲနိုင်သည်)',
+    enabled: true,
+  },
+  lifetime: {
+    id: 'lifetime',
+    name: 'တစ်သက်တာ (Lifetime Plan)',
+    duration: 'lifetime',
+    duration_label: 'တစ်သက်တာ (Lifetime)',
+    price: 45000,
+    device_changeable: false,
+    description: 'ဖုန်း ၁ လုံး (စက်ပြောင်းမရပါ)',
+    enabled: true,
+  }
+};
+
+const SYNCED_PLAN_IDS = ['trial_3d', 'one_year', 'lifetime'];
+
+function generateCdKeyString() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const randomBytes = new Uint8Array(32);
+  window.crypto.getRandomValues(randomBytes);
+  const blocks = [];
+  let byteIdx = 0;
+  for (let b = 0; b < 8; b++) {
+    let block = '';
+    for (let i = 0; i < 4; i++) {
+      block += chars[randomBytes[byteIdx++] % chars.length];
+    }
+    blocks.push(block);
+  }
+  return blocks.join('-');
+}
+
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState('');
   const [keys, setKeys] = useState({});
+  const [salePlans, setSalePlans] = useState(DEFAULT_SALE_PLANS);
+  const [editingPlanPrice, setEditingPlanPrice] = useState({});
   const [mode, setMode] = useState('auto');
   const [lotteryStatus, setLotteryStatus] = useState('normal');
   const [liveResults, setLiveResults] = useState({});
@@ -21,12 +74,13 @@ function App() {
   const [manualStatus, setManualStatus] = useState('waiting');
   const [updateBatchWithResult, setUpdateBatchWithResult] = useState(false);
   const [generatedKey, setGeneratedKey] = useState(null);
+  const [bulkGeneratedKeys, setBulkGeneratedKeys] = useState([]);
   const [toast, setToast] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Key filtering & search
   const [keySearch, setKeySearch] = useState('');
-  const [keyFilter, setKeyFilter] = useState('all'); // all, available, claimed, revoked
+  const [keyFilter, setKeyFilter] = useState('all'); // all, available, claimed, revoked, changeable, locked
 
   // Tut playground test number
   const [calcTestNumber, setCalcTestNumber] = useState('');
@@ -36,9 +90,22 @@ function App() {
   const [fetchingGlo, setFetchingGlo] = useState(false);
   const [gloError, setGloError] = useState('');
 
-  // Key generation options
-  const [keyType, setKeyType] = useState('trial');
-  const [customDays, setCustomDays] = useState(7);
+  // App Distribution & Telegram Release State
+  const [appRelease, setAppRelease] = useState(null);
+
+  // Key generation options: Strictly 3 plans (trial_3d, one_year, lifetime), device switching mode on/off for each plan, bulk count
+  const [keyType, setKeyType] = useState('one_year');
+  const [deviceChangeable, setDeviceChangeable] = useState(true);
+  const [bulkCount, setBulkCount] = useState(1);
+
+  // Auto-fetch Official Thai GLO results on mount and poll periodically
+  useEffect(() => {
+    fetchOfficialGlo();
+    const interval = setInterval(() => {
+      fetchOfficialGlo();
+    }, 60000); // Poll GLO every 60 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // Auth state listener
   useEffect(() => {
@@ -75,11 +142,26 @@ function App() {
       setLiveResults(snap.val() || {});
     }));
 
+    const plansRef = ref(db, '3d_licenses/sale_plans');
+    unsubs.push(onValue(plansRef, (snap) => {
+      const p = snap.val();
+      if (p && Object.keys(p).length > 0) {
+        setSalePlans(p);
+      } else {
+        setSalePlans(DEFAULT_SALE_PLANS);
+      }
+    }));
+
     const batchRef = ref(db, '3d_lottery_config/current_batch');
     unsubs.push(onValue(batchRef, (snap) => {
       const b = snap.val() || 1;
       setCurrentBatch(b);
       setBatchInput(String(b));
+    }));
+
+    const releaseRef = ref(db, '3d_app_release');
+    unsubs.push(onValue(releaseRef, (snap) => {
+      setAppRelease(snap.val() || null);
     }));
 
     return () => unsubs.forEach(u => u());
@@ -109,14 +191,14 @@ function App() {
     signOut(auth);
   };
 
-  // ── Fetch official Thai GLO result with multi-tier failover ─────────────────
+  // ── Fetch fast real-time Thai 3D / GLO result with multi-tier failover ────────
   const fetchOfficialGlo = async () => {
     setFetchingGlo(true);
     setGloError('');
     try {
       let data = null;
 
-      // 1. Primary Scraper Worker (User's Cloudflare Worker)
+      // 1. Primary Scraper Worker (Sanook Live ~3:15 PM MMT + GLO fallback)
       try {
         const res = await fetch('https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/latest-glo');
         if (res.ok) {
@@ -154,7 +236,9 @@ function App() {
                 threeD: first.slice(-3),
                 firstPrize: first,
                 twoD: last2,
-                date: date
+                date: date,
+                session: 'Rayriffy Mirror Draw',
+                source: 'Rayriffy Mirror'
               };
             }
           }
@@ -179,7 +263,9 @@ function App() {
                 threeD: first.slice(-3),
                 firstPrize: first,
                 twoD: last2,
-                date: date
+                date: date,
+                session: 'GLO Official Draw (3:30 PM MMT)',
+                source: 'Official Thai Government Lottery (GLO)'
               };
             }
           }
@@ -188,9 +274,10 @@ function App() {
 
       if (data) {
         setGloResult(data);
-        showToast(`GLO Result: 3D = ${data.threeD} (1st = ${data.firstPrize})`);
+        const sourceLabel = data.source || data.session || 'Live Feed';
+        showToast(`3D Result (${sourceLabel}): 3D = ${data.threeD} (1st = ${data.firstPrize})`);
       } else {
-        setGloError('Unable to fetch GLO data. You can enter manually.');
+        setGloError('Unable to fetch live lottery data. You can enter manually.');
       }
     } catch (err) {
       setGloError(err.message || 'Fetch failed');
@@ -206,28 +293,142 @@ function App() {
     if (gloResult.date) {
       setManualDate(gloResult.date);
     }
-    showToast(`Set 3D to ${gloResult.threeD} with status "declared"`);
+    showToast(`Set manual 3D to ${gloResult.threeD} (Declared)`);
   };
 
-  // ── CD-Key Generation ────────────────────────────────────────────────────────
-  const generateKey = async () => {
-    const array = new Uint8Array(16);
-    window.crypto.getRandomValues(array);
-    const key = Array.from(array, byte => byte.toString(16).padStart(2, '0').toUpperCase())
-      .join('').match(/.{1,4}/g).join('-');
+  // ── ⚡ 1-Click Apply Live 3D / Official Thai GLO to Firebase App & Devices ─────
+  const applyGloDirectlyToFirebase = async () => {
+    if (!gloResult || !gloResult.threeD) {
+      showToast('No 3D lottery result available to apply', 'error');
+      return;
+    }
 
-    let durationValue = keyType;
-    if (keyType === 'custom') durationValue = parseInt(customDays, 10);
+    const tut = calculateTutNumbers(gloResult.threeD);
+    const sourceLabel = gloResult.source || gloResult.session || 'Live Fast Feed (~3:15 PM MMT)';
+    const updates = {
+      '3d_live_results/winning_number': gloResult.threeD,
+      '3d_live_results/first_prize': gloResult.firstPrize || '',
+      '3d_live_results/twod': gloResult.twoD || '',
+      '3d_live_results/result_date': gloResult.date || '',
+      '3d_live_results/result_time': gloResult.session || '3:15 PM MMT Live Draw',
+      '3d_live_results/source': sourceLabel,
+      '3d_live_results/is_final': true,
+      '3d_live_results/updated_at': Date.now(),
+      '3d_lottery_status/state': 'declared',
+      '3d_live_results/tut_permutations': tut.permutations,
+      '3d_live_results/tut_near_misses': tut.nearMisses,
+      '3d_live_results/tut_all': tut.allTut
+    };
 
-    await set(ref(db, `3d_licenses/keys/${key}`), {
-      status: 'available',
-      duration: durationValue,
-      generated_at: Date.now()
-    });
+    if (updateBatchWithResult) {
+      const b = parseInt(batchInput, 10);
+      if (!isNaN(b) && b >= 1) {
+        updates['3d_lottery_config/current_batch'] = b;
+      }
+    }
 
-    setGeneratedKey(key);
-    showToast('New CD-Key generated successfully!');
+    await update(ref(db), updates);
+
+    // Sync manual inputs for consistency
+    setManualNumber(gloResult.threeD);
+    setManualStatus('declared');
+    if (gloResult.date) setManualDate(gloResult.date);
+
+    // Also notify worker to broadcast if available
+    try {
+      fetch('https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/apply-glo', { method: 'POST' }).catch(() => {});
+    } catch (_) {}
+
+    showToast(`⚡ 3D Result (${gloResult.threeD}) applied to Live App & Firebase!`);
   };
+
+  const handleKeyTypeChange = (newType) => {
+    setKeyType(newType);
+    // Smart default suggestion based on plan, but admin can toggle ON or OFF for any plan!
+    if (newType === 'one_year') {
+      setDeviceChangeable(true);
+    } else if (newType === 'lifetime' || newType === 'trial_3d') {
+      setDeviceChangeable(false);
+    }
+  };
+
+  const savePlanPrice = async (planId) => {
+    const rawVal = editingPlanPrice[planId];
+    if (rawVal === undefined || rawVal === '') return;
+    const price = parseInt(rawVal, 10);
+    if (isNaN(price) || price < 0) {
+      showToast('Please enter a valid price', 'error');
+      return;
+    }
+    await update(ref(db, `3d_licenses/sale_plans/${planId}`), { price });
+    showToast(`Updated ${planId} price to ${price.toLocaleString()} Ks (Synced with Telegram Bot)`);
+    setEditingPlanPrice(prev => ({ ...prev, [planId]: undefined }));
+  };
+
+  const downloadKeysAsText = (keysList, planId, isChangeable) => {
+    const text = keysList.join('\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `3d_keys_${planId}_${isChangeable ? 'changeable' : 'locked'}_${keysList.length}keys_${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${keysList.length} keys to .txt file!`);
+  };
+
+  // ── CD-Key Generation (Single & Bulk) with Per-Plan Device Switching Mode ──
+  const generateKeysBatch = async () => {
+    const count = Math.max(1, Math.min(100, parseInt(bulkCount, 10) || 1));
+    const currentPlan = salePlans[keyType] || DEFAULT_SALE_PLANS[keyType];
+
+    let durationVal = 'lifetime';
+    let durationLbl = 'တစ်သက်တာ (Lifetime)';
+    let planPrice = 0;
+    let planId = keyType;
+
+    if (keyType === 'trial_3d') {
+      durationVal = 'trial';
+      durationLbl = '၃ ရက် စမ်းသပ်ခွင့် (72 နာရီ)';
+      planPrice = 0;
+    } else if (keyType === 'one_year') {
+      durationVal = 365;
+      durationLbl = '၁ နှစ် (365 ရက်)';
+      planPrice = currentPlan?.price ?? 180000;
+    } else if (keyType === 'lifetime') {
+      durationVal = 'lifetime';
+      durationLbl = 'တစ်သက်တာ (Lifetime)';
+      planPrice = currentPlan?.price ?? 45000;
+    }
+
+    const updates = {};
+    const newlyGenerated = [];
+    const now = Date.now();
+
+    for (let i = 0; i < count; i++) {
+      const key = generateCdKeyString();
+      updates[`3d_licenses/keys/${key}`] = {
+        cd_key: key,
+        status: 'available',
+        plan_id: planId,
+        duration: durationVal,
+        duration_label: durationLbl,
+        price: planPrice,
+        device_changeable: deviceChangeable,
+        generated_at: now
+      };
+      newlyGenerated.push(key);
+    }
+
+    await update(ref(db), updates);
+    setGeneratedKey(newlyGenerated[0]);
+    setBulkGeneratedKeys(newlyGenerated);
+    showToast(count === 1 ? 'New CD-Key generated successfully!' : `Successfully generated ${count} CD-Keys!`);
+  };
+
+  const generateKey = generateKeysBatch;
 
   const revokeKey = async (keyId) => {
     await update(ref(db, `3d_licenses/keys/${keyId}`), {
@@ -290,9 +491,10 @@ function App() {
     showToast('Copied to clipboard!');
   };
 
-  const formatDuration = (duration) => {
-    if (duration === 'trial') return '3 Days Trial';
-    if (duration === 'lifetime') return 'Lifetime ♾️';
+  const formatDuration = (duration, planId) => {
+    if (planId === 'one_year' || duration === 365) return '1 Year (၁ နှစ်)';
+    if (duration === 'trial' || planId === 'trial_3d') return '3 Days Trial (၇၂ နာရီ)';
+    if (duration === 'lifetime' || planId === 'lifetime') return 'Lifetime (တစ်သက်တာ) ♾️';
     if (typeof duration === 'number') return `${duration} Days`;
     return duration || '—';
   };
@@ -308,22 +510,31 @@ function App() {
   const keyEntries = Object.entries(keys);
   const totalKeys = keyEntries.length;
   const availableKeys = keyEntries.filter(([, v]) => v.status === 'available').length;
-  const claimedKeys = keyEntries.filter(([, v]) => v.status === 'claimed').length;
+  const claimedKeys = keyEntries.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length;
   const revokedKeys = keyEntries.filter(([, v]) => v.status === 'revoked').length;
 
   const filteredKeys = useMemo(() => {
     return keyEntries
       .filter(([keyId, keyData]) => {
-        if (keyFilter !== 'all' && keyData.status !== keyFilter) return false;
+        if (keyFilter === 'available' && keyData.status !== 'available') return false;
+        if (keyFilter === 'claimed' && keyData.status !== 'claimed' && keyData.status !== 'active') return false;
+        if (keyFilter === 'revoked' && keyData.status !== 'revoked') return false;
+        if (keyFilter === 'changeable' && keyData.device_changeable !== true) return false;
+        if (keyFilter === 'locked' && keyData.device_changeable === true) return false;
+        if (keyFilter === 'trial_3d' && keyData.plan_id !== 'trial_3d' && keyData.duration !== 'trial') return false;
+        if (keyFilter === 'one_year' && keyData.plan_id !== 'one_year' && keyData.duration !== 365) return false;
+        if (keyFilter === 'lifetime' && keyData.plan_id !== 'lifetime' && keyData.duration !== 'lifetime') return false;
+
         if (keySearch.trim()) {
           const q = keySearch.toLowerCase().trim();
           const matchKey = keyId.toLowerCase().includes(q);
-          const matchDevice = (keyData.claimed_by || '').toLowerCase().includes(q);
-          return matchKey || matchDevice;
+          const matchDevice = (keyData.claimed_by || keyData.device_model || keyData.device_fingerprint || '').toLowerCase().includes(q);
+          const matchPlan = (keyData.plan_id || keyData.duration_label || '').toLowerCase().includes(q);
+          return matchKey || matchDevice || matchPlan;
         }
         return true;
       })
-      .sort((a, b) => (b[1].generated_at || 0) - (a[1].generated_at || 0));
+      .sort((a, b) => (b[1].generated_at || b[1].created_at || 0) - (a[1].generated_at || a[1].created_at || 0));
   }, [keyEntries, keyFilter, keySearch]);
 
   if (loading) {
@@ -465,71 +676,223 @@ function App() {
           </div>
         </div>
 
-        {/* GLO Official Lottery Live Scraper Card */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>🇹🇭</span>
-              <h2 style={{ fontSize: 16, margin: 0 }}>Official Thai GLO Lottery (ထိုင်း အစိုးရ ထီပေါက်ဂဏန်း)</h2>
+        {/* Real-Time Thai 3D / GLO Official Lottery Live Scraper Card */}
+        <div className="card glo-live-banner" style={{ marginBottom: 20 }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 24 }}>⚡</span>
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>Real-Time Thai 3D / GLO Live Feed (ထိုင်း 3D တိုက်ရိုက် ရလဒ် စနစ်)</h2>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Fast Live: Sanook Realtime (~3:15 PM MMT အမြန်ဆုံး) &bull; Archive: Official GLO (~3:30 PM MMT)
+                </span>
+              </div>
             </div>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={fetchOfficialGlo}
-              disabled={fetchingGlo}
-            >
-              {fetchingGlo ? '⏳ Fetching GLO...' : '🔄 Check GLO Live'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {gloResult?.threeD && (
+                <span className={`sync-status-indicator ${gloResult.threeD === liveResults.winning_number ? 'synced' : 'out-of-sync'}`}>
+                  {gloResult.threeD === liveResults.winning_number
+                    ? `🟢 IN SYNC: Live App has ${gloResult.threeD}`
+                    : `⚠️ OUT OF SYNC: Live App has ${liveResults.winning_number || 'None'} (Feed: ${gloResult.threeD})`}
+                </span>
+              )}
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={fetchOfficialGlo}
+                disabled={fetchingGlo}
+              >
+                {fetchingGlo ? '⏳ Fetching Live 3D...' : '🔄 Refresh Live 3D'}
+              </button>
+            </div>
           </div>
           <div className="card-body">
             {gloError && (
-              <div style={{ color: 'var(--accent-secondary)', fontSize: 13, marginBottom: 10 }}>
+              <div style={{ color: 'var(--accent-secondary)', fontSize: 13, marginBottom: 12 }}>
                 ⚠️ {gloError}
               </div>
             )}
             {gloResult ? (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>1st Prize (รางวัลที่ 1)</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div className="glo-stat-box">
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>1st Prize (รางวัลที่ 1)</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
                       {gloResult.firstPrize || '—'}
                     </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--accent-success)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  <div className="glo-stat-box" style={{ borderColor: 'rgba(0, 200, 151, 0.4)', background: 'rgba(0, 200, 151, 0.08)' }}>
+                    <div style={{ fontSize: 11, color: 'var(--accent-success)', fontWeight: 800, textTransform: 'uppercase' }}>
                       3D Winning (နောက် ၃ လုံး)
                     </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-success)' }}>
+                    <div style={{ fontSize: 30, fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-success)', letterSpacing: 2, marginTop: 2 }}>
                       {gloResult.threeD || '—'}
                     </div>
                   </div>
                   {gloResult.twoD && (
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>2D (အောက် ၂ လုံး)</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)' }}>
+                    <div className="glo-stat-box">
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>2D (အောက် ၂ လုံး)</div>
+                      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
                         {gloResult.twoD}
                       </div>
                     </div>
                   )}
                   {gloResult.date && (
-                    <div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Draw Date (ထွက်သည့် ရက်စွဲ)</div>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary)', marginTop: 4 }}>
+                    <div className="glo-stat-box">
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Draw Date (ရက်စွဲ)</div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
                         {gloResult.date}
                       </div>
                     </div>
                   )}
+                  <div className="glo-stat-box" style={{ borderColor: 'rgba(99, 102, 241, 0.35)', background: 'rgba(99, 102, 241, 0.08)' }}>
+                    <div style={{ fontSize: 11, color: '#818cf8', textTransform: 'uppercase', fontWeight: 700 }}>
+                      Feed Source (ရင်းမြစ်)
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>{gloResult.source?.includes('Sanook') ? '⚡' : '🏛️'}</span>
+                      <span>{gloResult.source || gloResult.session || 'Live Fast Feed'}</span>
+                    </div>
+                  </div>
                 </div>
 
-                <button className="btn btn-warning" onClick={applyGloToManual}>
-                  ⚡ Apply GLO Result to 3D Ledger
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <button
+                    className="btn btn-warning"
+                    style={{ fontWeight: 800, padding: '10px 18px' }}
+                    onClick={applyGloDirectlyToFirebase}
+                  >
+                    ⚡ Apply 3D Result to Live App & Telegram
+                  </button>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={applyGloToManual}
+                    title="Fill the manual form fields below with this 3D number"
+                  >
+                    📋 Fill Manual Form
+                  </button>
+                </div>
               </div>
             ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Click "Check GLO Live" to fetch the official 1st prize and 3D winning number directly from the Thai Government Lottery Office.
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                {fetchingGlo ? '⏳ Fetching real-time Thai 3D / GLO lottery result...' : 'Auto-checking real-time 3D live result (~3:15 PM MMT). You can also click "Refresh Live 3D" to pull latest draw.'}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* App Distribution & Telegram Release Pipeline Card */}
+        <div className="card" style={{ marginBottom: 20, border: '1px solid rgba(99, 102, 241, 0.3)', background: 'linear-gradient(180deg, rgba(99, 102, 241, 0.04) 0%, var(--bg-card) 100%)' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 26 }}>📲</span>
+              <div>
+                <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>
+                  App Distribution & Telegram Release Manager (အက်ပ်ဗားရှင်း ဖြန့်ချိရေး စနစ်)
+                </h2>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Zero-server APK hosting directly via Telegram Bot &bull; Real-time automatic updates
+                </span>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{
+                fontSize: 12,
+                fontWeight: 700,
+                padding: '4px 10px',
+                borderRadius: 20,
+                background: appRelease?.file_id ? 'rgba(0, 200, 151, 0.15)' : 'rgba(255, 179, 71, 0.15)',
+                color: appRelease?.file_id ? 'var(--accent-success)' : 'var(--accent-warning)',
+                border: `1px solid ${appRelease?.file_id ? 'rgba(0, 200, 151, 0.3)' : 'rgba(255, 179, 71, 0.3)'}`
+              }}>
+                {appRelease?.file_id ? '🟢 Telegram Release Live' : '⏳ Awaiting Initial APK'}
+              </span>
+            </div>
+          </div>
+          <div className="card-body">
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
+              {/* Release Metadata Card */}
+              <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>
+                  📦 Active APK in Telegram Bot
+                </div>
+                {appRelease ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>File Name:</span>
+                      <code style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-primary)' }}>{appRelease.file_name || '3D_Ledger.apk'}</code>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Version:</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{appRelease.version_name || 'v1.0.0'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>File Size:</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {appRelease.file_size ? `${(appRelease.file_size / (1024 * 1024)).toFixed(2)} MB` : '—'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Uploaded At:</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        {appRelease.uploaded_at ? new Date(appRelease.uploaded_at).toLocaleString() : '—'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '10px 0' }}>
+                    Admin မှ Telegram Bot သို့ APK ဖိုင် ပို့ထားခြင်း မရှိသေးပါ။ Telegram Bot ထံသို့ <code>.apk</code> ဖိုင် တိုက်ရိုက် ပေးပို့လိုက်ပါက ဤနေရာတွင် အလိုအလျောက် ပေါ်လာပါမည်။
+                  </div>
+                )}
+              </div>
+
+              {/* Security & Anti-Reverse Engineering Status */}
+              <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: 12, color: 'var(--accent-success)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>🛡️</span> Security & Anti-Reverse Engineering
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                    <span>✅</span> <b>Anti-Tamper & Anti-Resigning:</b> SHA-256 Certificate Lock (Blocks MT Manager / Lucky Patcher)
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                    <span>✅</span> <b>Anti-Frida & Hooking:</b> Scans /proc/self/maps & port 27042
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                    <span>✅</span> <b>Anti-Debug Protection:</b> TracerPid & JDWP attachment block
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                    <span>✅</span> <b>R8 Aggressive Obfuscation:</b> Repackaged to <code>com.threeDLedger.obf</code>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Admin Instructions Banner */}
+            <div style={{
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: '1px solid rgba(99, 102, 241, 0.2)',
+              borderRadius: 10,
+              padding: '12px 16px',
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 10
+            }}>
+              <div>
+                <b>💡 အက်ပ်ဗားရှင်း အသစ်တင်လိုပါက:</b> Admin Account ဖြင့် Telegram Bot ထံသို့ နောက်ဆုံးထွက် <b>.apk</b> ဖိုင်ကို တိုက်ရိုက် Send File (Document) အဖြစ် ပို့လိုက်ရုံဖြင့် Bot ရှိ <b>[📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်]</b> ခလုတ်တွင် ချက်ချင်း အလိုအလျောက် Update ဖြစ်သွားပါမည်။
+              </div>
+              <a
+                href="https://t.me/threed_ledger_bot"
+                target="_blank"
+                rel="noreferrer"
+                className="btn btn-outline btn-sm"
+                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <span>🤖 Open Telegram Bot</span>
+              </a>
+            </div>
           </div>
         </div>
 
@@ -553,6 +916,22 @@ function App() {
                   <span> · Draw: {liveResults.target_draw_date}</span>
                 )}
               </div>
+
+              {gloResult?.threeD && gloResult.threeD !== liveResults.winning_number && (
+                <div style={{ background: 'rgba(255, 179, 71, 0.12)', border: '1px solid rgba(255, 179, 71, 0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-warning)' }}>
+                      🇹🇭 Official Thai GLO 3D: <strong>{gloResult.threeD}</strong>
+                    </span>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Live App has "{liveResults.winning_number || 'None'}". Click to sync:
+                    </div>
+                  </div>
+                  <button className="btn btn-warning btn-sm" style={{ fontWeight: 700 }} onClick={applyGloDirectlyToFirebase}>
+                    ⚡ Sync Live App ({gloResult.threeD})
+                  </button>
+                </div>
+              )}
 
               <div className="manual-override-panel">
                 <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-warning)', marginBottom: 12 }}>
@@ -724,8 +1103,60 @@ function App() {
             </div>
           </div>
 
-          {/* Right Column: Key Generation + Tut Playground */}
+          {/* Right Column: Synced Sale Plans + Key Generation + Tut Playground */}
           <div>
+            {/* Telegram & Cloudflare Synced Sale Plans */}
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-header">
+                <h2>🏷️ Synced Sale Plans (အရောင်း အစီအစဉ်များ)</h2>
+              </div>
+              <div className="card-body">
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                  Telegram Bot နှင့် တိုက်ရိုက်ချိတ်ဆက်ထားသော စီမံချက် ၃ ခု (ဈေးနှုန်း ပြင်ဆင်နိုင်သည်):
+                </p>
+
+                {SYNCED_PLAN_IDS.map(planId => {
+                  const plan = salePlans[planId] || DEFAULT_SALE_PLANS[planId];
+                  if (!plan) return null;
+                  const isChangeable = plan.device_changeable;
+                  const currentPrice = editingPlanPrice[planId] !== undefined ? editingPlanPrice[planId] : plan.price;
+                  return (
+                    <div key={planId} className="plan-sync-card">
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{plan.name}</strong>
+                          <span className={`device-badge ${isChangeable ? 'changeable' : 'locked'}`}>
+                            {isChangeable ? '🔄 စက်ပြောင်းနိုင်' : '🔒 စက်ပြောင်းမရ'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          {plan.duration_label} • {plan.description}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          type="number"
+                          value={currentPrice}
+                          onChange={e => setEditingPlanPrice(prev => ({ ...prev, [planId]: e.target.value }))}
+                          style={{ width: 95, padding: '4px 8px', fontSize: 12, textAlign: 'right' }}
+                        />
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ks</span>
+                        {editingPlanPrice[planId] !== undefined && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                            onClick={() => savePlanPrice(planId)}
+                          >
+                            Save
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Key Generation Panel */}
             <div className="card">
               <div className="card-header">
@@ -733,39 +1164,100 @@ function App() {
               </div>
               <div className="card-body">
                 <div className="form-group">
-                  <label>Key Type (အမျိုးအစား)</label>
+                  <label>Sale Plan / Key Type (အစီအစဉ် ရွေးချယ်ပါ - စီမံချက် ၃ ခု သီးသန့်)</label>
                   <select
                     className="select-input"
                     value={keyType}
-                    onChange={e => setKeyType(e.target.value)}
+                    onChange={e => handleKeyTypeChange(e.target.value)}
                   >
-                    <option value="trial">⏱️ 3-Day Trial (၃ ရက် စမ်းသပ်ခွင့်)</option>
-                    <option value="lifetime">♾️ Lifetime (သက်တမ်း အကန့်အသတ်မရှိ)</option>
-                    <option value="custom">📅 Custom Duration (ရက်သတ်မှတ်ရန်)</option>
+                    <option value="trial_3d">
+                      ⏱️ 3-Day Free Trial (၃ ရက် စမ်းသပ်ခွင့်) — 0 Ks
+                    </option>
+                    <option value="one_year">
+                      ⭐ 1-Year Plan (၁ နှစ်) — {(salePlans.one_year?.price ?? 180000).toLocaleString()} Ks
+                    </option>
+                    <option value="lifetime">
+                      💎 Lifetime Plan (တစ်သက်တာ) — {(salePlans.lifetime?.price ?? 45000).toLocaleString()} Ks
+                    </option>
                   </select>
                 </div>
 
-                {keyType === 'custom' && (
-                  <div className="form-group">
-                    <label>Number of Days (ရက်ပေါင်း)</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={customDays}
-                      onChange={e => setCustomDays(e.target.value)}
-                      placeholder="Days"
-                    />
+                {/* Device Switching Mode (ON / OFF for each plan) */}
+                <div className="device-switch-toggle-card">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                      🔄 Device Switching Mode (စက်ပြောင်းခွင့် ထိန်းချုပ်မှု)
+                    </label>
+                    <span className={`device-badge ${deviceChangeable ? 'changeable' : 'locked'}`}>
+                      {deviceChangeable ? '🔄 ON (Device Changeable)' : '🔒 OFF (1-Device Only)'}
+                    </span>
                   </div>
-                )}
 
-                <button className="btn btn-primary btn-full" onClick={generateKey} style={{ marginTop: 8 }}>
-                  ✨ Generate Key (ကုဒ် အသစ်ထုတ်မည်)
+                  <div className="segmented-switch">
+                    <button
+                      type="button"
+                      className={`segment-btn ${deviceChangeable ? 'active-on' : ''}`}
+                      onClick={() => setDeviceChangeable(true)}
+                    >
+                      🔄 ON · စက်ပြောင်းခွင့် ပြုမည်
+                    </button>
+                    <button
+                      type="button"
+                      className={`segment-btn ${!deviceChangeable ? 'active-off' : ''}`}
+                      onClick={() => setDeviceChangeable(false)}
+                    >
+                      🔒 OFF · ဖုန်း ၁ လုံးတည်း သီးသန့်
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: 12, color: deviceChangeable ? 'var(--accent-success)' : 'var(--text-muted)', marginTop: 8 }}>
+                    {deviceChangeable
+                      ? '✅ စက်ပြောင်းခွင့် ဖွင့်ထားပါသည်: ဝယ်ယူသူသည် ဖုန်းအသစ်လဲပါက စက်ဟောင်း အလိုအလျောက် ပိတ်သွားပြီး လက်ကျန်ရက်များဖြင့် ဖုန်းအသစ်တွင် ဆက်သုံးနိုင်ပါမည်။'
+                      : '🔒 စက်ပြောင်းခွင့် ပိတ်ထားပါသည်: ပထမဆုံး အသက်သွင်းသည့် ဖုန်း ၁ လုံးတည်းတွင်သာ အသုံးပြုနိုင်မည်ဖြစ်ပြီး စက်ပြောင်း၍ မရပါ။'}
+                  </div>
+                </div>
+
+                {/* Bulk Generation Option */}
+                <div className="form-group" style={{ marginTop: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label>Quantity (ထုတ်မည့် အရေအတွက် - Bulk Keys)</label>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Max: 100 per batch</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={bulkCount}
+                    onChange={e => setBulkCount(e.target.value)}
+                    placeholder="Quantity"
+                    style={{ fontWeight: 700 }}
+                  />
+                  <div className="chip-group">
+                    {[1, 5, 10, 25, 50, 100].map(cnt => (
+                      <button
+                        key={cnt}
+                        type="button"
+                        className={`chip-btn ${parseInt(bulkCount, 10) === cnt ? 'active' : ''}`}
+                        onClick={() => setBulkCount(cnt)}
+                      >
+                        {cnt === 1 ? '1 Key' : `${cnt} Keys`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  className="btn btn-primary btn-full"
+                  onClick={generateKeysBatch}
+                  style={{ marginTop: 16, padding: '12px 16px', fontSize: 14, fontWeight: 700 }}
+                >
+                  ✨ Generate {parseInt(bulkCount, 10) > 1 ? `${bulkCount} Keys` : 'Key'} ({deviceChangeable ? '🔄 Device Changeable' : '🔒 1-Device Only'})
                 </button>
 
-                <div style={{ marginTop: 16, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                  {keyType === 'trial' && 'Key will expire 3 days after device activation'}
-                  {keyType === 'lifetime' && 'Key will never expire for this device'}
-                  {keyType === 'custom' && `Key will expire ${customDays} days after activation`}
+                <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                  {keyType === 'trial_3d' && '၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (၇၂ နာရီတိတိ သက်တမ်း)'}
+                  {keyType === 'one_year' && '၁ နှစ် သက်တမ်း (၃၆၅ ရက်)'}
+                  {keyType === 'lifetime' && 'တစ်သက်တာ သက်တမ်း (Lifetime ♾️)'}
                 </div>
               </div>
             </div>
@@ -877,7 +1369,12 @@ function App() {
               >
                 <option value="all">All Keys (အားလုံး)</option>
                 <option value="available">🟢 Available Only</option>
-                <option value="claimed">🔴 Claimed Only</option>
+                <option value="claimed">🔴 Claimed/Active Only</option>
+                <option value="changeable">🔄 Device Changeable Only</option>
+                <option value="locked">🔒 1-Device Only</option>
+                <option value="trial_3d">⏱️ 3-Day Trial Only</option>
+                <option value="one_year">⭐ 1-Year Only</option>
+                <option value="lifetime">💎 Lifetime Only</option>
                 <option value="revoked">⚪ Revoked Only</option>
               </select>
             </div>
@@ -898,9 +1395,10 @@ function App() {
                 <thead>
                   <tr>
                     <th>CD-Key</th>
-                    <th>Duration</th>
+                    <th>Plan / Duration</th>
+                    <th>Device Mode</th>
                     <th>Status</th>
-                    <th>Device</th>
+                    <th>Active Device</th>
                     <th>Date</th>
                     <th>Actions</th>
                   </tr>
@@ -919,28 +1417,38 @@ function App() {
                         </span>
                       </td>
                       <td>
-                        <span className={`duration-badge ${keyData.duration === 'lifetime' ? 'lifetime' : keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
-                          {formatDuration(keyData.duration)}
+                        <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
+                          {formatDuration(keyData.duration, keyData.plan_id)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
+                          {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
                         </span>
                       </td>
                       <td>
                         <span className={`status-badge ${keyData.status}`}>
-                          {keyData.status === 'available' ? '🟢' : keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
+                          {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
                         </span>
                       </td>
                       <td>
-                        <span className="device-text">
-                          {keyData.claimed_by || '—'}
+                        <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
+                          {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
+                          {keyData.previous_device_fingerprint && (
+                            <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
+                              (Migrated)
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {keyData.generated_at
-                          ? new Date(keyData.generated_at).toLocaleDateString()
+                        {keyData.generated_at || keyData.created_at
+                          ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
                           : '—'}
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 6 }}>
-                          {keyData.status === 'claimed' && (
+                          {(keyData.status === 'claimed' || keyData.status === 'active') && (
                             <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
                               Revoke
                             </button>
@@ -959,30 +1467,77 @@ function App() {
         </div>
       </main>
 
-      {/* Generated Key Popup */}
+      {/* Generated Key Popup (Single & Bulk Support) */}
       {generatedKey && (
-        <div className="key-popup-overlay" onClick={() => setGeneratedKey(null)}>
-          <div className="key-popup" onClick={e => e.stopPropagation()}>
+        <div className="key-popup-overlay" onClick={() => { setGeneratedKey(null); setBulkGeneratedKeys([]); }}>
+          <div className="key-popup" onClick={e => e.stopPropagation()} style={{ maxWidth: 520, width: '90%' }}>
             <div className="popup-icon">🎉</div>
-            <h3>Key Generated! (လိုင်စင်ကုဒ် ထွက်ပါပြီ)</h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 4 }}>
-              Type: <strong>{keyType === 'trial' ? '3-Day Trial' : keyType === 'lifetime' ? 'Lifetime' : `${customDays} Days`}</strong>
-            </p>
-            <div
-              className="generated-key"
-              onClick={() => copyToClipboard(generatedKey)}
-            >
-              {generatedKey}
+            <h3>
+              {bulkGeneratedKeys.length > 1
+                ? `${bulkGeneratedKeys.length} CD-Keys Generated!`
+                : 'Key Generated! (လိုင်စင်ကုဒ် ထွက်ပါပြီ)'}
+            </h3>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 14, display: 'flex', justifyContent: 'center', gap: 8, alignItems: 'center' }}>
+              <span>Plan: <strong>{keyType === 'one_year' ? '1-Year Plan (၁ နှစ်)' : keyType === 'lifetime' ? 'Lifetime (တစ်သက်တာ)' : '3-Day Trial (၃ ရက်)'}</strong></span>
+              <span className={`device-badge ${deviceChangeable ? 'changeable' : 'locked'}`}>
+                {deviceChangeable ? '🔄 Device Changeable' : '🔒 1 Device Only'}
+              </span>
             </div>
-            <p className="hint">Click the key to copy it to clipboard</p>
-            <div className="popup-actions">
-              <button className="btn btn-primary" onClick={() => copyToClipboard(generatedKey)}>
-                📋 Copy
-              </button>
-              <button className="btn btn-outline" onClick={() => setGeneratedKey(null)}>
-                Close
-              </button>
-            </div>
+
+            {bulkGeneratedKeys.length > 1 ? (
+              <div>
+                <textarea
+                  readOnly
+                  value={bulkGeneratedKeys.join('\n')}
+                  style={{
+                    width: '100%',
+                    height: 160,
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    padding: 10,
+                    borderRadius: 8,
+                    background: 'var(--bg-primary)',
+                    color: 'var(--accent-primary)',
+                    border: '1px solid var(--border-color)',
+                    resize: 'vertical',
+                    marginBottom: 12
+                  }}
+                />
+                <div className="popup-actions" style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button className="btn btn-primary" onClick={() => copyToClipboard(bulkGeneratedKeys.join('\n'))}>
+                    📋 Copy All Keys ({bulkGeneratedKeys.length})
+                  </button>
+                  <button
+                    className="btn btn-outline"
+                    style={{ background: 'rgba(0, 200, 151, 0.15)', color: 'var(--accent-success)', borderColor: 'rgba(0, 200, 151, 0.3)' }}
+                    onClick={() => downloadKeysAsText(bulkGeneratedKeys, keyType, deviceChangeable)}
+                  >
+                    💾 Download .TXT
+                  </button>
+                  <button className="btn btn-outline" onClick={() => { setGeneratedKey(null); setBulkGeneratedKeys([]); }}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div
+                  className="generated-key"
+                  onClick={() => copyToClipboard(generatedKey)}
+                >
+                  {generatedKey}
+                </div>
+                <p className="hint">Click the key to copy it to clipboard</p>
+                <div className="popup-actions">
+                  <button className="btn btn-primary" onClick={() => copyToClipboard(generatedKey)}>
+                    📋 Copy Key
+                  </button>
+                  <button className="btn btn-outline" onClick={() => { setGeneratedKey(null); setBulkGeneratedKeys([]); }}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

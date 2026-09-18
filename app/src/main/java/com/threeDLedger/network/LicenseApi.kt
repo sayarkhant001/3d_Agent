@@ -17,6 +17,8 @@ data class ActivationResponse(
     val status: String? = null,
     val token: String? = null,
     val expires_at: Long? = null,
+    val device_migrated: Boolean? = null,
+    val remaining_days: Int? = null,
     val message: String? = null,
     val error: String? = null
 )
@@ -46,6 +48,7 @@ data class VerifyLicenseRequest(
 data class VerifyLicenseResponse(
     val valid: Boolean = false,
     val reason: String? = null,
+    val message: String? = null,
     val expires_at: Long? = null
 )
 

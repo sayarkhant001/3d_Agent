@@ -5,11 +5,13 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 
+import com.threeDLedger.BuildConfig
+
 object NetworkClient {
     private const val BASE_URL = "https://3d-scraper-worker.khaingkhantkyaw001.workers.dev"
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
     }
 
     private val okHttpClient = OkHttpClient.Builder()

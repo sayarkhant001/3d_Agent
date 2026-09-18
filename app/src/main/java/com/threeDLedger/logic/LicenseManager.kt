@@ -7,17 +7,52 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Base64
 import com.threeDLedger.network.*
+import com.threeDLedger.security.SecurityGuard
+import com.threeDLedger.security.SecurityReport
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 
+import java.security.MessageDigest
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+
 sealed class ActivationResult {
-    data class Success(val token: String) : ActivationResult()
+    data class Success(
+        val token: String,
+        val message: String? = null,
+        val deviceMigrated: Boolean = false,
+        val remainingDays: Int? = null
+    ) : ActivationResult()
     data class Pending(val message: String) : ActivationResult()
     data class Error(val message: String) : ActivationResult()
 }
 
 class LicenseManager(private val context: Context) {
     private val prefs: SharedPreferences = context.getSharedPreferences("license_prefs", Context.MODE_PRIVATE)
+
+    companion object {
+        private val SECRET_PART_1 = byteArrayOf(0x33, 0x64, 0x2d, 0x6c, 0x65, 0x64, 0x67, 0x65, 0x72) // "3d-ledger"
+        private val SECRET_PART_2 = byteArrayOf(0x2d, 0x6a, 0x77, 0x74, 0x2d, 0x73, 0x65, 0x63, 0x72, 0x65, 0x74) // "-jwt-secret"
+        private val SECRET_PART_3 = byteArrayOf(0x2d, 0x32, 0x30, 0x32, 0x36) // "-2026"
+
+        fun getVerificationSecret(): String {
+            return String(SECRET_PART_1) + String(SECRET_PART_2) + String(SECRET_PART_3)
+        }
+    }
+
+    fun checkSecurityIntegrity(): Boolean {
+        val report = SecurityGuard.checkIntegrity(context)
+        if (!report.isSecure) {
+            val violationDetails = report.violations.joinToString(", ")
+            prefs.edit()
+                .remove("jwt_token")
+                .remove("active_cd_key")
+                .putString("expired_warning", "လုံခြုံရေး ချိုးဖောက်မှု စစ်ဆေးတွေ့ရှိရပါသည် (Security Violation): $violationDetails")
+                .apply()
+            return false
+        }
+        return true
+    }
 
     @SuppressLint("HardwareIds")
     fun getDeviceFingerprint(): String {
@@ -31,35 +66,81 @@ class LicenseManager(private val context: Context) {
     }
 
     fun isActivated(): Boolean {
+        if (!checkSecurityIntegrity()) return false
         val token = prefs.getString("jwt_token", null) ?: return false
-        return !isTokenExpired(token)
+        return verifyToken(token)
+    }
+
+    fun assertLicenseActive() {
+        if (!isActivated()) {
+            throw SecurityException("Access Denied: 3D Ledger license is invalid, expired, or tampered.")
+        }
     }
 
     fun getActiveCdKey(): String? = prefs.getString("active_cd_key", null)
     fun getPendingCdKey(): String? = prefs.getString("pending_cd_key", null)
+    fun getExpiredWarning(): String? = prefs.getString("expired_warning", null)
+    fun clearExpiredWarning() {
+        prefs.edit().remove("expired_warning").apply()
+    }
 
-    private fun isTokenExpired(token: String): Boolean {
+    private fun clearActivation(warning: String) {
+        prefs.edit()
+            .remove("jwt_token")
+            .remove("active_cd_key")
+            .putString("expired_warning", warning)
+            .apply()
+    }
+
+    fun verifyToken(token: String): Boolean {
         try {
             val parts = token.split(".")
-            if (parts.size == 3) {
-                val payload = String(Base64.decode(parts[1], Base64.URL_SAFE), StandardCharsets.UTF_8)
-                val json = JSONObject(payload)
-                if (json.has("exp")) {
-                    val exp = json.getLong("exp") // JWT exp is in seconds
-                    val currentTime = System.currentTimeMillis() / 1000
-                    if (currentTime >= exp) {
-                        prefs.edit().remove("jwt_token").remove("active_cd_key").apply()
-                        return true
-                    }
+            if (parts.size != 3) return false
+
+            // 1. Cryptographic HMAC-SHA256 Signature Verification
+            val headerAndPayload = "${parts[0]}.${parts[1]}".toByteArray(StandardCharsets.US_ASCII)
+            val mac = Mac.getInstance("HmacSHA256")
+            val key = SecretKeySpec(getVerificationSecret().toByteArray(StandardCharsets.UTF_8), "HmacSHA256")
+            mac.init(key)
+            val computedSigBytes = mac.doFinal(headerAndPayload)
+            val expectedSig = Base64.encodeToString(computedSigBytes, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP).trim()
+
+            if (!MessageDigest.isEqual(expectedSig.toByteArray(StandardCharsets.US_ASCII), parts[2].trim().toByteArray(StandardCharsets.US_ASCII))) {
+                clearActivation("လုံခြုံရေး လက်မှတ် ချိုးဖောက်မှု စစ်ဆေးတွေ့ရှိရပါသည် (Token Signature Tampered)")
+                return false
+            }
+
+            // 2. Decode payload & verify device hardware binding
+            val payloadStr = String(Base64.decode(parts[1], Base64.URL_SAFE), StandardCharsets.UTF_8)
+            val json = JSONObject(payloadStr)
+
+            val boundDevice = json.optString("device_fingerprint", "")
+            val currentDevice = getDeviceFingerprint()
+            if (boundDevice.isNotEmpty() && boundDevice != currentDevice) {
+                clearActivation("ဤလိုင်စင်သည် အခြားဖုန်းအတွက် ထုတ်ပေးထားခြင်း ဖြစ်ပါသည် (Hardware Mismatch)")
+                return false
+            }
+
+            // 3. Expiration verification
+            if (json.has("exp") && !json.isNull("exp")) {
+                val expSec = json.getLong("exp")
+                val nowSec = System.currentTimeMillis() / 1000
+                if (nowSec >= expSec) {
+                    clearActivation("လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ")
+                    return false
                 }
             }
+
+            return true
         } catch (e: Exception) {
-            e.printStackTrace()
+            return false
         }
-        return false // If decoding fails or no exp field, assume valid (lifetime)
     }
 
     suspend fun activateLicense(cdKey: String): ActivationResult {
+        if (!checkSecurityIntegrity()) {
+            return ActivationResult.Error("လုံခြုံရေး စစ်ဆေးချက် မအောင်မြင်ပါ (Security Violation Detected)")
+        }
         return try {
             val request = ActivationRequest(
                 cd_key = cdKey,
@@ -75,8 +156,14 @@ class LicenseManager(private val context: Context) {
                         .putString("jwt_token", body.token)
                         .putString("active_cd_key", cdKey)
                         .remove("pending_cd_key")
+                        .remove("expired_warning")
                         .apply()
-                    ActivationResult.Success(body.token)
+                    ActivationResult.Success(
+                        token = body.token,
+                        message = body.message,
+                        deviceMigrated = body.device_migrated == true,
+                        remainingDays = body.remaining_days
+                    )
                 } else if (body.status == "pending_approval") {
                     prefs.edit().putString("pending_cd_key", cdKey).apply()
                     ActivationResult.Pending(body.message ?: "Admin ၏ အတည်ပြုချက်ကို စောင့်ဆိုင်းနေပါသည်")
@@ -91,7 +178,7 @@ class LicenseManager(private val context: Context) {
                 val errorMsg = errJson ?: when (response.code()) {
                     400 -> "CD-Key ပုံစံ မှားယွင်းနေပါသည်။ စစ်ဆေးပြီး ပြန်လည်ရိုက်ထည့်ပါ။"
                     404 -> "CD-Key မတွေ့ရှိပါ။ မှန်ကန်သော ကုတ်နံပါတ်ကို ထည့်ပေးပါ။"
-                    403 -> "ဤ CD-Key အား အခြားဖုန်းတွင် သို့မဟုတ် ပိတ်သိမ်းထားပြီး ဖြစ်ပါသည်။"
+                    403 -> "ဤ CD-Key အား အခြားဖုန်းတွင် သို့မဟုတ် သက်တမ်းကုန်ဆုံး/ပိတ်သိမ်းထားပြီး ဖြစ်ပါသည်။"
                     500 -> "ဆာဗာ အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည်ကြိုးစားပါ။"
                     else -> "အသုံးပြုခွင့် ဖွင့်လှစ်ခြင်း မအောင်မြင်ပါ။"
                 }
@@ -120,6 +207,7 @@ class LicenseManager(private val context: Context) {
                                 .putString("jwt_token", body.token)
                                 .putString("active_cd_key", cdKey)
                                 .remove("pending_cd_key")
+                                .remove("expired_warning")
                                 .apply()
                             ActivationResult.Success(body.token)
                         } else {
@@ -134,7 +222,11 @@ class LicenseManager(private val context: Context) {
                         ActivationResult.Error(body.message ?: "Admin မှ ခွင့်ပြုချက် ငြင်းပယ်ခဲ့ပါသည်")
                     }
                     "revoked" -> {
-                        prefs.edit().remove("pending_cd_key").remove("jwt_token").apply()
+                        prefs.edit()
+                            .remove("pending_cd_key")
+                            .remove("jwt_token")
+                            .putString("expired_warning", "ဤလိုင်စင်ကုတ်အား ပိတ်သိမ်းထားပါသည်")
+                            .apply()
                         ActivationResult.Error("ဤလိုင်စင်ကုတ်အား ပိတ်သိမ်းထားပါသည်")
                     }
                     else -> {
@@ -150,20 +242,30 @@ class LicenseManager(private val context: Context) {
     }
 
     suspend fun verifyCurrentLicense(): Boolean {
+        if (!checkSecurityIntegrity()) return false
         val cdKey = getActiveCdKey() ?: return isActivated()
         return try {
             val request = VerifyLicenseRequest(cdKey, getDeviceFingerprint())
             val response = NetworkClient.licenseApi.verifyLicense(request)
             if (response.isSuccessful && response.body() != null) {
-                val valid = response.body()!!.valid
-                if (!valid) {
-                    // Revoked by Admin! Clear local state immediately.
-                    prefs.edit().remove("jwt_token").remove("active_cd_key").apply()
+                val resBody = response.body()!!
+                if (!resBody.valid) {
+                    val warningMsg = resBody.message ?: when (resBody.reason) {
+                        "device_transferred" -> "ဤလိုင်စင်ကုတ်အား အခြားဖုန်းသို့ ပြောင်းရွှေ့အသုံးပြုလိုက်ပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"
+                        "expired" -> "လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"
+                        "revoked" -> "ဤလိုင်စင်ကုတ်အား Admin မှ ပိတ်သိမ်းထားပါသည်"
+                        else -> "လိုင်စင် အသုံးပြုခွင့် သက်တမ်း ကုန်ဆုံးပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"
+                    }
+                    prefs.edit()
+                        .remove("jwt_token")
+                        .remove("active_cd_key")
+                        .putString("expired_warning", warningMsg)
+                        .apply()
                     return false
                 }
                 true
             } else {
-                // If offline or network error, keep local offline status
+                // If offline or network error, verify with local token exp
                 isActivated()
             }
         } catch (_: Exception) {

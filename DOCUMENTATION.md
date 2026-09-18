@@ -1,4 +1,4 @@
-# 3D Ledger System: Complete Infrastructure, Calculations & Operational Guide
+ # 3D Ledger System: Complete Infrastructure, Calculations & Operational Guide
 
 > **Version**: 2.0.0 (Production Stable)  
 > **Language Support**: Pure Myanmar Unicode (မြန်မာယူနီကုဒ်)  
@@ -82,22 +82,21 @@ flowchart TB
 
 ---
 
-### Subsystem 2: Cloudflare Worker & GLO Scraper (`3d-scraper-worker/`)
+### Subsystem 2: Cloudflare Worker & Fast Live Scraper (`3d-scraper-worker/`)
 - **Runtime**: Cloudflare Workers V8 serverless isolate.
 - **Primary Domain**: `https://3d-scraper-worker.khaingkhantkyaw001.workers.dev`
-- **Data Source**: Official Government Lottery Office (GLO) of Thailand:
-  ```http
-  POST https://www.glo.or.th/api/lottery/getLatestLottery
-  Content-Type: application/json
-  Accept: application/json
-  ```
+- **Fast Real-Time Architecture (~3:15 PM MMT Delivery)**:
+  - **Tier 1 (Fastest - ~3:15 PM MMT)**: Sanook Live News Scraper (`https://news.sanook.com/lotto/`). Thai reporters enter the 6-digit First Prize within seconds of the live TV draw ball dropping (~3:10 – 3:15 PM MMT), cutting the 15–30 minute delay of the official GLO government website.
+  - **Tier 2 (Authoritative Archive - ~3:30 PM MMT)**: Official Government Lottery Office (GLO) of Thailand (`https://www.glo.or.th/api/lottery/getLatestLottery`). Used once official government certificates and PDFs are signed.
+  - **Tier 3 (Mirror Fallback)**: Rayriffy Community Lottery API (`https://lotto.api.rayriffy.com/latest`).
 - **Parsing Strategy**:
-  - Extracts the official 6-digit First Prize (`response.data.first.number[0].value`).
-  - Thai 3D winning number is the **last 3 digits** of the First Prize.
-  - Thai 2D winning number is extracted from `response.data.last2.number[0].value` (or last 2 digits of First Prize).
+  - Extracts official 6-digit First Prize (`firstPrize`).
+  - Thai 3D winning number is the **last 3 digits** of the First Prize (`threeD`).
+  - Thai 2D winning number is extracted from 2-digit prize (`twoD`).
   - Target draw date and next draw date calculated according to the Thai lottery schedule (1st and 16th of each calendar month).
 - **Firebase Authentication**: Generates RS256 JWT assertions using `GOOGLE_SERVICE_ACCOUNT_JSON` with SubtleCrypto, exchanging them for Google OAuth2 access tokens to patch the Realtime Database securely.
 - **Automated Triggers**: Cron schedules configured in `wrangler.jsonc`:
+  - `*/5 8-9 1,16 *`: High-frequency polling every 5 minutes during draw window (2:30 PM – 4:25 PM MMT) on draw days (1st & 16th).
   - `35 5 * * 1-5`: Morning market/lottery check.
   - `5 11 * * 1-5`: Afternoon session and draw close check.
 
@@ -317,77 +316,140 @@ These exact scenarios are validated by automated unit tests in [`CalculationVeri
 
 ---
 
-### Telegram Bot Admin Control Center & Key Management
+### Telegram Bot: 100% Button-Driven Architecture & Operations
 
-The Telegram Bot is strictly configured as an **Admin-Only Management Console** (`TELEGRAM_CHAT_ID: 5684146708`). Unauthorized users are automatically blocked.
+The Telegram Bot provides a **100% button-driven user experience**. Users never need to type slash commands; every workflow is accessible via **Persistent Bottom Reply Keyboards** and **Contextual Inline Menus**. Slash commands remain available purely as optional backward-compatible shortcuts.
 
 ```text
 ┌────────────────────────────────────────────────────────────┐
-│         👑 3D LEDGER စီမံခန့်ခွဲမှု စင်တာ (ADMIN CONTROL)      │
+│                    3D LEDGER TELEGRAM BOT                  │
 ├────────────────────────────────────────────────────────────┤
-│  ➕ ကုတ်အသစ် ထုတ်ရန်           │  📋 အသုံးပြုမှု စောင့်ကြည့်      │
+│  📊 ပင်မ ဒက်ရှ်ဘုတ်            │  ➕ ကုတ်အသစ် ထုတ်မည်      │
 ├────────────────────────────────┼───────────────────────────┤
-│  ⚡ Auto-Approve: ဖွင့်/ပိတ်     │  ⏳ စောင့်ဆိုင်းဆဲများ        │
+│  👥 ကိုယ်စားလှယ်များ          │  💳 ငွေလက်ခံ အကောင့်များ   │
 ├────────────────────────────────┼───────────────────────────┤
-│  📊 အရောင်း အစီရင်ခံစာ          │  🚫 ကုတ် ပိတ်သိမ်းရန်          │
+│  👮‍♂️ Admin များ               │  💵 ကော်မရှင် သတ်မှတ်ချက်  │
 ├────────────────────────────────┼───────────────────────────┤
-│  🎯 ပေါက်မဲ လက်ဖြင့် သတ်မှတ်     │  📦 အပတ်စဉ် ကြည့်ရှု         │
-├────────────────────────────────┴───────────────────────────┤
-│               🔄 မီနူး အသစ်ပြန်ဖွင့် (Refresh)               │
-└────────────────────────────────────────────────────────────┘
+│  🏷️ အရောင်း စီမံချက်များ        │  📋 အသုံးပြုမှု စောင့်ကြည့်  │
+├────────────────────────────────┼───────────────────────────┤
+│  🎯 ပေါက်မဲ                    │  🇹🇭 3D Live ရလဒ်          │
+└────────────────────────────────┴───────────────────────────┘
 ```
 
-#### Key Management & Dual Authorization Workflow
+#### Role-Based Persistent Bottom Keyboards (`ReplyKeyboardMarkup`)
 
-1. **Key Generation (`/gen [days] [price]` or `[➕ ကုတ်အသစ် ထုတ်ရန်]`)**:
-   - Generates unique 32-character keys (`XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX`).
-   - Durations: `7 days` (5,000 MMK), `30 days` (15,000 MMK), `90 days` (35,000 MMK), `1 year` (100,000 MMK), `lifetime` (250,000 MMK).
-   - Saved in Firebase Realtime Database at `/3d_licenses/keys/{key}` with `status: "available"`.
+| Role | Keyboard Buttons | Action Triggered on Tap |
+| :--- | :--- | :--- |
+| **Admin** | `[📊 ပင်မ ဒက်ရှ်ဘုတ်]` | Opens Admin Main Dashboard with real-time stats |
+| | `[➕ ကုတ်အသစ် ထုတ်မည်]` | Opens 1-Click Key Gen Menu with 1, 5, 10 key chips |
+| | `[👥 ကိုယ်စားလှယ်များ]` | Lists resellers with Due balances, settlement & remove buttons |
+| | `[💳 ငွေလက်ခံ အကောင့်များ]` | Displays Wave/KPay accounts with edit buttons |
+| | `[👮‍♂️ Admin များ]` | Lists system admins with remove/add buttons |
+| | `[💵 ကော်မရှင် သတ်မှတ်ချက်]` | Displays commission rates with preset edit buttons |
+| | `[🏷️ အရောင်း စီမံချက်များ]` | Displays 1-Year, Lifetime, Trial plans & price edit buttons |
+| | `[📋 အသုံးပြုမှု စောင့်ကြည့်]` | Displays active, claimed, and pending CD-keys |
+| | `[🎯 ပေါက်မဲ]` | Opens Winner Declaration (Thai GLO / Manual) |
+| | `[🇹🇭 3D Live ရလဒ်]` | Fetches live official Thai GLO 3D, 2D, and 1st prize |
+| **Reseller** | `[💼 ဒက်ရှ်ဘုတ်]` | Shows total generated, activated, commission, and due balances |
+| | `[➕ ကုတ်အသစ် ထုတ်မည်]` | Opens 1-click single generation menu |
+| | `[🎁 ၃ ရက် Trial]` | Generates 1 3-day trial key immediately |
+| | `[📅 ၁ နှစ် လိုင်စင်]` | Generates 1 1-Year (Device Changeable) key immediately |
+| | `[💎 တစ်သက်တာ လိုင်စင်]` | Generates 1 Lifetime (1-Device) key immediately |
+| | `[📦 အများပြား ထုတ်မည် (Bulk)]`| Opens bulk chips menu (5, 10 keys per plan) |
+| | `[🇹🇭 3D Live ရလဒ်]` | Fetches live official Thai GLO results |
+| **Direct Buyer** | `[🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့်]` | Automatically claims/displays 72-hour free trial CD-Key |
+| | `[🛒 လိုင်စင် ဝယ်ယူမည်]` | Displays 1-Year and Lifetime purchase cards with payment details |
+| | `[🇹🇭 3D Live ရလဒ်]` | Fetches official Thai GLO draw results |
+| | `[🔢 တွတ် ဂဏန်းများ]` | Displays interactive sample buttons (`108 တွတ်`, `212 တွတ်`, etc.) |
+| | `[🎯 ပေါက်မဲ စစ်မည်]` | Checks winning numbers and displays guidelines |
+| | `[❓ အကူအညီ]` | Displays app user guide and payment instructions |
 
-2. **Dual Authorization Modes**:
-   - **Auto-Approve Mode (`/autoapprove` or `[⚡ Auto-Approve]` button)**:
-     - When toggled **ON**, user entering a valid key on Android is instantly activated and granted access without waiting for admin approval.
-     - Telegram Bot alerts the admin: `⚡ [Auto-Approved] Key Activated! Device: <model>`.
-   - **Manual Telegram Approval Mode**:
-     - When toggled **OFF**, user entering a valid key is put into `pending_approval` state.
-     - The Android app displays an animated waiting screen (`Admin ၏ ခွင့်ပြုချက်ကို စောင့်ဆိုင်းနေပါသည်`) and polls every 3 seconds.
-     - The Admin immediately receives an interactive Telegram notification:
-       ```text
-       🔔 ခွင့်ပြုချက် တောင်းခံလွှာ အသစ် (New Activation Request)
-       🔑 ကုတ်နံပါတ်: A1B2-C3D4-...
-       📱 ဖုန်းမော်ဒယ်: Samsung Galaxy A54
-       🆔 ID: a1b2c3d4...
-       ⏳ သက်တမ်း: 30 ရက်
-       [✅ ခွင့်ပြုမည် (Approve)]  [❌ ငြင်းပယ်မည် (Reject)]
-       ```
-     - Tapping **Approve** immediately unlocks the Android app. Tapping **Reject** resets the key to available.
+#### Interactive Inline Button Workflows (`InlineKeyboardMarkup`)
 
-3. **Key Revocation (`/revoke <key>` or `[🚫 ကုတ် ပိတ်သိမ်းရန်]`)**:
-   - Immediately invalidates the key in Firebase (`status: "revoked"`).
-   - The Android app enforces real-time revocation on startup and resume, clearing local credentials and kicking revoked devices to the activation screen.
+1. **1-Click Single & Bulk Key Generation Chips**:
+   - `gen_b:<planId>:<count>`: Admin taps `[📅 ၁ နှစ် (၅ ခု)]` or `[💎 တစ်သက်တာ (၁၀ ခု)]` to instantly generate and copy bulk CD-keys.
+   - `r_gen_b:<planId>:<count>`: Reseller taps `[📅 ၁ နှစ် (၅ ခု)]` or `[💎 တစ်သက်တာ (၁၀ ခု)]` for 1-click instant reseller stock generation.
+2. **Reseller Due Settlement Presets**:
+   - Admin taps `[💵 ကိုစိုး ငွေရှင်းမည်]` $\rightarrow$ Bot presents quick settlement chips: `[💰 အပြည့်ရှင်းမည်]`, `[💵 50,000 Ks]`, `[💵 100,000 Ks]`, `[💵 200,000 Ks]`, `[💵 500,000 Ks]`.
+   - Tapping any chip immediately credits the payment, reduces due balance, records the transaction in `reseller_ledger`, and alerts the reseller.
+3. **No-Command Administrative Onboarding (`AdminState`)**:
+   - Tapping `[➕ ကိုယ်စားလှယ် အသစ် ထည့်မည်]` sets interactive session $\rightarrow$ Admin simply replies `987654321 ကိုစိုး`.
+   - Tapping `[➕ Admin အသစ် ထည့်မည်]` $\rightarrow$ Admin simply replies `123456789 ဦးအောင်`.
+   - Tapping `[✏️ Wave Pay ပြင်ဆင်မည်]` or `[✏️ KBZPay ပြင်ဆင်မည်]` $\rightarrow$ Admin simply replies `09778899001 ဦးအောင်ကို`.
+   - Any prompt can be cancelled with `[❌ မလုပ်တော့ပါ (Cancel)]`.
+4. **Interactive Commission Presets**:
+   - Lifetime Commission: `[3,000 Ks]`, `[5,000 Ks]`, `[7,000 Ks]`, `[10,000 Ks]`.
+   - 1-Year Commission: `[5,000 Ks]`, `[10,000 Ks]`, `[15,000 Ks]`, `[20,000 Ks]`, `[25,000 Ks]`, `[30,000 Ks]`.
+5. **Lottery Winner Declaration & Batch Toggles**:
+   - `[🇹🇭 Thai GLO ရလဒ် အလိုအလျောက် သတ်မှတ်မည်]`: 1-click fetch from GLO API, calculating all တွတ် permutations and updating Firebase.
+   - `[✏️ ဂဏန်း ကိုယ်တိုင် သတ်မှတ်မည်]`: Interactive prompt for manual 3-digit override.
+   - `[➕ အကြိမ် +1 တိုးမည်]`, `[➖ အကြိမ် -1 လျှော့မည်]`: 1-click lottery batch switcher.
 
-4. **Sales & Usage Report (`/report` or `[📊 အရောင်း အစီရင်ခံစာ]`)**:
-   - Total keys generated, active devices, unsold available keys, pending requests, and revoked keys.
-   - Total estimated revenue in MMK.
-   - Breakdown by duration tier.
+#### Command Shortcuts (Optional Backward Compatibility)
 
-5. **Manual Winning & Tut Declaration (`/setwinner <3-digit number>` or `[🎯 ပေါက်မဲ လက်ဖြင့် သတ်မှတ်]`)**:
-   - Admin can manually declare the official 3D winning number (e.g. `/setwinner 108`).
-   - Automatically computes all unified တွတ် numbers (permutations + near $\pm 1$).
-   - Locks Firebase `3d_lottery_config/mode` to `manual` to prevent automated scraper overwrites.
-   - Broadcasts the declared numbers immediately to all connected devices.
+| Command | Role | Description |
+| :--- | :--- | :--- |
+| `/start` | All | Initializes role-tailored persistent bottom keyboard & main card |
+| `/live`, `/3d`, `/result` | All | Fetches latest Thai GLO First Prize, 3D, and 2D |
+| `/tut [number]` | All | Calculates တွတ် (permutations + near $\pm 1$) for any 3-digit number |
+| `/check [number]` | All | Checks if number is a direct winner or a တွတ် winner |
+| `/admin`, `/menu` | Admin | Launches Admin Main Dashboard |
+| `/reseller` | Reseller | Launches Reseller Dashboard |
+| `/gen [plan] [count]` | Admin/Reseller | Generates keys via command line |
+| `/setwinner [number]` | Admin | Declares manual winning number |
+| `/setbatch [number]` | Admin | Sets active batch number |
+
+#### Direct Buyer Checkout & In-Bot Screenshot Verification
+
+1. **Buyer Selects Plan**: Buyer clicks `[🛒 ၁ နှစ် လိုင်စင် ဝယ်ယူမည်]` (180,000 MMK) or `[🛒 တစ်သက်တာ လိုင်စင် ဝယ်ယူမည်]` (45,000 MMK).
+2. **Payment Accounts Displayed**: Bot displays Admin's configured Wave Pay and KBZPay account numbers and names.
+3. **Screenshot Upload**: Buyer transfers funds and sends payment screenshot (`photo`) to the Telegram bot.
+4. **Admin Broadcast & Inline Approval**: Bot creates `BuyerOrder` (`status: pending`) and sends screenshot with caption to all Admins with `[✅ အတည်ပြုပြီး ကုတ်ထုတ်ပေးမည်]` and `[❌ ငြင်းပယ်မည်]`.
+5. **Instant Key Delivery**: Upon Admin approval, CD-Key is auto-generated and sent directly to buyer's Telegram chat.
+6. **Device Activation & Polling**: Buyer inputs CD-Key into Android app. If manual approval is active, Android app displays "ခွင့်ပြုချက် စောင့်ဆိုင်းနေပါသည်" (Waiting for Admin approval) and polls `/check-status` every 3 seconds until approved by Admin or the generating Reseller.
+7. **Reseller Due & Commission Accounting**: If key was generated by a reseller:
+   - Commission is credited to reseller (`5,000 MMK` for Lifetime, `10,000 MMK` for 1-Year).
+   - Due balance is added: `Due = Plan Price - Commission`.
+   - Admin settles due via `/payreseller <id> <amount|full>`.
 
 ---
 
-### Cloudflare Admin Web Portal Operations
+### Cloudflare Admin Web Portal Operations (`3d-admin/`)
 
 1. Open `http://localhost:5173` (or the deployed Cloudflare Pages URL).
 2. Enter the administrator credentials.
-3. **Live Overview**: Inspect real-time gross betting volume, top wagered numbers, and current batch number.
-4. **Lottery Mode Switch**:
+3. **Live Overview**: Inspect real-time gross betting volume, total keys, available keys, claimed keys, and active batch.
+4. **Official Thai GLO Lottery Live Scraper & 1-Click Sync**:
+   - **Auto-polling**: Cloudflare Pages automatically polls official Thai GLO lottery results on load and every 60 seconds.
+   - **Live Data Displayed**: Displays 1st Prize (รางวัลที่ 1, e.g. `730640`), Official 3D Winning Number (`640`), 2D (`64`), and Draw Date (`2026-09-16`).
+   - **Live Sync Indicator**: Compares the official GLO 3D number with the active Firebase winning number:
+     - `🟢 IN SYNC`: Live Android App is currently displaying the official GLO winning number.
+     - `⚠️ OUT OF SYNC`: Live Android App differs from the official GLO winning number.
+   - **1-Click ⚡ Apply GLO Result to Live App & Telegram**: Instantly commits the official GLO result to Firebase RTDB (`3d_live_results` and `3d_lottery_status`), automatically calculates တွတ် (permutations & cyclic near-misses), sets state to `declared`, and pushes live updates to all Android devices and Telegram bots.
+5. **Strictly 3 Synchronized Sale Plans**:
+   - Both Telegram Bot and Cloudflare Pages share strictly the **3 official plans**:
+     1. **3-Day Free Trial (`trial_3d`)**: 0 MMK, exactly 72 hours.
+     2. **1-Year Plan (`one_year`)**: 180,000 MMK, 365 days.
+     3. **Lifetime Plan (`lifetime`)**: 45,000 MMK, perpetual (တစ်သက်တာ).
+   - Admins can update plan prices in the web portal with 1 click, instantly syncing with Firebase and the Telegram bot. Custom durations have been deprecated in favor of these 3 clean, predictable plans.
+6. **Bulk CD-Key Generator with Per-Plan Device Switching Mode**:
+   - **Plan Selection**: Select from 3-Day Trial, 1-Year, or Lifetime.
+   - **Per-Plan Device Switching Mode Toggle**:
+     - `[ 🔄 ON · စက်ပြောင်းခွင့် ပြုမည် ]`: Key allows switching to a new device; the old device is automatically revoked and remaining subscription days transfer seamlessly to the new device.
+     - `[ 🔒 OFF · ဖုန်း ၁ လုံးတည်း သီးသန့် ]`: Key binds exclusively to the first activated device and cannot be transferred.
+     - Admins can toggle Device Switching Mode ON or OFF freely for *any* plan (Trial, 1-Year, or Lifetime) prior to generation.
+   - **Bulk Generation Quantity**: Preset chips (`1`, `5`, `10`, `25`, `50`, `100` keys) plus direct numeric input (up to 100 keys per batch).
+   - **Atomic Generation & .TXT Export**:
+     - Keys are generated and committed to Firebase atomically in a single transaction.
+     - **📋 Copy All Keys**: 1-click clipboard copy of all generated keys formatted one per line.
+     - **💾 Download .TXT**: Instant file download (`3d_keys_{plan}_{mode}_{count}keys_{date}.txt`) for convenient customer distribution.
+7. **License Keys Table & Advanced Filtering**:
+   - Displays CD-Key, Plan/Duration, Device Mode badge (`🔄 Changeable` vs `🔒 1 Device`), Status (`🟢 Available`, `🔴 Claimed/Active`, `⚪ Revoked`), Active Device Model/ID (with migration history indicator), and Date.
+   - Filters by: All Keys, Available, Claimed/Active, Device Changeable, 1-Device Only, 3-Day Trial, 1-Year, Lifetime, and Revoked.
+8. **Lottery Mode Switch & Manual Override**:
    - **Automatic Mode**: Thai GLO Scraper Worker runs on schedule and updates the winning number upon official draw completion.
    - **Manual Mode**: Scraper skips automated overwrites, allowing the dealer to control declaration timing.
-5. **Instant Override**: Enter any 3-digit number to instantly publish the winner to all connected Android devices and Telegram bots via Firebase.
+   - **Instant Manual Override**: Push any 3-digit number to all connected Android devices with customizable status (`waiting`, `pending`, `declared`, `delayed`).
 
 ---
 

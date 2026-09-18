@@ -6,7 +6,15 @@ import {
 } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
 import worker, { calculateNextThaiDrawDate } from "../src/index";
-import { calculateTutNumbers, generateCdKey } from "../src/telegramBot";
+import {
+	calculateTutNumbers,
+	generateCdKey,
+	getAdminBottomKeyboard,
+	getResellerBottomKeyboard,
+	getBuyerBottomKeyboard,
+	getResellerBulkKeyboard,
+	getKeyGenKeyboard
+} from "../src/telegramBot";
 
 const IncomingRequest = Request<unknown, IncomingRequestCfProperties>;
 
@@ -135,7 +143,7 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 				message_id: 3,
 				chat: { id: 999999999, type: "private" },
 				date: Math.floor(Date.now() / 1000),
-				text: "/start",
+				text: "/setwinner 108",
 				from: { id: 999999999, is_bot: false, first_name: "RandomHacker" }
 			}
 		};
@@ -152,5 +160,328 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 		expect(response.status).toBe(200);
 		const text = await response.text();
 		expect(text).toBe("unauthorized");
+	});
+
+	it("welcomes non-admin users with 3-day free trial on conversation start", async () => {
+		const userPayload = {
+			update_id: 1004,
+			message: {
+				message_id: 4,
+				chat: { id: 888888888, type: "private" },
+				date: Math.floor(Date.now() / 1000),
+				text: "/start",
+				from: { id: 888888888, is_bot: false, first_name: "NewClient" }
+			}
+		};
+
+		const request = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(userPayload)
+		});
+
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(response.status).toBe(200);
+		const text = await response.text();
+		expect(text).toBe("ok");
+	});
+
+	it("verifies default editable sale plans and device changeability flags", async () => {
+		const { getDefaultSalePlans } = await import("../src/telegramBot");
+		const plans = getDefaultSalePlans();
+
+		// 3-Day Free Trial
+		expect(plans.trial_3d).toBeDefined();
+		expect(plans.trial_3d.price).toBe(0);
+		expect(plans.trial_3d.duration).toBe("trial");
+		expect(plans.trial_3d.device_changeable).toBe(false);
+
+		// 1 Year Plan (Device Changeable)
+		expect(plans.one_year).toBeDefined();
+		expect(plans.one_year.price).toBe(180000);
+		expect(plans.one_year.duration).toBe(365);
+		expect(plans.one_year.device_changeable).toBe(true);
+
+		// Lifetime Plan (1 Device Locked)
+		expect(plans.lifetime).toBeDefined();
+		expect(plans.lifetime.price).toBe(45000);
+		expect(plans.lifetime.duration).toBe("lifetime");
+		expect(plans.lifetime.device_changeable).toBe(false);
+	});
+
+	it("verifies multi-admin authorization for master admin and unauthenticated users", async () => {
+		const { isUserAdmin } = await import("../src/telegramBot");
+		// Master admin from env.TELEGRAM_CHAT_ID must always be recognized as admin
+		const masterAdminId = env.TELEGRAM_CHAT_ID || "5684146708";
+		const isMaster = await isUserAdmin(masterAdminId, env);
+		expect(isMaster).toBe(true);
+
+		// An unknown random ID with no record in Firebase should not be admin
+		const isRandom = await isUserAdmin("random_999999", env);
+		expect(isRandom).toBe(false);
+	});
+
+	it("verifies default reseller commission settings (5000 MMK lifetime, 10000 MMK 1-year)", async () => {
+		const { getCommissionConfig } = await import("../src/telegramBot");
+		const comm = await getCommissionConfig(env);
+		expect(comm.lifetime).toBe(5000);
+		expect(comm.one_year).toBe(10000);
+	});
+
+	it("verifies default payment accounts (Wave Pay and KBZPay)", async () => {
+		const { getPaymentAccounts, buildPaymentsMessage } = await import("../src/telegramBot");
+		const accounts = await getPaymentAccounts(env);
+		expect(accounts.wave).toBeDefined();
+		expect(accounts.wave.number).toBeDefined();
+		expect(accounts.wave.name).toBeDefined();
+
+		expect(accounts.kpay).toBeDefined();
+		expect(accounts.kpay.number).toBeDefined();
+		expect(accounts.kpay.name).toBeDefined();
+
+		const payMsg = await buildPaymentsMessage(env);
+		expect(payMsg.text).toContain("Wave Pay");
+		expect(payMsg.text).toContain("KBZPay");
+		expect(payMsg.keyboard.inline_keyboard.length).toBeGreaterThan(0);
+	});
+
+	it("verifies reseller dashboard message and financial calculations", async () => {
+		const { buildResellerDashboardMessage } = await import("../src/telegramBot");
+		const mockReseller = {
+			telegram_id: "12345678",
+			name: "Ko Aung (Agent)",
+			username: "koaung_agent",
+			total_generated: 15,
+			total_activated: 10,
+			total_commission: 80000,
+			total_due: 1200000,
+			total_paid: 500000,
+			created_at: Date.now()
+		};
+
+		const dash = buildResellerDashboardMessage(mockReseller);
+		expect(dash.text).toContain("Ko Aung (Agent)");
+		expect(dash.text).toContain("<b>15</b> ခု");
+		expect(dash.text).toContain("<b>10</b> ခု");
+		expect(dash.text).toContain("<b>80,000</b> ကျပ်");
+		expect(dash.text).toContain("<code>1,200,000</code> ကျပ်");
+		expect(dash.keyboard.inline_keyboard.length).toBeGreaterThan(0);
+	});
+
+	it("handles buyer payment screenshot upload via Telegram Webhook", async () => {
+		const photoPayload = {
+			update_id: 1005,
+			message: {
+				message_id: 5,
+				chat: { id: 77777777, type: "private" },
+				date: Math.floor(Date.now() / 1000),
+				from: { id: 77777777, is_bot: false, first_name: "BuyerMgMg", username: "mgmg" },
+				photo: [
+					{ file_id: "photo_thumb_123", width: 100, height: 100, file_size: 1024 },
+					{ file_id: "photo_large_456", width: 800, height: 800, file_size: 20480 }
+				]
+			}
+		};
+
+		const request = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(photoPayload)
+		});
+
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(response.status).toBe(200);
+		const text = await response.text();
+		expect(text).toBe("ok");
+	});
+
+	it("protects new admin commands (/addadmin, /addreseller, /payreseller, /setcommission, /setwave) from unauthorized users", async () => {
+		const unauthorizedCommands = [
+			"/addadmin 12345",
+			"/addreseller 12345",
+			"/payreseller 12345 full",
+			"/setcommission lifetime 6000",
+			"/setwave 09123456789 Admin"
+		];
+
+		for (let i = 0; i < unauthorizedCommands.length; i++) {
+			const cmd = unauthorizedCommands[i];
+			const payload = {
+				update_id: 2000 + i,
+				message: {
+					message_id: 10 + i,
+					chat: { id: 987654321, type: "private" },
+					date: Math.floor(Date.now() / 1000),
+					text: cmd,
+					from: { id: 987654321, is_bot: false, first_name: "Attacker" }
+				}
+			};
+
+			const request = new IncomingRequest("http://example.com/webhook", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, env, ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(200);
+			const text = await response.text();
+			expect(text).toBe("unauthorized");
+		}
+	});
+
+	it("verifies persistent bottom keyboards and bulk menu keyboard structures", () => {
+		const adminKb = getAdminBottomKeyboard();
+		expect(adminKb.is_persistent).toBe(true);
+		expect(adminKb.resize_keyboard).toBe(true);
+		const adminBtnTexts = adminKb.keyboard.flat().map(b => b.text);
+		expect(adminBtnTexts).toContain("📊 ပင်မ ဒက်ရှ်ဘုတ်");
+		expect(adminBtnTexts).toContain("➕ ကုတ်အသစ် ထုတ်မည်");
+		expect(adminBtnTexts).toContain("👥 ကိုယ်စားလှယ်များ");
+		expect(adminBtnTexts).toContain("💳 ငွေလက်ခံ အကောင့်များ");
+
+		const resellerKb = getResellerBottomKeyboard();
+		expect(resellerKb.is_persistent).toBe(true);
+		const resellerBtnTexts = resellerKb.keyboard.flat().map(b => b.text);
+		expect(resellerBtnTexts).toContain("💼 ဒက်ရှ်ဘုတ်");
+		expect(resellerBtnTexts).toContain("🎁 ၃ ရက် Trial");
+		expect(resellerBtnTexts).toContain("📅 ၁ နှစ် လိုင်စင်");
+		expect(resellerBtnTexts).toContain("💎 တစ်သက်တာ လိုင်စင်");
+		expect(resellerBtnTexts).toContain("📦 အများပြား ထုတ်မည် (Bulk)");
+
+		const buyerKb = getBuyerBottomKeyboard();
+		expect(buyerKb.is_persistent).toBe(true);
+		const buyerBtnTexts = buyerKb.keyboard.flat().map(b => b.text);
+		expect(buyerBtnTexts).toContain("🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့်");
+		expect(buyerBtnTexts).toContain("🛒 လိုင်စင် ဝယ်ယူမည်");
+		expect(buyerBtnTexts).toContain("🇹🇭 3D Live ရလဒ်");
+		expect(buyerBtnTexts).toContain("🔢 တွတ် ဂဏန်းများ");
+
+		const bulkKb = getResellerBulkKeyboard();
+		const bulkCallbacks = bulkKb.inline_keyboard.flat().map(b => b.callback_data);
+		expect(bulkCallbacks).toContain("r_gen_b:one_year:5");
+		expect(bulkCallbacks).toContain("r_gen_b:lifetime:10");
+
+		const keyGenKb = getKeyGenKeyboard();
+		const genCallbacks = keyGenKb.inline_keyboard.flat().map(b => b.callback_data);
+		expect(genCallbacks).toContain("gen_b:one_year:1");
+		expect(genCallbacks).toContain("gen_b:one_year:5");
+		expect(genCallbacks).toContain("gen_b:lifetime:10");
+	});
+
+	it("handles interactive button-driven webhook text messages without slash commands", async () => {
+		const buttonTexts = [
+			"📊 ပင်မ ဒက်ရှ်ဘုတ်",
+			"🔢 တွတ် ဂဏန်းများ",
+			"🎯 ပေါက်မဲ စစ်မည်",
+			"❓ အကူအညီ",
+			"🛒 လိုင်စင် ဝယ်ယူမည်"
+		];
+
+		for (let i = 0; i < buttonTexts.length; i++) {
+			const btnText = buttonTexts[i];
+			const payload = {
+				update_id: 3000 + i,
+				message: {
+					message_id: 20 + i,
+					chat: { id: 5684146708, type: "private" },
+					date: Math.floor(Date.now() / 1000),
+					text: btnText,
+					from: { id: 5684146708, is_bot: false, first_name: "ButtonUser" }
+				}
+			};
+
+			const request = new IncomingRequest("http://example.com/webhook", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, env, ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(200);
+			const text = await response.text();
+			expect(text).toBe("ok");
+		}
+	});
+
+	it("handles interactive callback query clicks for Tut, Batch, and Key Generation chips", async () => {
+		const callbacks = [
+			{ id: "cq_tut", data: "tut:108" },
+			{ id: "cq_batch", data: "b_inc" },
+			{ id: "cq_batch_dec", data: "b_dec" },
+			{ id: "cq_gen_chip", data: "gen_b:one_year:5" },
+			{ id: "cq_com_menu", data: "com_menu:lifetime" }
+		];
+
+		for (let i = 0; i < callbacks.length; i++) {
+			const cb = callbacks[i];
+			const payload = {
+				update_id: 4000 + i,
+				callback_query: {
+					id: cb.id,
+					data: cb.data,
+					from: { id: 5684146708, is_bot: false, first_name: "AdminTester" },
+					message: {
+						message_id: 30 + i,
+						chat: { id: 5684146708, type: "private" },
+						date: Math.floor(Date.now() / 1000)
+					}
+				}
+			};
+
+			const request = new IncomingRequest("http://example.com/webhook", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload)
+			});
+
+			const ctx = createExecutionContext();
+			const response = await worker.fetch(request, env, ctx);
+			await waitOnExecutionContext(ctx);
+			expect(response.status).toBe(200);
+		}
+	});
+
+	it("handles /api/app/latest and /api/app/publish workflow", async () => {
+		// 1. Check latest release when empty
+		const getReq1 = new IncomingRequest("http://example.com/api/app/latest");
+		const ctx1 = createExecutionContext();
+		const res1 = await worker.fetch(getReq1, env, ctx1);
+		await waitOnExecutionContext(ctx1);
+		expect(res1.status).toBe(200);
+		const json1 = await res1.json() as any;
+		expect(json1.status).toBe("ok");
+
+		// 2. Publish new release via /api/app/publish
+		const pubPayload = {
+			file_id: "test_telegram_file_id_999",
+			file_name: "3D_Ledger_v1.0.100.apk",
+			file_size: 24500000,
+			version_name: "v1.0.100",
+			version_code: 100,
+			release_notes: "Test automated release",
+			download_url: "https://github.com/sayarkhant001/3d_Agent/releases/download/v1.0.100/app-debug.apk"
+		};
+		const pubReq = new IncomingRequest("http://example.com/api/app/publish", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(pubPayload)
+		});
+		const ctx2 = createExecutionContext();
+		const res2 = await worker.fetch(pubReq, env, ctx2);
+		await waitOnExecutionContext(ctx2);
+		expect(res2.status).toBe(200);
+		const json2 = await res2.json() as any;
+		expect(json2.status).toBe("ok");
+		expect(json2.release.version_name).toBe("v1.0.100");
+		expect(json2.release.file_id).toBe("test_telegram_file_id_999");
 	});
 });

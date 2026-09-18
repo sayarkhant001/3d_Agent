@@ -73,3 +73,20 @@ jobs:
           body: "Auto-build from commit ${{ github.sha }}"
           files: ${{ steps.apk.outputs.path }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync Release to Telegram Bot & Cloudflare Worker
+        if: github.ref == 'refs/heads/main' && success()
+        run: |
+          RELEASE_TAG="v1.0.${{ github.run_number }}"
+          DOWNLOAD_URL="https://github.com/sayarkhant001/3d_Agent/releases/download/${RELEASE_TAG}/app-debug.apk"
+          echo "Syncing ${RELEASE_TAG} to Cloudflare Worker..."
+          curl -s -X POST "https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/api/app/publish" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "version_name": "'"${RELEASE_TAG}"'",
+              "version_code": '${{ github.run_number }}',
+              "download_url": "'"${DOWNLOAD_URL}"'",
+              "release_notes": "Official release from GitHub commit ${{ github.sha }}",
+              "uploaded_by": "GitHub Actions",
+              "broadcast": true
+            }'

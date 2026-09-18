@@ -1,15 +1,15 @@
 package com.threeDLedger.ui
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,6 +41,8 @@ fun ActivationScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isPendingApproval by remember { mutableStateOf(licenseManager.getPendingCdKey() != null) }
+    val expiredWarning by remember { mutableStateOf(licenseManager.getExpiredWarning()) }
+    var migrationNotice by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         if (licenseManager.isActivated()) {
@@ -56,6 +58,7 @@ fun ActivationScreen(
                 val check = licenseManager.checkPendingStatus(cdKey)
                 if (check is ActivationResult.Success) {
                     isPendingApproval = false
+                    licenseManager.clearExpiredWarning()
                     onActivated()
                     break
                 } else if (check is ActivationResult.Error) {
@@ -75,17 +78,19 @@ fun ActivationScreen(
     ) {
         Card(
             modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .widthIn(max = 460.dp),
+                .fillMaxWidth(0.94f)
+                .widthIn(max = 500.dp)
+                .padding(vertical = 16.dp),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+            border = BorderStroke(1.dp, CardBorderSubtle)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(28.dp),
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (isPendingApproval) {
@@ -176,6 +181,7 @@ fun ActivationScreen(
                                     val check = licenseManager.checkPendingStatus(cdKey)
                                     isLoading = false
                                     if (check is ActivationResult.Success) {
+                                        licenseManager.clearExpiredWarning()
                                         onActivated()
                                     } else if (check is ActivationResult.Error) {
                                         isPendingApproval = false
@@ -198,9 +204,80 @@ fun ActivationScreen(
                     }
                 } else {
                     // Normal Activation Form
+
+                    // 1. Expiration or Device Migration Warning Banner
+                    if (expiredWarning != null) {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
+                            border = BorderStroke(1.5.dp, Color(0xFFFCA5A5)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 18.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = "Warning",
+                                    tint = Color(0xFFDC2626),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = "အသုံးပြုခွင့် သတိပေးချက်",
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF991B1B),
+                                        fontSize = 14.sp
+                                    )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = expiredWarning!!,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFB91C1C),
+                                        lineHeight = 18.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (migrationNotice != null) {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
+                            border = BorderStroke(1.5.dp, EmeraldPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 18.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = "Success",
+                                    tint = EmeraldPrimary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = migrationNotice!!,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = EmeraldDark
+                                )
+                            }
+                        }
+                    }
+
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(64.dp)
                             .clip(CircleShape)
                             .background(EmeraldLight),
                         contentAlignment = Alignment.Center
@@ -209,11 +286,11 @@ fun ActivationScreen(
                             Icons.Default.Key,
                             contentDescription = "Activation Key",
                             tint = EmeraldPrimary,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(32.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
 
                     Text(
                         text = "3D စာရင်း အသုံးပြုခွင့် ဖွင့်ရန်",
@@ -223,16 +300,95 @@ fun ActivationScreen(
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "အက်ပ်အား ဆက်လက်အသုံးပြုရန် CD-Key ရိုက်ထည့်၍ အသုံးပြုခွင့် ဖွင့်ပါ",
+                        text = "အက်ပ်အား ဆက်လက်အသုံးပြုရန် CD-Key ရိုက်ထည့်ပါ",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    // Available Plans Showcase
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
+                        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            Text(
+                                text = "📋 ရရှိနိုင်သော ဝန်ဆောင်မှု အစီအစဉ်များ",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = Color(0xFF374151)
+                            )
+                            Spacer(Modifier.height(8.dp))
+
+                            // 1-Year Plan
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFEFF6FF), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("⭐ ၁ နှစ် (Device Changeable)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E40AF))
+                                        Spacer(Modifier.width(4.dp))
+                                        Surface(color = Color(0xFFDBEAFE), shape = RoundedCornerShape(4.dp)) {
+                                            Text("စက်ပြောင်းနိုင်", fontSize = 10.sp, color = Color(0xFF1D4ED8), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    Text("၁၈၀,၀၀၀ ကျပ် / နှစ် (လက်ကျန်ရက် အပြည့်ဖြင့် ဖုန်းအသစ်ပြောင်းသုံးနိုင်)", fontSize = 11.sp, color = Color(0xFF475569))
+                                }
+                            }
+
+                            Spacer(Modifier.height(6.dp))
+
+                            // Lifetime Plan
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF3F4F6), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("💎 တစ်သက်တာ (Lifetime)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF374151))
+                                        Spacer(Modifier.width(4.dp))
+                                        Surface(color = Color(0xFFE5E7EB), shape = RoundedCornerShape(4.dp)) {
+                                            Text("စက်ပြောင်းမရ", fontSize = 10.sp, color = Color(0xFF4B5563), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                        }
+                                    }
+                                    Text("၄၅,၀၀၀ ကျပ် (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်)", fontSize = 11.sp, color = Color(0xFF6B7280))
+                                }
+                            }
+
+                            Spacer(Modifier.height(6.dp))
+
+                            // Free Trial
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF0FDF4), RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (Free 72-Hour Trial)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF166534))
+                                    Text("Telegram Bot တွင် /start နှိပ်၍ အခမဲ့ ကုတ် ရယူပါ (၇၂ နာရီတိတိ)", fontSize = 11.sp, color = Color(0xFF15803D))
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     OutlinedTextField(
                         value = cdKey,
@@ -268,7 +424,7 @@ fun ActivationScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
@@ -285,6 +441,11 @@ fun ActivationScreen(
                                 isLoading = false
                                 when (result) {
                                     is ActivationResult.Success -> {
+                                        licenseManager.clearExpiredWarning()
+                                        if (result.deviceMigrated) {
+                                            migrationNotice = result.message ?: "စက်အသစ်သို့ အောင်မြင်စွာ ပြောင်းလဲလိုက်ပါပြီ"
+                                            delay(1500)
+                                        }
                                         onActivated()
                                     }
                                     is ActivationResult.Pending -> {
