@@ -17,76 +17,64 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'gradle'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Write google-services.json
-        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Make gradlew executable
         run: chmod +x gradlew
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --no-configuration-cache
-
-      - name: Dump KSP generated files on failure
-        if: failure()
-        run: |
-          echo "=== BluetoothPrinter.kt lines 325-335 ==="
-          sed -n '325,335p' app/src/main/java/com/threeDLedger/logic/BluetoothPrinter.kt | cat -A
-          echo "=== KSP generated Kotlin files ==="
-          find app/build/generated/ksp -name "*.kt" 2>/dev/null | head -20
-          echo "=== First 30 lines of each generated file ==="
-          find app/build/generated/ksp -name "*.kt" 2>/dev/null | while read f; do
-            echo "--- $f ---"
-            head -30 "$f" | cat -A
-          done
+      - name: Build Hardened Release APK
+        run: ./gradlew assembleRelease --no-daemon --no-configuration-cache --stacktrace
 
       - name: Find APK path
         id: apk
-        if: success()
         run: |
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -1)
+          fi
           echo "Found APK: $APK_PATH"
           echo "path=$APK_PATH" >> $GITHUB_OUTPUT
+          echo "filename=$(basename $APK_PATH)" >> $GITHUB_OUTPUT
 
       - name: Upload APK artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-release
           path: ${{ steps.apk.outputs.path }}
           retention-days: 30
 
       - name: Create GitHub Release with APK
         uses: softprops/action-gh-release@v2
         continue-on-error: true
-        if: github.ref == 'refs/heads/main' && success()
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: "v1.0.${{ github.run_number }}"
-          body: "Auto-build from commit ${{ github.sha }}"
+          name: "Release v1.0.${{ github.run_number }}"
+          body: "Automated production release from commit ${{ github.sha }} with R8 bytecode obfuscation and anti-reverse engineering shield."
           files: ${{ steps.apk.outputs.path }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sync Release to Telegram Bot & Cloudflare Worker
-        if: github.ref == 'refs/heads/main' && success()
         run: |
           RELEASE_TAG="v1.0.${{ github.run_number }}"
-          DOWNLOAD_URL="https://github.com/sayarkhant001/3d_Agent/releases/download/${RELEASE_TAG}/app-debug.apk"
-          echo "Syncing ${RELEASE_TAG} to Cloudflare Worker..."
+          FILE_NAME="${{ steps.apk.outputs.filename }}"
+          DOWNLOAD_URL="https://github.com/sayarkhant001/3d_Agent/releases/download/${RELEASE_TAG}/${FILE_NAME}"
+          echo "Syncing ${RELEASE_TAG} (${DOWNLOAD_URL}) to Cloudflare Worker..."
           curl -s -X POST "https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/api/app/publish" \
             -H "Content-Type: application/json" \
             -d '{
               "version_name": "'"${RELEASE_TAG}"'",
               "version_code": '${{ github.run_number }}',
+              "file_name": "'"${FILE_NAME}"'",
               "download_url": "'"${DOWNLOAD_URL}"'",
-              "release_notes": "Official release from GitHub commit ${{ github.sha }}",
+              "release_notes": "Automated release from GitHub Actions run #${{ github.run_number }}",
               "uploaded_by": "GitHub Actions",
               "broadcast": true
             }'
