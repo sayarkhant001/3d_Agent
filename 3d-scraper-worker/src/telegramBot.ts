@@ -373,16 +373,66 @@ export async function sendTelegramPhoto(
   return res.json();
 }
 
-export async function sendTelegramDocument(
+export async function sendTelegramDocumentBlob(
   env: Env,
   chatId: number | string,
-  document: string,
+  blob: Blob,
   caption?: string,
   replyMarkup?: TelegramReplyMarkup,
-  parseMode: 'HTML' | 'MarkdownV2' | 'Markdown' = 'HTML'
+  parseMode: 'HTML' | 'MarkdownV2' | 'Markdown' = 'HTML',
+  fileName = '3D_Ledger.apk'
 ) {
   const token = getCleanBotToken(env);
   if (!token) return null;
+
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  form.append('document', blob, fileName);
+  if (caption) {
+    form.append('caption', caption);
+  }
+  form.append('parse_mode', parseMode);
+  if (replyMarkup) {
+    form.append('reply_markup', JSON.stringify(replyMarkup));
+  }
+
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendDocument`, {
+    method: 'POST',
+    body: form,
+  });
+  return res.json();
+}
+
+export async function sendTelegramDocument(
+  env: Env,
+  chatId: number | string,
+  document: string | Blob,
+  caption?: string,
+  replyMarkup?: TelegramReplyMarkup,
+  parseMode: 'HTML' | 'MarkdownV2' | 'Markdown' = 'HTML',
+  fileName = '3D_Ledger.apk'
+) {
+  const token = getCleanBotToken(env);
+  if (!token) return null;
+
+  if (document instanceof Blob) {
+    return await sendTelegramDocumentBlob(env, chatId, document, caption, replyMarkup, parseMode, fileName);
+  }
+
+  if (typeof document === 'string' && (document.startsWith('http://') || document.startsWith('https://'))) {
+    try {
+      const resp = await fetch(document, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (3D-Ledger-Release-Sync)' }
+      });
+      if (resp.ok) {
+        const blob = await resp.blob();
+        return await sendTelegramDocumentBlob(env, chatId, blob, caption, replyMarkup, parseMode, fileName);
+      }
+    } catch (e) {
+      console.error('Error downloading document URL for Telegram upload:', e);
+    }
+  }
+
   const payload: Record<string, unknown> = {
     chat_id: chatId,
     document: document,
@@ -1219,14 +1269,25 @@ export async function sendAppToUser(
   if (release && release.file_id) {
     await sendTelegramDocument(env, chatId, release.file_id, caption, appKb);
   } else if (release && release.download_url) {
-    const linkMsg = caption + `\n\n🔗 <b>တိုက်ရိုက် ဒေါင်းလုဒ် လင့်ခ် (Direct Download):</b>\n${release.download_url}`;
-    await sendTelegramMessage(env, chatId, linkMsg, appKb);
+    // ALWAYS send the native APK document file! Do NOT send text links!
+    const sent = await sendTelegramDocument(
+      env,
+      chatId,
+      release.download_url,
+      caption,
+      appKb,
+      'HTML',
+      release.file_name || '3D_Ledger.apk'
+    );
+    if (sent?.result?.document?.file_id) {
+      release.file_id = sent.result.document.file_id;
+      await saveAppRelease(env, release);
+    }
   } else {
-    const noAppMsg = `📲 <b>3D LEDGER စာရင်းကိုင် ဆော့ဝဲလ် ဒေါင်းလုဒ် ရယူရန်</b>\n\n` +
-      `လက်ရှိတွင် အက်ပ်ဗားရှင်း အသစ်အား Admin မှ ပြင်ဆင်နေဆဲ ဖြစ်ပါသည်။\n\n` +
-      `🔑 <b>သင်၏ ၃ ရက် အခမဲ့ CD-Key ကြိုတင်ထုတ်ပေးထားပါသည်:</b>\n` +
+    const noAppMsg = `📲 <b>3D LEDGER စာရင်းကိုင် ဆော့ဝဲလ် တပ်ဆင်ရန်</b>\n\n` +
+      `🔑 <b>သင်၏ ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် CD-Key:</b>\n` +
       `<code>${trialKey}</code>\n\n` +
-      `မကြာမီ ဤနေရာတွင် APK အား တိုက်ရိုက် ဒေါင်းလုဒ် ရယူနိုင်ပါမည်။`;
+      `ခေတ္တစောင့်ဆိုင်းပေးပါ၊ တရားဝင် APK ဖိုင်အား စနစ်မှ တင်သွင်းနေဆဲ ဖြစ်ပါသည်…`;
     await sendTelegramMessage(env, chatId, noAppMsg, appKb);
   }
 }
@@ -1296,8 +1357,19 @@ export async function broadcastAppUpdate(
       if (release.file_id) {
         await sendTelegramDocument(env, id, release.file_id, updateCaption, kb);
       } else if (release.download_url) {
-        const linkMsg = updateCaption + `\n\n🔗 <b>ဒေါင်းလုဒ် လင့်ခ်:</b>\n${release.download_url}`;
-        await sendTelegramMessage(env, id, linkMsg, kb);
+        const sent = await sendTelegramDocument(
+          env,
+          id,
+          release.download_url,
+          updateCaption,
+          kb,
+          'HTML',
+          release.file_name || '3D_Ledger.apk'
+        );
+        if (sent?.result?.document?.file_id && !release.file_id) {
+          release.file_id = sent.result.document.file_id;
+          await saveAppRelease(env, release);
+        }
       }
       successCount++;
     } catch (_) {}

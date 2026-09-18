@@ -300,6 +300,52 @@ export default {
       }
     }
 
+    // Sync Current Release APK to Telegram to obtain native file_id
+    if ((url.pathname === '/api/app/sync-telegram' || url.pathname === '/app/sync-telegram') && request.method === 'POST') {
+      try {
+        const release = await getAppRelease(env);
+        if (!release || !release.download_url) {
+          return new Response(JSON.stringify({ error: 'No release or download_url found in database' }), {
+            status: 400, headers: corsHeaders
+          });
+        }
+
+        const tgRes = await sendTelegramDocument(
+          env,
+          env.TELEGRAM_CHAT_ID,
+          release.download_url,
+          `📦 <b>[Official 3D Ledger Production APK]</b>\n\n` +
+          `🔖 <b>ဗားရှင်း:</b> <b>${release.version_name}</b>\n` +
+          `📝 <b>မှတ်ချက်:</b> ${release.release_notes}\n\n` +
+          `<i>ဆာဗာမှ Telegram CDN သို့ အောင်မြင်စွာ တင်သွင်းပြီးဖြစ်ပါသည်</i>`,
+          undefined,
+          'HTML',
+          release.file_name || `3D_Ledger_${release.version_name}.apk`
+        );
+
+        if (tgRes?.result?.document?.file_id) {
+          release.file_id = tgRes.result.document.file_id;
+          await saveAppRelease(env, release);
+          return new Response(JSON.stringify({
+            status: 'ok',
+            message: 'APK successfully uploaded to Telegram servers and file_id saved',
+            file_id: release.file_id,
+            release
+          }), { headers: corsHeaders });
+        } else {
+          return new Response(JSON.stringify({
+            status: 'error',
+            message: 'Telegram API did not return document file_id',
+            telegram_response: tgRes
+          }), { status: 502, headers: corsHeaders });
+        }
+      } catch (err: any) {
+        return new Response(JSON.stringify({ status: 'error', error: err.message }), {
+          status: 500, headers: corsHeaders
+        });
+      }
+    }
+
     // Manual draw processing / Apply GLO trigger
     if (url.pathname === '/process-draw' || url.pathname === '/apply-glo' || (url.pathname === '/' && request.method === 'POST')) {
       try {
