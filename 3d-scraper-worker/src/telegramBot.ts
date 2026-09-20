@@ -1405,55 +1405,139 @@ export async function sendAppToUser(
   }
 }
 
+export async function getAllRecipientIds(env: Env): Promise<Set<string>> {
+  const recipientIds = new Set<string>();
+
+  try {
+    const token = await getFirebaseToken(env);
+
+    // 1. telegram_trials
+    try {
+      const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/telegram_trials.json`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json() as Record<string, { telegram_id?: string | number }> | null;
+        if (data && typeof data === 'object') {
+          Object.entries(data).forEach(([key, u]) => {
+            if (u?.telegram_id) recipientIds.add(String(u.telegram_id).trim());
+            else if (/^\d+$/.test(key)) recipientIds.add(key.trim());
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 2. buyer_orders
+    try {
+      const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/buyer_orders.json`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json() as Record<string, { buyer_chat_id?: string | number }> | null;
+        if (data && typeof data === 'object') {
+          Object.values(data).forEach(o => {
+            if (o?.buyer_chat_id) recipientIds.add(String(o.buyer_chat_id).trim());
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 3. resellers
+    try {
+      const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/resellers.json`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json() as Record<string, { telegram_id?: string | number }> | null;
+        if (data && typeof data === 'object') {
+          Object.entries(data).forEach(([key, r]) => {
+            if (r?.telegram_id) recipientIds.add(String(r.telegram_id).trim());
+            else if (/^\d+$/.test(key)) recipientIds.add(key.trim());
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 4. keys (claimed_by_telegram_id)
+    try {
+      const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys.json`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json() as Record<string, LicenseKeyRecord> | null;
+        if (data && typeof data === 'object') {
+          Object.values(data).forEach(k => {
+            if (k?.claimed_by_telegram_id) recipientIds.add(String(k.claimed_by_telegram_id).trim());
+            else if (k?.claimed_by && /^\d+$/.test(k.claimed_by)) recipientIds.add(k.claimed_by.trim());
+          });
+        }
+      }
+    } catch (_) {}
+
+    // 5. master admin / admins
+    if (env.TELEGRAM_CHAT_ID) {
+      recipientIds.add(String(env.TELEGRAM_CHAT_ID).trim());
+    }
+  } catch (_) {}
+
+  return recipientIds;
+}
+
+export async function broadcastTextMessage(
+  env: Env,
+  adminChatId: number | string,
+  message: string,
+  replyMarkup?: InlineKeyboardMarkup
+): Promise<number> {
+  const recipientIds = await getAllRecipientIds(env);
+  let successCount = 0;
+
+  const kb: InlineKeyboardMarkup = replyMarkup || {
+    inline_keyboard: [
+      [
+        { text: '📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်', callback_data: 'b_app_download' },
+        { text: '🛒 လိုင်စင် ဝယ်ယူမည်', callback_data: 'b_buy_menu' }
+      ],
+      [
+        { text: '🇹🇭 3D Live ရလဒ် ကြည့်မည်', callback_data: 'b_live_refresh' },
+        { text: '🔢 တွတ် ဂဏန်းများ', callback_data: 'tut:108' }
+      ]
+    ]
+  };
+
+  for (const id of recipientIds) {
+    try {
+      await sendTelegramMessage(env, id, message, kb);
+      successCount++;
+    } catch (_) {}
+  }
+
+  if (adminChatId) {
+    await sendTelegramMessage(
+      env,
+      adminChatId,
+      `📢 <b>အသိပေးစာ အားလုံးသို့ ပို့ဆောင်ပြီးပါပြီ (Broadcast Complete)</b>\n\n` +
+      `📊 အောင်မြင်စွာ ပို့ခဲ့သူ: <b>${successCount}</b> ဦး\n` +
+      `👥 စုစုပေါင်း ဖုန်း/အသုံးပြုသူ: <b>${recipientIds.size}</b> ဦး`
+    );
+  }
+
+  return successCount;
+}
+
 export async function broadcastAppUpdate(
   env: Env,
   adminChatId: number | string,
   customMessage?: string
 ): Promise<number> {
   const release = await getAppRelease(env);
-  if (!release) {
-    await sendTelegramMessage(env, adminChatId, '❌ ထုတ်ဝေထားသော အက်ပ်ဗားရှင်း မတွေ့ရှိပါ');
-    return 0;
-  }
-
-  const token = await getFirebaseToken(env);
-  const recipientIds = new Set<string>();
-
-  // Collect from telegram_trials
-  try {
-    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/telegram_trials.json`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json() as Record<string, { telegram_id: string }>;
-      if (data) {
-        Object.values(data).forEach(u => {
-          if (u.telegram_id) recipientIds.add(String(u.telegram_id));
-        });
-      }
-    }
-  } catch (_) {}
-
-  // Collect from buyer_orders
-  try {
-    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/buyer_orders.json`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    if (res.ok) {
-      const data = await res.json() as Record<string, { buyer_chat_id: string }>;
-      if (data) {
-        Object.values(data).forEach(o => {
-          if (o.buyer_chat_id) recipientIds.add(String(o.buyer_chat_id));
-        });
-      }
-    }
-  } catch (_) {}
+  const recipientIds = await getAllRecipientIds(env);
 
   let successCount = 0;
   const updateCaption = customMessage ||
-    `🚀 <b>3D LEDGER အက်ပ် ဗားရှင်းအသစ် [${release.version_name || 'Latest'}] ထွက်ရှိပါပြီ!</b>\n\n` +
-    `📦 <b>ဖိုင်အမည်:</b> <code>${release.file_name}</code>\n` +
-    `📝 <b>အပြောင်းအလဲများ:</b> ${release.release_notes || 'စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ ပါဝင်ပါသည်'}\n\n` +
+    `🚀 <b>3D LEDGER အက်ပ် ဗားရှင်းအသစ် [${release?.version_name || 'Latest'}] ထွက်ရှိပါပြီ!</b>\n\n` +
+    (release ? `📦 <b>ဖိုင်အမည်:</b> <code>${release.file_name}</code>\n` : '') +
+    `📝 <b>အပြောင်းအလဲများ:</b> ${release?.release_notes || 'Physical Tactile Keypad, Haptic Feedback နှင့် Active License ပိတ်သိမ်းနိုင်သော စနစ်သစ်များ ပါဝင်ပါသည်'}\n\n` +
     `အောက်ပါ APK ဖိုင်ကို ဒေါင်းလုဒ်ဆွဲ၍ ယခင်အက်ပ်ပေါ်တွင် အဆင့်မြှင့်တင် (Update) တပ်ဆင်နိုင်ပါပြီ 👇`;
 
   const kb: InlineKeyboardMarkup = {
@@ -1467,9 +1551,10 @@ export async function broadcastAppUpdate(
 
   for (const id of recipientIds) {
     try {
-      if (release.file_id) {
+      if (release?.file_id) {
         await sendTelegramDocument(env, id, release.file_id, updateCaption, kb);
-      } else if (release.download_url) {
+        successCount++;
+      } else if (release?.download_url) {
         const sent = await sendTelegramDocument(
           env,
           id,
@@ -1483,18 +1568,24 @@ export async function broadcastAppUpdate(
           release.file_id = sent.result.document.file_id;
           await saveAppRelease(env, release);
         }
+        successCount++;
+      } else {
+        // Fallback to rich text update notification if no binary release uploaded yet
+        await sendTelegramMessage(env, id, updateCaption, kb);
+        successCount++;
       }
-      successCount++;
     } catch (_) {}
   }
 
-  await sendTelegramMessage(
-    env,
-    adminChatId,
-    `✅ <b>Update အသိပေးစာ အောင်မြင်စွာ ပို့ဆောင်ပြီးပါပြီ</b>\n\n` +
-    `📊 စုစုပေါင်း ပေးပို့ခဲ့သူ: <b>${successCount}</b> ဦး\n` +
-    `🔖 ဗားရှင်း: <b>${release.version_name || 'Latest'}</b>`
-  );
+  if (adminChatId) {
+    await sendTelegramMessage(
+      env,
+      adminChatId,
+      `✅ <b>Update အသိပေးစာ အောင်မြင်စွာ ပို့ဆောင်ပြီးပါပြီ</b>\n\n` +
+      `📊 စုစုပေါင်း ပေးပို့ခဲ့သူ: <b>${successCount}</b> ဦး\n` +
+      `🔖 ဗားရှင်း: <b>${release?.version_name || 'Latest'}</b>`
+    );
+  }
 
   return successCount;
 }
@@ -5821,11 +5912,18 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    // Command: /broadcastupdate [custom message]
-    if (text.startsWith('/broadcastupdate')) {
-      const customMsg = text.replace(/^\/broadcastupdate\s*/, '').trim();
-      await sendTelegramMessage(env, chatId, '📢 <i>ဝယ်ယူသူများနှင့် စမ်းသပ်သူများထံ Update အသိပေးစာ စတင် ပို့ဆောင်နေပါသည်...</i>');
-      await broadcastAppUpdate(env, chatId, customMsg || undefined);
+    // Command: /broadcast [custom message] or /broadcastupdate [custom message] or /announce [message]
+    if (text.startsWith('/broadcast') || text.startsWith('/announce')) {
+      const isAppUpdate = text.startsWith('/broadcastupdate');
+      const customMsg = text.replace(/^\/(broadcastupdate|broadcast|announce)\s*/i, '').trim();
+
+      if (isAppUpdate || !customMsg) {
+        await sendTelegramMessage(env, chatId, '📢 <i>ဝယ်ယူသူများနှင့် စမ်းသပ်သူများထံ Update အသိပေးစာ စတင် ပို့ဆောင်နေပါသည်...</i>');
+        await broadcastAppUpdate(env, chatId, customMsg || undefined);
+      } else {
+        await sendTelegramMessage(env, chatId, '📢 <i>အသုံးပြုသူများ အားလုံးထံ အသိပေးစာ စတင် ပို့ဆောင်နေပါသည်...</i>');
+        await broadcastTextMessage(env, chatId, `📢 <b>[3D LEDGER အသိပေးချက်]</b>\n\n${customMsg}`);
+      }
       return new Response('ok');
     }
 

@@ -17,6 +17,7 @@ import {
   recordResellerActivationDue,
   calculateTutNumbers,
   broadcastAppUpdate,
+  broadcastTextMessage,
   sendTelegramDocument,
   saveAppRelease,
   getAppRelease,
@@ -130,6 +131,22 @@ export default {
     // Telegram Bot Webhook endpoint
     if (url.pathname === '/webhook' || url.pathname === '/telegram') {
       return handleTelegramWebhook(request, env);
+    }
+
+    // Admin Broadcast Announcement Endpoint
+    if (url.pathname === '/broadcast' || url.pathname === '/broadcast-update') {
+      const msgParam = url.searchParams.get('message') || '';
+      const adminChatId = env.TELEGRAM_CHAT_ID;
+      const defaultAnnouncement =
+        `🚀 <b>3D LEDGER စနစ် အဆင့်မြှင့်တင်မှု အသစ် ထွက်ရှိပါပြီ!</b>\n\n` +
+        `✨ <b>အဓိက ပြောင်းလဲမှုများ:</b>\n` +
+        `• 📱 Android App: လက်တွေ့ဆန်သော 3D ခလုတ်ဒီဇိုင်း (Physical Tactile Keypad) နှင့် Haptic တုန်ခါမှု တုံ့ပြန်စနစ်\n` +
+        `• 🔑 လိုင်စင် စနစ်: ဖုန်းပြောင်းသုံးခွင့် မူဝါဒနှင့် Active ကုတ်များ ချက်ချင်း စစ်ဆေး/ပိတ်သိမ်းနိုင်သော စနစ်\n` +
+        `• ⚡ စွမ်းဆောင်ရည်: ပေါက်ဂဏန်းနှင့် တွတ် ၇ ကွက် တွက်ချက်မှု မြန်နှုန်း အဆပေါင်းများစွာ မြှင့်တင်ထားခြင်း\n\n` +
+        `ယခုပင် အက်ပ်ကို အဆင့်မြှင့်တင် စမ်းသပ် အသုံးပြုနိုင်ပါပြီ 👇`;
+
+      const sentCount = await broadcastTextMessage(env, adminChatId, msgParam || defaultAnnouncement);
+      return new Response(JSON.stringify({ status: 'ok', sent_count: sentCount }), { headers: corsHeaders });
     }
 
     // Automatically set Telegram Webhook and Register Bot Menu Commands
