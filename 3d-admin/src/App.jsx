@@ -840,10 +840,10 @@ function App() {
                 }}
               />
               <button className="btn btn-primary btn-sm" onClick={saveBatch}>
-                💾 Save Batch
+                💾 Save
               </button>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                (Current Live App Batch: #{currentBatch})
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                📅 <b>ထွက်ရက်စွဲ:</b> {resultDate || '16-09-2026'} | ⏭️ <b>နောက်ထွက်မည့်ရက်:</b> {targetDrawDate || '01-10-2026'} <span style={{ fontSize: 11, opacity: 0.8 }}>(အက်ပ်များတွင် အကြိမ်ကို သီးခြားစီမံသည်)</span>
               </span>
             </div>
 

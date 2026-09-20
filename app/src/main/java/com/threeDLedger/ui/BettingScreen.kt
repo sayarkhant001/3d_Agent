@@ -56,7 +56,7 @@ fun String.myanmarToEnglish(): String {
 private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_])\s*""")
 private val ROUND_MARKERS_REGEX    = Regex("""\s*[Rr/]\s*""")
 private val TAIL_AMOUNT_REGEX       = Regex("""[=:\-.,_]?(\d+)(?:R(\d+))?$""")
-private val NUM_PATTERN_REGEX       = Regex("""(\d{2,3})(R?)""")
+private val NUM_PATTERN_REGEX       = Regex("""(?<!\d)(\d{2,3})(R?)(?!\d)""")
 private val CURRENCY_SUFFIX_REGEX   = Regex("""(?i)\s*(?:ks|ကျပ်)\s*$""")
 
 // Check if a line is voucher metadata/header/footer/timestamp to ignore
@@ -107,8 +107,12 @@ fun parsePastedLine(raw: String): List<Pair<String, Int>> {
     var line = raw.trim().myanmarToEnglish().replace(CURRENCY_SUFFIX_REGEX, "").trim()
     if (line.isBlank()) return emptyList()
 
-    // Strip leading serial numbers or list indices e.g. "1. ", "2. ", "10) ", "1- ", "1: "
-    line = line.replace(Regex("""^\s*\d+[\.\)\-:]\s*"""), "").trim()
+    // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
+    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*""", RegexOption.IGNORE_CASE), "").trim()
+
+    // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
+    // Must distinguish between list indices and real 3D/2D betting numbers (e.g. "723-", "245-")!
+    line = line.replace(Regex("""^\s*(?:\(?\d{1,3}\)?\s*[\.\)\]\:\၊။]\s*|\d{1}\s*[-,\/]\s+)"""), "").trim()
     if (line.isBlank()) return emptyList()
 
     // Direct single bet format check e.g. "108 = 50", "108=50", "108-50"
@@ -192,6 +196,15 @@ fun BettingScreen(
     LaunchedEffect(Unit) {
         viewModel.bannedNumberEvent.collect {
             android.widget.Toast.makeText(context, "ထိုးထားသော ဂဏန်းများထဲတွင် ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေသဖြင့် ဖယ်ရှားလိုက်ပါသည်", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(customers) {
+        if (selectedCustomer == null && customers.isNotEmpty()) {
+            val defaultCust = customers.firstOrNull { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) }
+            if (defaultCust != null) {
+                selectedCustomer = defaultCust.id
+            }
         }
     }
 
@@ -408,7 +421,7 @@ fun BettingScreen(
                 onDismissRequest = { if (!isParsing) { showPasteDialog = false } },
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("အမြန်ထိုးရန် Paste ချပါ။", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        Text("⚡ အမြန်ထိုး စာရင်းထည့်သွင်းခြင်း", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                         if (lineCount > 0)
                             Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
                                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
@@ -428,7 +441,7 @@ fun BettingScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "စာကြောင်းအလိုက် / တင်ကွက် ဘောင်ချာ",
+                                "စာကြောင်းအလိုက် အမြန်ထိုး / တင်ကွက် ဘောင်ချာ",
                                 fontSize = 11.sp,
                                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
@@ -455,7 +468,7 @@ fun BettingScreen(
                             enabled = !isParsing,
                             placeholder = {
                                 Text(
-                                    "ဤနေရာတွင် Paste ချပါ...",
+                                    "ဤနေရာတွင် အမြန်ထိုး စာရင်း ကူးထည့်ပါ...",
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
@@ -908,7 +921,7 @@ fun BettingScreen(
                     }
                 }
 
-                // Right: Quick Paste & Save Voucher
+                // Right: Quick Bet (အမြန်ထိုး) & ထိုးမည်
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -923,9 +936,9 @@ fun BettingScreen(
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                         modifier = Modifier.height(38.dp)
                     ) {
-                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("Paste", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("အမြန်ထိုး", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -944,7 +957,7 @@ fun BettingScreen(
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("ဘောင်ချာ သိမ်းမည်", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("ထိုးမည်", fontSize = 14.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
@@ -1064,24 +1077,36 @@ fun BettingScreen(
         }
 
         // --- မှတ်ချက် (Remark) row ---
-        OutlinedTextField(
-            value = tempRemark,
-            onValueChange = { tempRemark = it },
-            placeholder = { Text("မှတ်ချက် (မထည့်လည်းရသည်)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-            singleLine = true,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 2.dp)
-                .height(44.dp),
-            shape = RoundedCornerShape(10.dp),
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedBorderColor = primaryBlue,
-                unfocusedBorderColor = borderColor
+                .height(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (tempRemark.isEmpty()) {
+                Text(
+                    "မှတ်ချက် (မထည့်လည်းရသည်)",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+            androidx.compose.foundation.text.BasicTextField(
+                value = tempRemark,
+                onValueChange = { tempRemark = it },
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Medium
+                ),
+                modifier = Modifier.fillMaxWidth()
             )
-        )
+        }
 
         // --- QUICK AMOUNTS (Ergonomic Thumb Pills) ---
         Row(
@@ -1222,7 +1247,7 @@ fun BettingScreen(
                 TactileKeypadButton("6", modifier = Modifier.weight(1f)) { appendText("6") }
                 TactileKeypadButton(
                     text = "ထွိုင်",
-                    subtitle = "၃ ပူး",
+                    subtitle = "အပူး",
                     bgColor = KeypadActionTeal,
                     bevelColor = Color(0xFF115E59),
                     modifier = Modifier.weight(1f)

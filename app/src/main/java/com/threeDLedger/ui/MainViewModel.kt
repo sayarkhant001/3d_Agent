@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -66,7 +67,18 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         brakeLimit.value = prefs.getInt("brakeLimit", 3000)
         viewModelScope.launch {
             repository.purgeOverflowArtifacts()
+            ensureDefaultCustomer()
         }
+    }
+
+    private suspend fun ensureDefaultCustomer() {
+        try {
+            val list = repository.allCustomers.first()
+            val hasNormal = list.any { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) }
+            if (!hasNormal) {
+                repository.insertCustomer(Customer(name = "မိမိ (ကိုယ်တိုင်)", commissionRate = 0.0, multiplier = 600))
+            }
+        } catch (_: Exception) {}
     }
 
     fun saveWinningNumber(number: String) {
@@ -323,81 +335,16 @@ private val VM_BLOCK_TAIL_REGEX        = Regex("([-:/.,_=]+)?(\\d+)(?:R(\\d+))?$
 private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
 
     fun parseBets(input: String): List<Bet> {
-        val convertedInput = convertBurmeseToEnglishDigits(input)
+        val lines = input.lines().filter { it.isNotBlank() }
         val bets = mutableListOf<Bet>()
-        
-        // Remove 'ks' (case insensitive)
-        var text = convertedInput.replace(VM_KS_REGEX, "")
-        // Remove spaces around separators
-        text = text.replace(VM_SPACES_SEPARATORS_REGEX, "$1")
-        // Remove spaces around 'R' (case insensitive)
-        text = text.replace(VM_SPACES_R_REGEX, "R")
-        // Split by remaining spaces
-        val blocks = text.split(VM_SPACES_SPLIT_REGEX)
-        
-        for (block in blocks) {
-            if (block.isEmpty()) continue
-            
-            var numbersStr = ""
-            var amount1Str = ""
-            var amount2Str = ""
-            
-            val match = VM_BLOCK_TAIL_REGEX.find(block)
-            
-            if (match != null) {
-                if (match.range.first == 0) {
-                    val amt1 = match.groups[2]?.value ?: ""
-                    val amt2 = match.groups[3]?.value ?: ""
-                    if (amt2.isNotEmpty()) {
-                        numbersStr = amt1 + "R"
-                        amount1Str = amt2
-                    } else {
-                        numbersStr = amt1
-                    }
-                } else {
-                    numbersStr = block.substring(0, match.range.first)
-                    amount1Str = match.groups[2]?.value ?: ""
-                    amount2Str = match.groups[3]?.value ?: ""
-                }
-            } else {
-                numbersStr = block
-            }
-            
-            val amount = amount1Str.toIntOrNull() ?: continue
-            val rAmount = amount2Str.toIntOrNull()
-            
-            val chunks = numbersStr.split(VM_NUMBER_CHUNKS_REGEX)
-            for (chunk in chunks) {
-                if (chunk.isEmpty()) continue
-                val hasR = chunk.endsWith("R")
-                val baseNum = if (hasR) chunk.dropLast(1) else chunk
-                
-                // Allow 2 or 3 digit numbers
-                if (baseNum.length in 2..3 && baseNum.all { it.isDigit() }) {
-                    // Base amount
-                    bets.add(Bet(voucherId = 0, number = baseNum, amount = amount))
-                    
-                    if (rAmount != null && rAmount > 0) {
-                        // Global R amount for this block
-                        val perms = com.threeDLedger.logic.NumberGenerator.permutations(baseNum)
-                        for (p in perms) {
-                            if (p != baseNum) {
-                                bets.add(Bet(voucherId = 0, number = p, amount = rAmount))
-                            }
-                        }
-                    } else if (hasR) {
-                        // R attached to this specific number, no global R amount
-                        val perms = com.threeDLedger.logic.NumberGenerator.permutations(baseNum)
-                        for (p in perms) {
-                            if (p != baseNum) {
-                                bets.add(Bet(voucherId = 0, number = p, amount = amount))
-                            }
-                        }
-                    }
+        for (line in lines) {
+            val pairs = parsePastedLine(line)
+            for ((num, amt) in pairs) {
+                if (amt > 0) {
+                    bets.add(Bet(voucherId = 0, number = num, amount = amt))
                 }
             }
         }
-        
         return bets
     }
 

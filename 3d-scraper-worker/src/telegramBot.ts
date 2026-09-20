@@ -4061,11 +4061,24 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     // Batch Menu: m_batch
     else if (data === 'm_batch') {
       let b = 1;
+      let drawDate = '';
+      let nextDrawDate = '';
       try {
         const res = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json`);
         if (res.ok) b = parseInt(await res.json() || '1', 10) || 1;
+        const liveRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`);
+        if (liveRes.ok) {
+          const liveData = await liveRes.json() as any;
+          drawDate = liveData?.result_date || '';
+          nextDrawDate = liveData?.target_draw_date || '';
+        }
       } catch (_) {}
-      const text = `📦 <b>လက်ရှိ ဖွင့်လှစ်ထားသော အကြိမ်:</b> #${b}\n\nအကြိမ် တိုး/လျှော့ ပြုလုပ်လိုပါက အောက်ပါ ခလုတ်များကို နှိပ်ပါ 👇`;
+      const text = `📦 <b>3D ထီထွက်ရက်စွဲ နှင့် အပတ်စဉ် အချက်အလက်</b>\n\n` +
+        (drawDate ? `📅 <b>နောက်ဆုံးထွက်ရက်:</b> <code>${drawDate}</code>\n` : '') +
+        (nextDrawDate ? `⏭️ <b>နောက်ထွက်မည့်ရက်:</b> <code>${nextDrawDate}</code>\n` : '') +
+        `🔢 <b>စနစ် သတ်မှတ် အကြိမ်:</b> #${b}\n\n` +
+        `💡 <i>မှတ်ချက်: အက်ပ်အသုံးပြုသူများသည် မိမိဖုန်းအလိုက် အကြိမ်များကို သီးခြားစီမံနိုင်ပါသည်။</i>\n\n` +
+        `အကြိမ် တိုး/လျှော့ ပြုလုပ်လိုပါက အောက်ပါ ခလုတ်များကို နှိပ်ပါ 👇`;
       const kb: InlineKeyboardMarkup = {
         inline_keyboard: [
           [
@@ -4781,14 +4794,27 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
 
     if (text.startsWith('/batch')) {
       let b = '1';
+      let drawDate = '';
+      let nextDrawDate = '';
       try {
         const token = await getFirebaseToken(env);
         const res = await fetch(`${env.FIREBASE_DB_URL}/3d_lottery_config/current_batch.json`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) b = String(await res.json() || '1');
+        const liveRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`);
+        if (liveRes.ok) {
+          const liveData = await liveRes.json() as any;
+          drawDate = liveData?.result_date || '';
+          nextDrawDate = liveData?.target_draw_date || '';
+        }
       } catch (_) {}
-      await sendTelegramMessage(env, chatId, `📦 <b>လက်ရှိ ဖွင့်လှစ်ထားသော အကြိမ်:</b> #${b}`, userRoleKb);
+      const msg = `📦 <b>3D ထီထွက်ရက်စွဲ နှင့် အပတ်စဉ်</b>\n\n` +
+        (drawDate ? `📅 <b>နောက်ဆုံးထွက်ရက်:</b> <code>${drawDate}</code>\n` : '') +
+        (nextDrawDate ? `⏭️ <b>နောက်ထွက်မည့်ရက်:</b> <code>${nextDrawDate}</code>\n` : '') +
+        `🔢 <b>စနစ် သတ်မှတ် အကြိမ်:</b> #${b}\n\n` +
+        `💡 <i>မှတ်ချက်: အက်ပ်အသုံးပြုသူများသည် မိမိဖုန်းအလိုက် အကြိမ်များကို သီးခြားစီမံနိုင်ပါသည်။</i>`;
+      await sendTelegramMessage(env, chatId, msg, userRoleKb);
       return new Response('ok');
     }
 
