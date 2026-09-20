@@ -432,6 +432,7 @@ fun ResetDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
 @Composable
 fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val prefs   = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
     var macAddress    by remember { mutableStateOf(prefs.getString("printerMac", "") ?: "") }
     var paperSize     by remember { mutableStateOf(prefs.getString("paperSize", "58mm") ?: "58mm") }
@@ -507,7 +508,7 @@ fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                 Spacer(Modifier.height(14.dp))
                 Button(onClick = {
                     isConnecting = true
-                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    coroutineScope.launch {
                         val ok = com.threeDLedger.logic.BluetoothPrinter.connect(macAddress)
                         isConnecting = false
                         android.widget.Toast.makeText(context, if (ok) "ချိတ်ဆက်မှု အောင်မြင်ပါသည်" else "ချိတ်ဆက်မှု မအောင်မြင်ပါ", android.widget.Toast.LENGTH_SHORT).show()
@@ -518,7 +519,7 @@ fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                 }
                 Spacer(Modifier.height(8.dp))
                 OutlinedButton(onClick = {
-                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                    coroutineScope.launch {
                         val text = "========================\n      3D VOUCHER\n========================\n Test Print Successful\n========================"
                         val bmp = com.threeDLedger.logic.BluetoothPrinter.createBitmapFromText(text, if (paperSize == "80mm") 576 else 384)
                         val ok  = com.threeDLedger.logic.BluetoothPrinter.printBitmap(bmp, paperSize)

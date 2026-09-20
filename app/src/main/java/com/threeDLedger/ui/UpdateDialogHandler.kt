@@ -47,6 +47,21 @@ fun UpdateDialogHandler(owner: String, repo: String) {
     // ── Check for updates on launch ─────────────────────────────────────────
     LaunchedEffect(Unit) {
         coroutineScope.launch {
+            // 1. Check Cloudflare Worker / Telegram Bot Release Pipeline first
+            try {
+                val cfUpdate = com.threeDLedger.logic.AppUpdateChecker.checkForUpdate(context)
+                if (cfUpdate != null && cfUpdate.hasUpdate) {
+                    updateInfo = GitHubUpdater.UpdateInfo(
+                        version = cfUpdate.latestVersionName,
+                        releaseNotes = cfUpdate.releaseNotes,
+                        downloadUrl = cfUpdate.downloadUrl ?: cfUpdate.telegramBotUrl
+                    )
+                    showUpdateDialog = true
+                    return@launch
+                }
+            } catch (_: Exception) {}
+
+            // 2. Check GitHub Releases
             val info = GitHubUpdater.checkForUpdates(owner, repo)
             if (info != null) {
                 // Tag format: "v1.0.47" or "build-47"
@@ -78,6 +93,17 @@ fun UpdateDialogHandler(owner: String, repo: String) {
 
     // ── Helper: start download + install ────────────────────────────────────
     fun startDownloadAndInstall(info: GitHubUpdater.UpdateInfo) {
+        if (info.downloadUrl.startsWith("https://t.me/")) {
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.downloadUrl)).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try {
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+            showUpdateDialog = false
+            return
+        }
+
         showUpdateDialog = false
         showProgressDialog = true
         downloadProgress = 0

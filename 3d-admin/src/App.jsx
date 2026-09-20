@@ -24,7 +24,7 @@ const DEFAULT_SALE_PLANS = {
     duration_label: '၁ နှစ် (365 ရက်)',
     price: 180000,
     device_changeable: true,
-    description: 'ဖုန်း ၁ လုံး (ဖုန်းအသစ်သို့ စက်ပြောင်းလဲနိုင်သည်)',
+    description: 'ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable ✅)',
     enabled: true,
   },
   lifetime: {
@@ -34,7 +34,7 @@ const DEFAULT_SALE_PLANS = {
     duration_label: 'တစ်သက်တာ (Lifetime)',
     price: 45000,
     device_changeable: false,
-    description: 'ဖုန်း ၁ လုံး (စက်ပြောင်းမရပါ)',
+    description: 'ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked 🔒)',
     enabled: true,
   }
 };
@@ -76,6 +76,7 @@ function App() {
   const [generatedKey, setGeneratedKey] = useState(null);
   const [bulkGeneratedKeys, setBulkGeneratedKeys] = useState([]);
   const [toast, setToast] = useState(null);
+  const [copiedId, setCopiedId] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Key filtering & search
@@ -92,6 +93,13 @@ function App() {
 
   // App Distribution & Telegram Release State
   const [appRelease, setAppRelease] = useState(null);
+
+  // Resellers & Due Settlement State
+  const [resellers, setResellers] = useState({});
+  const [settleModalReseller, setSettleModalReseller] = useState(null);
+  const [manualSettleAmount, setManualSettleAmount] = useState('');
+  const [settleNotes, setSettleNotes] = useState('');
+  const [settlingDue, setSettlingDue] = useState(false);
 
   // Key generation options: Strictly 3 plans (trial_3d, one_year, lifetime), device switching mode on/off for each plan, bulk count
   const [keyType, setKeyType] = useState('one_year');
@@ -162,6 +170,11 @@ function App() {
     const releaseRef = ref(db, '3d_app_release');
     unsubs.push(onValue(releaseRef, (snap) => {
       setAppRelease(snap.val() || null);
+    }));
+
+    const resellersRef = ref(db, '3d_licenses/resellers');
+    unsubs.push(onValue(resellersRef, (snap) => {
+      setResellers(snap.val() || {});
     }));
 
     return () => unsubs.forEach(u => u());
@@ -417,6 +430,7 @@ function App() {
         duration_label: durationLbl,
         price: planPrice,
         device_changeable: deviceChangeable,
+        created_at: now,
         generated_at: now
       };
       newlyGenerated.push(key);
@@ -442,6 +456,65 @@ function App() {
   const deleteKey = async (keyId) => {
     await set(ref(db, `3d_licenses/keys/${keyId}`), null);
     showToast('Key deleted', 'error');
+  };
+
+  const handleOpenSettleModal = (reseller) => {
+    setSettleModalReseller(reseller);
+    setManualSettleAmount(reseller.total_due ? String(reseller.total_due) : '');
+    setSettleNotes('');
+  };
+
+  const handleCloseSettleModal = () => {
+    setSettleModalReseller(null);
+    setManualSettleAmount('');
+    setSettleNotes('');
+    setSettlingDue(false);
+  };
+
+  const handleConfirmSettleDue = async (e) => {
+    e.preventDefault();
+    if (!settleModalReseller) return;
+
+    const amount = parseInt(String(manualSettleAmount).replace(/,/g, ''), 10);
+    if (isNaN(amount) || amount <= 0) {
+      showToast('Please enter a valid settlement amount greater than 0', 'error');
+      return;
+    }
+
+    setSettlingDue(true);
+    try {
+      const resellerId = settleModalReseller.telegram_id;
+      const currentDue = settleModalReseller.total_due || 0;
+      const currentPaid = settleModalReseller.total_paid || 0;
+      const newDue = Math.max(0, currentDue - amount);
+      const newPaid = currentPaid + amount;
+
+      const updates = {};
+      updates[`3d_licenses/resellers/${resellerId}/total_due`] = newDue;
+      updates[`3d_licenses/resellers/${resellerId}/total_paid`] = newPaid;
+
+      const ledgerId = `pay_${Date.now()}`;
+      updates[`3d_licenses/reseller_ledger/${resellerId}/${ledgerId}`] = {
+        id: ledgerId,
+        reseller_id: resellerId,
+        reseller_name: settleModalReseller.name,
+        amount: amount,
+        previous_due: currentDue,
+        remaining_due: newDue,
+        settled_at: Date.now(),
+        settled_by: user?.email || 'Web Admin',
+        notes: settleNotes.trim() || 'Manual Due Settlement (Web Admin)'
+      };
+
+      await update(ref(db), updates);
+      showToast(`Successfully settled ${amount.toLocaleString()} Ks for ${settleModalReseller.name}!`);
+      handleCloseSettleModal();
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to record settlement: ' + (err.message || 'Error'), 'error');
+    } finally {
+      setSettlingDue(false);
+    }
   };
 
   const toggleMode = async (newMode) => {
@@ -486,9 +559,33 @@ function App() {
     showToast(`Result ${manualNumber} pushed to app as "${manualStatus}"!`);
   };
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
+  const copyToClipboard = (text, id = null) => {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {
+        fallbackCopyText(text);
+      });
+    } else {
+      fallbackCopyText(text);
+    }
+    if (id) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 1800);
+    }
     showToast('Copied to clipboard!');
+  };
+
+  const fallbackCopyText = (text) => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+    } catch (_) {}
+    document.body.removeChild(ta);
   };
 
   const formatDuration = (duration, planId) => {
@@ -1000,11 +1097,11 @@ function App() {
                       🔄 တွတ် ({tutInfo.allTut.length} ဂဏန်း) — {activeNumber} အတွက်
                     </span>
                     <button
-                      className="btn btn-outline btn-sm"
-                      style={{ fontSize: 11, padding: '2px 8px' }}
-                      onClick={() => copyToClipboard(tutInfo.allTut.join(', '))}
+                      type="button"
+                      className={`copy-btn ${copiedId === 'tut-all' ? 'copied' : ''}`}
+                      onClick={() => copyToClipboard(tutInfo.allTut.join(', '), 'tut-all')}
                     >
-                      📋 Copy All Tut
+                      {copiedId === 'tut-all' ? '✅ Copied All' : '📋 Copy All Tut'}
                     </button>
                   </div>
 
@@ -1032,10 +1129,10 @@ function App() {
                       </span>
                       {tutInfo.permutations.length > 0 && (
                         <span
-                          style={{ fontSize: 10, color: 'var(--accent-primary)', cursor: 'pointer', textDecoration: 'underline' }}
-                          onClick={() => copyToClipboard(tutInfo.permutations.join(', '))}
+                          className="copy-link"
+                          onClick={() => copyToClipboard(tutInfo.permutations.join(', '), 'tut-perm')}
                         >
-                          Copy အပြန်
+                          {copiedId === 'tut-perm' ? '✅ Copied' : 'Copy အပြန်'}
                         </span>
                       )}
                     </div>
@@ -1072,10 +1169,10 @@ function App() {
                       </span>
                       {tutInfo.nearMisses.length > 0 && (
                         <span
-                          style={{ fontSize: 10, color: 'var(--accent-warning)', cursor: 'pointer', textDecoration: 'underline' }}
-                          onClick={() => copyToClipboard(tutInfo.nearMisses.join(', '))}
+                          className="copy-link"
+                          onClick={() => copyToClipboard(tutInfo.nearMisses.join(', '), 'tut-near')}
                         >
-                          Copy ကပ်သီး
+                          {copiedId === 'tut-near' ? '✅ Copied' : 'Copy ကပ်သီး'}
                         </span>
                       )}
                     </div>
@@ -1171,13 +1268,13 @@ function App() {
                     onChange={e => handleKeyTypeChange(e.target.value)}
                   >
                     <option value="trial_3d">
-                      ⏱️ 3-Day Free Trial (၃ ရက် စမ်းသပ်ခွင့်) — 0 Ks
+                      ⏱️ 3-Day Free Trial (၃ ရက် စမ်းသပ်ခွင့်) — 0 Ks [🔒 1-Device Only]
                     </option>
                     <option value="one_year">
-                      ⭐ 1-Year Plan (၁ နှစ်) — {(salePlans.one_year?.price ?? 180000).toLocaleString()} Ks
+                      ⭐ 1-Year Plan (၁ နှစ် သက်တမ်း) — {(salePlans.one_year?.price ?? 180000).toLocaleString()} Ks [🔄 Device Changeable ✅]
                     </option>
                     <option value="lifetime">
-                      💎 Lifetime Plan (တစ်သက်တာ) — {(salePlans.lifetime?.price ?? 45000).toLocaleString()} Ks
+                      💎 Lifetime Plan (တစ်သက်တာ) — {(salePlans.lifetime?.price ?? 45000).toLocaleString()} Ks [🔒 1-Device Only 🔒]
                     </option>
                   </select>
                 </div>
@@ -1254,10 +1351,10 @@ function App() {
                   ✨ Generate {parseInt(bulkCount, 10) > 1 ? `${bulkCount} Keys` : 'Key'} ({deviceChangeable ? '🔄 Device Changeable' : '🔒 1-Device Only'})
                 </button>
 
-                <div style={{ marginTop: 14, fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
-                  {keyType === 'trial_3d' && '၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (၇၂ နာရီတိတိ သက်တမ်း)'}
-                  {keyType === 'one_year' && '၁ နှစ် သက်တမ်း (၃၆၅ ရက်)'}
-                  {keyType === 'lifetime' && 'တစ်သက်တာ သက်တမ်း (Lifetime ♾️)'}
+                <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
+                  {keyType === 'trial_3d' && '⏱️ ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (၇၂ နာရီတိတိ သက်တမ်း • ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် 🔒)'}
+                  {keyType === 'one_year' && '⭐ ၁ နှစ် သက်တမ်း (၃၆၅ ရက် • ဖုန်းအသစ်သို့ စက်ပြောင်းလဲ အသုံးပြုနိုင်ပါသည် ✅)'}
+                  {keyType === 'lifetime' && '💎 တစ်သက်တာ သက်တမ်း (မကန့်သတ် • ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် - စက်ပြောင်းမရပါ 🔒)'}
                 </div>
               </div>
             </div>
@@ -1287,11 +1384,12 @@ function App() {
                         တွတ် စုစုပေါင်း ({playgroundTut.allTut.length} ဂဏန်း)
                       </span>
                       <button
-                        className="btn btn-outline btn-sm"
-                        style={{ fontSize: 10, padding: '2px 6px' }}
-                        onClick={() => copyToClipboard(playgroundTut.allTut.join(', '))}
+                        type="button"
+                        className={`copy-btn ${copiedId === 'play-tut-all' ? 'copied' : ''}`}
+                        style={{ fontSize: 10, padding: '2px 8px' }}
+                        onClick={() => copyToClipboard(playgroundTut.allTut.join(', '), 'play-tut-all')}
                       >
-                        Copy All
+                        {copiedId === 'play-tut-all' ? '✅ Copied All' : '📋 Copy All'}
                       </button>
                     </div>
 
@@ -1330,6 +1428,115 @@ function App() {
             </div>
           </div>
 
+        </div>
+
+        {/* Resellers & Due Settlement Card */}
+        <div className="card" style={{ marginTop: 24, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+          <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <h2>👥 Resellers & Due Settlement (အရောင်းကိုယ်စားလှယ်များနှင့် ငွေစာရင်း)</h2>
+              <div style={{ display: 'flex', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
+                  👤 {Object.keys(resellers).length} Resellers
+                </span>
+                <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
+                  📌 Total Due: {Object.values(resellers).reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
+                </span>
+                <span className="status-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
+                  💵 Total Paid: {Object.values(resellers).reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="card-body" style={{ padding: 0 }}>
+            {Object.keys(resellers).length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">👥</div>
+                <p>No resellers registered yet. Add resellers via Telegram bot or /addreseller command.</p>
+              </div>
+            ) : (
+              <table className="keys-table">
+                <thead>
+                  <tr>
+                    <th>Reseller Name</th>
+                    <th>Telegram ID</th>
+                    <th>Generated / Active</th>
+                    <th>Commission</th>
+                    <th>Due Balance (ပေးရန်ကျန်ငွေ)</th>
+                    <th>Total Paid (ပေးပြီးငွေ)</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.values(resellers).map((r) => {
+                    const due = r.total_due || 0;
+                    const paid = r.total_paid || 0;
+                    const commission = r.total_commission || 0;
+                    return (
+                      <tr key={r.telegram_id}>
+                        <td>
+                          <strong>{r.name}</strong>
+                          {r.username && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>@{r.username}</span>}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <code>{r.telegram_id}</code>
+                            <button
+                              type="button"
+                              className={`copy-btn ${copiedId === `reseller-${r.telegram_id}` ? 'copied' : ''}`}
+                              onClick={() => copyToClipboard(r.telegram_id, `reseller-${r.telegram_id}`)}
+                              title="Copy Telegram ID"
+                            >
+                              {copiedId === `reseller-${r.telegram_id}` ? '✅' : '📋'}
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: 13 }}>
+                            🔢 {r.total_generated || 0} ထုတ် / 🟢 {r.total_activated || 0} သုံး
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ color: '#10b981', fontWeight: 600 }}>
+                            {commission.toLocaleString()} Ks
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className="status-badge"
+                            style={{
+                              background: due > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+                              color: due > 0 ? '#ef4444' : '#10b981',
+                              fontWeight: 700,
+                              fontSize: 13
+                            }}
+                          >
+                            {due.toLocaleString()} Ks
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ color: '#6366f1', fontWeight: 600 }}>
+                            {paid.toLocaleString()} Ks
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-primary"
+                            onClick={() => handleOpenSettleModal(r)}
+                            style={{ padding: '6px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          >
+                            💳 Clear Due / ရှင်းလင်းမည်
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
         {/* Licenses Table with Filter & Search */}
@@ -1407,14 +1614,24 @@ function App() {
                   {filteredKeys.map(([keyId, keyData]) => (
                     <tr key={keyId}>
                       <td>
-                        <span
-                          className="key-code"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => copyToClipboard(keyId)}
-                          title="Click to copy"
-                        >
-                          {keyId}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span
+                            className="key-code"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                            title="Click to copy"
+                          >
+                            {keyId}
+                          </span>
+                          <button
+                            type="button"
+                            className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
+                            onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                            title="Copy CD-Key"
+                          >
+                            {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
+                          </button>
+                        </div>
                       </td>
                       <td>
                         <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
@@ -1504,8 +1721,11 @@ function App() {
                   }}
                 />
                 <div className="popup-actions" style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button className="btn btn-primary" onClick={() => copyToClipboard(bulkGeneratedKeys.join('\n'))}>
-                    📋 Copy All Keys ({bulkGeneratedKeys.length})
+                  <button
+                    className={`btn ${copiedId === 'popup-bulk' ? 'btn-success' : 'btn-primary'}`}
+                    onClick={() => copyToClipboard(bulkGeneratedKeys.join('\n'), 'popup-bulk')}
+                  >
+                    {copiedId === 'popup-bulk' ? '✅ Copied All Keys!' : `📋 Copy All Keys (${bulkGeneratedKeys.length})`}
                   </button>
                   <button
                     className="btn btn-outline"
@@ -1523,14 +1743,18 @@ function App() {
               <div>
                 <div
                   className="generated-key"
-                  onClick={() => copyToClipboard(generatedKey)}
+                  onClick={() => copyToClipboard(generatedKey, 'popup-single')}
+                  title="Click to copy"
                 >
                   {generatedKey}
                 </div>
                 <p className="hint">Click the key to copy it to clipboard</p>
                 <div className="popup-actions">
-                  <button className="btn btn-primary" onClick={() => copyToClipboard(generatedKey)}>
-                    📋 Copy Key
+                  <button
+                    className={`btn ${copiedId === 'popup-single' ? 'btn-success' : 'btn-primary'}`}
+                    onClick={() => copyToClipboard(generatedKey, 'popup-single')}
+                  >
+                    {copiedId === 'popup-single' ? '✅ Copied CD-Key!' : '📋 Copy CD-Key'}
                   </button>
                   <button className="btn btn-outline" onClick={() => { setGeneratedKey(null); setBulkGeneratedKeys([]); }}>
                     Close
@@ -1538,6 +1762,189 @@ function App() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Reseller Due Settlement Modal */}
+      {settleModalReseller && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            backdropFilter: 'blur(4px)',
+            padding: 16
+          }}
+        >
+          <div
+            className="card"
+            style={{
+              width: '100%',
+              maxWidth: 480,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 12,
+              overflow: 'hidden'
+            }}
+          >
+            <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>
+                💳 Clear Reseller Due (ငွေစာရင်း ရှင်းလင်းခြင်း)
+              </h3>
+              <button
+                type="button"
+                onClick={handleCloseSettleModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontSize: 20
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmSettleDue}>
+              <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div
+                  style={{
+                    background: 'var(--bg-primary)',
+                    padding: 14,
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Reseller Name:</span>
+                    <strong>{settleModalReseller.name}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Telegram ID:</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <code>{settleModalReseller.telegram_id}</code>
+                      <button
+                        type="button"
+                        className={`copy-btn ${copiedId === `modal-${settleModalReseller.telegram_id}` ? 'copied' : ''}`}
+                        style={{ padding: '1px 6px', fontSize: 10 }}
+                        onClick={() => copyToClipboard(settleModalReseller.telegram_id, `modal-${settleModalReseller.telegram_id}`)}
+                        title="Copy Telegram ID"
+                      >
+                        {copiedId === `modal-${settleModalReseller.telegram_id}` ? '✅' : '📋'}
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Current Due (ပေးရန်ကျန်ငွေ):</span>
+                    <strong style={{ color: '#ef4444', fontSize: 15 }}>
+                      {(settleModalReseller.total_due || 0).toLocaleString()} Ks
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px dashed var(--border-color)' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Remaining Due after Settle:</span>
+                    <strong style={{
+                      color: Math.max(0, (settleModalReseller.total_due || 0) - (parseInt(manualSettleAmount, 10) || 0)) === 0 ? 'var(--accent-success)' : 'var(--accent-warning)',
+                      fontSize: 14,
+                      fontWeight: 700
+                    }}>
+                      {Math.max(0, (settleModalReseller.total_due || 0) - (parseInt(manualSettleAmount, 10) || 0)).toLocaleString()} Ks
+                    </strong>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                    💵 Settlement Amount (ရှင်းလင်းမည့် ငွေပမာဏ - ကျပ်):
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="number"
+                      value={manualSettleAmount}
+                      onChange={(e) => setManualSettleAmount(e.target.value)}
+                      placeholder="ဥပမာ: 35000"
+                      required
+                      className="text-input"
+                      style={{
+                        flex: 1,
+                        fontSize: 16,
+                        fontWeight: 'bold',
+                        padding: '10px 14px',
+                        border: '1px solid var(--primary)',
+                        borderRadius: 8
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ whiteSpace: 'nowrap', fontSize: 12 }}
+                      onClick={() => setManualSettleAmount(String(settleModalReseller.total_due || 0))}
+                    >
+                      Full Due (အပြည့်)
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {[50000, 100000, 200000, 500000].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: 11,
+                          padding: '4px 8px',
+                          background: 'var(--bg-primary)',
+                          border: '1px solid var(--border-color)'
+                        }}
+                        onClick={() => setManualSettleAmount(String(preset))}
+                      >
+                        +{preset.toLocaleString()} Ks
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    📝 Notes / Payment Reference (မှတ်ချက် - စိတ်ကြိုက်):
+                  </label>
+                  <input
+                    type="text"
+                    value={settleNotes}
+                    onChange={(e) => setSettleNotes(e.target.value)}
+                    placeholder="e.g. KPay / Wave / Cash payment receipt"
+                    className="text-input"
+                    style={{ width: '100%', padding: '8px 12px', fontSize: 13 }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleCloseSettleModal}
+                    disabled={settlingDue}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={settlingDue}
+                    style={{ minWidth: 140 }}
+                  >
+                    {settlingDue ? 'Settling...' : '✅ Confirm Settlement'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

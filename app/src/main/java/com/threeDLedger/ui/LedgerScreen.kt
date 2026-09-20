@@ -8,9 +8,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ListAlt
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.ListAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -124,7 +124,7 @@ fun LedgerScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = EmeraldPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
         }
     ) { padding ->
@@ -132,7 +132,7 @@ fun LedgerScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(EmeraldSoftBg)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             // ── Sub-header: batch number + winning number status ───────────────
             Surface(
@@ -157,7 +157,7 @@ fun LedgerScreen(
                         Spacer(Modifier.width(6.dp))
                         Text(
                             "$currentBatch",
-                            color = EmeraldPrimary,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
@@ -190,12 +190,12 @@ fun LedgerScreen(
                             }
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldLight else MaterialTheme.colorScheme.surfaceVariant
+                                color = if (exactWonCount > 0 || tuwtWonCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                             ) {
                                 Text(
                                     if (exactWonCount > 0 || tuwtWonCount > 0) "ဒဲ့ $exactWonCount | တွတ် $tuwtWonCount"
                                     else "ပေါက်သီး မရှိပါ",
-                                    color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldDark else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (exactWonCount > 0 || tuwtWonCount > 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
@@ -221,7 +221,7 @@ fun LedgerScreen(
             // ── Table header ──────────────────────────────────────────────────
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = EmeraldLight
+                color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Row(
                     modifier = Modifier
@@ -231,14 +231,14 @@ fun LedgerScreen(
                 ) {
                     Text(
                         if (isAfterMode) "ဂဏန်း နှင့် အမျိုးအစား" else "စဉ်   ဂဏန်း",
-                        color = EmeraldDark,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.weight(1.2f)
                     )
                     Text(
                         "ထိုးငွေ ပမာဏ",
-                        color = EmeraldDark,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.weight(1f),
@@ -256,7 +256,7 @@ fun LedgerScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.ListAlt, null, tint = EmeraldPrimary.copy(alpha = 0.35f), modifier = Modifier.size(54.dp))
+                            Icon(Icons.AutoMirrored.Filled.ListAlt, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), modifier = Modifier.size(54.dp))
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "ထိုးမှု မရှိသေးပါ",
@@ -278,7 +278,7 @@ fun LedgerScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isEven) Color.White else EmeraldSoftBg)
+                                    .background(if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                                     .clickable(onClick = onNavigateToResult)
                                     .padding(horizontal = 16.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -294,7 +294,7 @@ fun LedgerScreen(
                                 // Number
                                 Text(
                                     exposure.number,
-                                    color = EmeraldPrimary,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 20.sp,
                                     fontFamily = FontFamily.Monospace,
@@ -319,7 +319,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
                         }
                     }
                 }
@@ -331,7 +331,7 @@ fun LedgerScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.ListAlt, null, tint = EmeraldPrimary.copy(alpha = 0.35f), modifier = Modifier.size(54.dp))
+                            Icon(Icons.AutoMirrored.Filled.ListAlt, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), modifier = Modifier.size(54.dp))
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "ထိုးမှု မရှိသေးပါ",
@@ -346,9 +346,9 @@ fun LedgerScreen(
                         itemsIndexed(relevantRows) { idx, (exposure, cat) ->
                             val isEven = idx % 2 == 0
                             val rowBg = when (cat) {
-                                NumCat.EXACT -> WinExactBg.copy(alpha = 0.45f)
-                                NumCat.TUWT  -> Color(0xFFFFF8E1)
-                                else         -> if (isEven) Color.White else EmeraldSoftBg
+                                NumCat.EXACT -> WinExactBg.copy(alpha = 0.5f)
+                                NumCat.TUWT  -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                                else         -> if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                             }
                             Row(
                                 modifier = Modifier
@@ -374,8 +374,8 @@ fun LedgerScreen(
                                         exposure.number,
                                         color = when (cat) {
                                             NumCat.EXACT -> WinExactRed
-                                            NumCat.TUWT  -> Color(0xFFB45309)
-                                            else         -> EmeraldPrimary
+                                            NumCat.TUWT  -> MaterialTheme.colorScheme.secondary
+                                            else         -> MaterialTheme.colorScheme.primary
                                         },
                                         fontWeight = if (cat != NumCat.NONE) FontWeight.Black else FontWeight.ExtraBold,
                                         fontSize = 20.sp,
@@ -417,7 +417,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
                         }
                     }
                 }
@@ -426,7 +426,7 @@ fun LedgerScreen(
             // ── Footer — Under bar with totals, winning payouts & net balance ─
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = EmeraldPrimary,
+                color = MaterialTheme.colorScheme.primary,
                 shadowElevation = 8.dp
             ) {
                 if (isAfterMode) {

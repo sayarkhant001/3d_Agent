@@ -7,15 +7,30 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -23,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Bet
 import com.threeDLedger.logic.NumberGenerator
+import com.threeDLedger.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -358,12 +374,12 @@ fun BettingScreen(
         android.widget.Toast.makeText(context, "ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
     }
     
-    // ── Fixed colour tokens — consistent dark-emerald scheme ─────────────────
-    val primaryBlue  = Color(0xFF065F46)   // deep emerald (header/border/number colour)
-    val buttonTeal   = Color(0xFF047857)   // medium emerald (numpad digits)
-    val buttonGreen  = Color(0xFF059669)   // lighter emerald (shortcut chips, R, /)
-    val buttonOrange = Color(0xFF92400E)   // warm amber (selected, ရှင်း, OK)
-    val borderColor  = Color(0xFF6EE7B7)   // mint outline
+    // ── Dynamic theme colour tokens ──────────────────────────────────────────
+    val primaryBlue  = MaterialTheme.colorScheme.primary
+    val buttonTeal   = MaterialTheme.colorScheme.primary
+    val buttonGreen  = MaterialTheme.colorScheme.secondary
+    val buttonOrange = MaterialTheme.colorScheme.tertiary
+    val borderColor  = MaterialTheme.colorScheme.outlineVariant
 
     Column(
         modifier = Modifier
@@ -573,7 +589,7 @@ fun BettingScreen(
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 8.dp)
-                .background(Color.White, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                 .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
         ) {
             // ── Header ────────────────────────────────────────────────────────
@@ -590,7 +606,7 @@ fun BettingScreen(
             ) {
                 Text(
                     "စဉ်   ဂဏန်း",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
@@ -598,7 +614,7 @@ fun BettingScreen(
                 )
                 Text(
                     "ပမာဏ",
-                    color = Color.White.copy(alpha = 0.85f),
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.End,
@@ -639,8 +655,8 @@ fun BettingScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
-                                    if (isEven) Color.White
-                                    else Color(0xFFF0FDF4)  // very light mint stripe
+                                    if (isEven) MaterialTheme.colorScheme.surface
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                 )
                                 .padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -718,86 +734,416 @@ fun BettingScreen(
             }
         }
 
-        // --- SUMMARY BAR ---
+        // --- SUMMARY BAR & BET CONFIRMATION ---
         val totalAmount = pendingBets.sumOf { it.amount }
         var isSwitchChecked by remember { mutableStateOf(false) }
-        Row(
-            modifier = Modifier.fillMaxWidth().background(primaryBlue).padding(horizontal = 8.dp, vertical = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        var showBetConfirmDialog by remember { mutableStateOf(false) }
+
+        fun onAttemptBet() {
+            if (selectedCustomer == null) {
+                expandedCustomer = true
+                android.widget.Toast.makeText(context, "ထိုးသူ ဦးစွာ ရွေးချယ်ပေးပါ", android.widget.Toast.LENGTH_SHORT).show()
+                isSwitchChecked = false
+                return
+            }
+            if (pendingBets.isEmpty()) {
+                android.widget.Toast.makeText(context, "ထိုးမည့် ဂဏန်းများ မရှိသေးပါ", android.widget.Toast.LENGTH_SHORT).show()
+                isSwitchChecked = false
+                return
+            }
+            showBetConfirmDialog = true
+        }
+
+        if (showBetConfirmDialog) {
+            val customerObj = customers.find { it.id == selectedCustomer }
+            val customerName = customerObj?.name ?: "သတ်မှတ်မထားပါ"
+            AlertDialog(
+                onDismissRequest = {
+                    showBetConfirmDialog = false
+                    isSwitchChecked = false
+                },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(38.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        "ထိုးကြေး စာရင်းသွင်းရန် အတည်ပြုပါ",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("ထိုးသူ :", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                    Text(customerName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 15.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("ဂဏန်း အရေအတွက် :", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                                    Text("${pendingBets.size} ကွက်", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("ကျသင့်ငွေ :", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(
+                                        "= %,d Ks".format(totalAmount),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 17.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                }
+                                if (tempRemark.isNotBlank()) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("မှတ်ချက် :", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                        Text(tempRemark, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            "မတော်တဆ ထိမိခြင်းမှ ကာကွယ်ရန် ထိုးကြေး စာရင်းသွင်းမှုကို အတည်ပြုပေးပါ။ အမှန်တကယ် ထိုးမည်ဆိုပါက 'အတည်ပြု ထိုးမည်' ကို နှိပ်ပါ။",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 17.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showBetConfirmDialog = false
+                            isSwitchChecked = false
+                            submitVoucher()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                    ) {
+                        Text("အတည်ပြု ထိုးမည်", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = {
+                            showBetConfirmDialog = false
+                            isSwitchChecked = false
+                        },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                    ) {
+                        Text("ဖျက်သိမ်းမည် (မထိုးပါ)")
+                    }
+                }
+            )
+        }
+
+        val haptic = LocalHapticFeedback.current
+
+        // ── PRO CASHIER VOUCHER ACTION BAR ──────────────────────────────────
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+            shape = RoundedCornerShape(14.dp),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 3.dp,
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
         ) {
-            Button(
-                onClick = { pasteText = ""; showPasteDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f), contentColor = MaterialTheme.colorScheme.onPrimary),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                modifier = Modifier.height(30.dp)
-            ) { Text("အမြန်ထိုးရန် နှိပ်ပါ။", fontSize = 11.sp) }
-            Text("= %,d Ks".format(totalAmount), color = MaterialTheme.colorScheme.onPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("ထိုးရန်", color = MaterialTheme.colorScheme.onPrimary, fontSize = 13.sp, modifier = Modifier.padding(end = 4.dp))
-                Switch(
-                    checked = isSwitchChecked,
-                    onCheckedChange = { if (it) { submitVoucher(); isSwitchChecked = false } },
-                    modifier = Modifier.height(24.dp),
-                    colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.onPrimary, checkedTrackColor = MaterialTheme.colorScheme.secondary, uncheckedThumbColor = MaterialTheme.colorScheme.onPrimary, uncheckedTrackColor = MaterialTheme.colorScheme.outline)
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Left: Summary Badge
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${pendingBets.size} ကွက်",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "|",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "= %,d Ks".format(totalAmount),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 15.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                // Right: Quick Paste & Save Voucher
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilledTonalButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            pasteText = ""
+                            showPasteDialog = true
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.ContentPaste, contentDescription = "Paste", modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Paste", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onAttemptBet()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (pendingBets.isNotEmpty()) EmeraldPrimary else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (pendingBets.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = if (pendingBets.isNotEmpty()) 3.dp else 0.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(38.dp)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("ဘောင်ချာ သိမ်းမည်", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                }
             }
         }
 
         // --- INPUT ROW: Number | BetType | Amount ---
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(modifier = Modifier.weight(1f).height(44.dp).clickable { focusedField = FocusField.NUMBER }
-                    .border(2.dp, if (focusedField == FocusField.NUMBER) buttonTeal else borderColor)
-                    .background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
-                Text(if (tempNumber.isEmpty()) "ဂဏန်း" else tempNumber,
-                    color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
-                    fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val isNumFocused = focusedField == FocusField.NUMBER
+            Box(
+                modifier = Modifier
+                    .weight(1.1f)
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isNumFocused) EmeraldLight.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface)
+                .border(
+                    width = if (isNumFocused) 2.5.dp else 1.dp,
+                    color = if (isNumFocused) KeypadFocusRing else borderColor,
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    focusedField = FocusField.NUMBER
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (tempNumber.isEmpty()) "ဂဏန်းရိုက်ပါ" else tempNumber,
+                    color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.outline else EmeraldPrimary,
+                    fontSize = if (tempNumber.isEmpty()) 13.sp else 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.sp
+                )
             }
-            Box(modifier = Modifier.weight(1f).height(44.dp).border(2.dp, buttonTeal).background(Color.White), contentAlignment = Alignment.Center) {
-                Text(currentBetType, color = Color.Gray, fontSize = 18.sp)
+
+            // Interactive Bet Type Toggle Box
+            Box(
+                modifier = Modifier
+                    .weight(0.9f)
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f))
+                    .border(
+                        width = 1.5.dp,
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        val cycleList = listOf("ဒဲ့", "ထွိုင်", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
+                        val nextIdx = (cycleList.indexOf(currentBetType) + 1) % cycleList.size
+                        currentBetType = cycleList[nextIdx]
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = currentBetType,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                    Spacer(Modifier.width(2.dp))
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = "Cycle Bet Type",
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
-            Box(modifier = Modifier.weight(1f).height(44.dp).clickable { focusedField = FocusField.AMOUNT }
-                    .border(2.dp, if (focusedField == FocusField.AMOUNT) buttonTeal else borderColor)
-                    .background(Color.White), contentAlignment = Alignment.Center) {
-                Text(tempAmount, color = Color.Black, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+
+            // Amount Input Box
+            val isAmtFocused = focusedField == FocusField.AMOUNT
+            Box(
+                modifier = Modifier
+                    .weight(1.2f)
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isAmtFocused) GoldContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface)
+                    .border(
+                        width = if (isAmtFocused) 2.5.dp else 1.dp,
+                        color = if (isAmtFocused) GoldAccent else borderColor,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        focusedField = FocusField.AMOUNT
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = tempAmount,
+                        color = if (isAmtFocused) GoldDark else MaterialTheme.colorScheme.onSurface,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Ks",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.outline,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
 
-        // --- မှတ်ချက် (Remark) row — compact single line ---
+        // --- မှတ်ချက် (Remark) row ---
         OutlinedTextField(
             value = tempRemark,
             onValueChange = { tempRemark = it },
-            placeholder = { Text("မှတ်ချက်", fontSize = 11.sp, color = Color(0xFF9CA3AF)) },
+            placeholder = { Text("မှတ်ချက် (မထည့်လည်းရသည်)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) },
             singleLine = true,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                .height(48.dp),
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .height(44.dp),
+            shape = RoundedCornerShape(10.dp),
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedBorderColor = primaryBlue,
+                unfocusedBorderColor = borderColor
+            )
         )
 
-        // --- QUICK AMOUNTS (fixed 4 buttons) ---
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf("100","300","500","1000").forEach { amt ->
+        // --- QUICK AMOUNTS (Ergonomic Thumb Pills) ---
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            listOf("100", "300", "500", "1000").forEach { amt ->
                 val isSel = tempAmount == amt
-                Button(
-                    onClick = { tempAmount = amt; focusedField = FocusField.AMOUNT },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isSel) buttonOrange else buttonTeal, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-                    modifier = Modifier.weight(1f).height(30.dp), shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                ) { Text(amt, fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) }
+                Surface(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        tempAmount = amt
+                        focusedField = FocusField.AMOUNT
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isSel) GoldAccent else MaterialTheme.colorScheme.surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) GoldDark else borderColor),
+                    shadowElevation = if (isSel) 2.dp else 1.dp,
+                    modifier = Modifier.weight(1f).height(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            amt,
+                            fontSize = 13.sp,
+                            fontWeight = if (isSel) FontWeight.Black else FontWeight.SemiBold,
+                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
             }
             // More amounts scrollable
-            LazyRow(modifier = Modifier.weight(2f), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(listOf("2000","3000","5000","10000")) { amt ->
+            LazyRow(
+                modifier = Modifier.weight(2f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(listOf("2000", "3000", "5000", "10000")) { amt ->
                     val isSel = tempAmount == amt
-                    Button(
-                        onClick = { tempAmount = amt; focusedField = FocusField.AMOUNT },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isSel) buttonOrange else buttonTeal, contentColor = Color.White),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp),
-                        modifier = Modifier.height(30.dp), shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
-                    ) { Text(amt, fontSize = 12.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) }
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            tempAmount = amt
+                            focusedField = FocusField.AMOUNT
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (isSel) GoldAccent else MaterialTheme.colorScheme.surface,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) GoldDark else borderColor),
+                        shadowElevation = if (isSel) 2.dp else 1.dp,
+                        modifier = Modifier.height(34.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
+                            Text(
+                                amt,
+                                fontSize = 13.sp,
+                                fontWeight = if (isSel) FontWeight.Black else FontWeight.SemiBold,
+                                color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -818,65 +1164,219 @@ fun BettingScreen(
             Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
             Triple("အခွ",          false, { handleSpecial("အခွ") })
         )
-        androidx.compose.foundation.lazy.LazyRow(
+        LazyRow(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
         ) {
             items(shortcuts.size) { i ->
                 val (label, isBetTypeChip, action) = shortcuts[i]
                 val isSelected = isBetTypeChip && currentBetType == label
                 Surface(
-                    onClick = { action() },
-                    shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    color = if (isSelected) primaryBlue else buttonGreen,
-                    modifier = Modifier.height(28.dp)
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        action()
+                    },
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) primaryBlue else borderColor.copy(alpha = 0.5f)),
+                    shadowElevation = if (isSelected) 2.dp else 0.dp,
+                    modifier = Modifier.height(30.dp)
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 10.dp)) {
-                        Text(label, fontSize = 12.sp, color = Color.White, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 11.dp)) {
+                        Text(
+                            label,
+                            fontSize = 12.sp,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                        )
                     }
                 }
             }
         }
-        // --- 4x4 NUMPAD ---
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                KeypadButton("1",  buttonTeal,   Modifier.weight(1f)) { appendText("1") }
-                KeypadButton("2",  buttonTeal,   Modifier.weight(1f)) { appendText("2") }
-                KeypadButton("3",  buttonTeal,   Modifier.weight(1f)) { appendText("3") }
-                KeypadButton("R",  buttonGreen,  Modifier.weight(1f)) { handleSpecial("R") }
+
+        // --- 4x4 TACTILE KEYPAD ---
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            // Row 1: 1, 2, 3, R (ပတ်လည်)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                TactileKeypadButton("1", modifier = Modifier.weight(1f)) { appendText("1") }
+                TactileKeypadButton("2", modifier = Modifier.weight(1f)) { appendText("2") }
+                TactileKeypadButton("3", modifier = Modifier.weight(1f)) { appendText("3") }
+                TactileKeypadButton(
+                    text = "R",
+                    subtitle = "ပတ်လည်",
+                    bgColor = KeypadActionEmerald,
+                    bevelColor = Color(0xFF065F46),
+                    modifier = Modifier.weight(1f)
+                ) { handleSpecial("R") }
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                KeypadButton("4",  buttonTeal,   Modifier.weight(1f)) { appendText("4") }
-                KeypadButton("5",  buttonTeal,   Modifier.weight(1f)) { appendText("5") }
-                KeypadButton("6",  buttonTeal,   Modifier.weight(1f)) { appendText("6") }
-                KeypadButton("ထွိုင်", buttonGreen, Modifier.weight(1f)) { handleSpecial("ထွိုင်") }
+
+            // Row 2: 4, 5, 6, ထွိုင် (၃ပူး)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                TactileKeypadButton("4", modifier = Modifier.weight(1f)) { appendText("4") }
+                TactileKeypadButton("5", modifier = Modifier.weight(1f)) { appendText("5") }
+                TactileKeypadButton("6", modifier = Modifier.weight(1f)) { appendText("6") }
+                TactileKeypadButton(
+                    text = "ထွိုင်",
+                    subtitle = "၃ ပူး",
+                    bgColor = KeypadActionTeal,
+                    bevelColor = Color(0xFF115E59),
+                    modifier = Modifier.weight(1f)
+                ) { handleSpecial("ထွိုင်") }
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                KeypadButton("7",  buttonTeal,   Modifier.weight(1f)) { appendText("7") }
-                KeypadButton("8",  buttonTeal,   Modifier.weight(1f)) { appendText("8") }
-                KeypadButton("9",  buttonTeal,   Modifier.weight(1f)) { appendText("9") }
-                KeypadButton("ဖျက်", buttonGreen, Modifier.weight(1f)) { backspace() }
+
+            // Row 3: 7, 8, 9, ⌫ (ဖျက်)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                TactileKeypadButton("7", modifier = Modifier.weight(1f)) { appendText("7") }
+                TactileKeypadButton("8", modifier = Modifier.weight(1f)) { appendText("8") }
+                TactileKeypadButton("9", modifier = Modifier.weight(1f)) { appendText("9") }
+                TactileKeypadButton(
+                    text = "⌫",
+                    subtitle = "ဖျက်",
+                    icon = Icons.AutoMirrored.Filled.Backspace,
+                    bgColor = KeypadBackspaceRed,
+                    bevelColor = Color(0xFF991B1B),
+                    modifier = Modifier.weight(1f)
+                ) { backspace() }
             }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                KeypadButton("ရှင်း", buttonOrange, Modifier.weight(1f)) { clearAll() }
-                KeypadButton("0",   buttonTeal,  Modifier.weight(1f)) { appendText("0") }
-                KeypadButton("00",  buttonTeal,  Modifier.weight(1f)) { appendText("00") }
-                KeypadButton("OK",  buttonOrange, Modifier.weight(1f)) { submit() }
+
+            // Row 4: ရှင်း (Clear), 0, 00, OK (ထည့်)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                TactileKeypadButton(
+                    text = "ရှင်း",
+                    subtitle = "Clear",
+                    bgColor = KeypadClearAmber,
+                    bevelColor = Color(0xFF92400E),
+                    modifier = Modifier.weight(1f)
+                ) { clearAll() }
+                TactileKeypadButton("0", modifier = Modifier.weight(1f)) { appendText("0") }
+                TactileKeypadButton("00", modifier = Modifier.weight(1f)) { appendText("00") }
+                TactileKeypadButton(
+                    text = "OK",
+                    subtitle = "ထည့်မည်",
+                    bgColor = KeypadSubmitBg,
+                    bevelColor = Color(0xFF022C22),
+                    modifier = Modifier.weight(1f)
+                ) { submit() }
             }
         }
         Spacer(modifier = Modifier.height(4.dp))
     }
 }
 
+// ── Ultra-Realistic Tactile 3D Keypad Button ─────────────────────────────────
 @Composable
-fun KeypadButton(text: String, bgColor: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = modifier.aspectRatio(1.6f),
-        colors = ButtonDefaults.buttonColors(containerColor = bgColor, contentColor = Color.White),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp),
-        contentPadding = PaddingValues(0.dp)
+fun TactileKeypadButton(
+    text: String,
+    subtitle: String? = null,
+    icon: ImageVector? = null,
+    bgColor: Color = Color.White,
+    contentColor: Color = if (bgColor == Color.White) KeypadDigitText else Color.White,
+    bevelColor: Color = if (bgColor == Color.White) Color(0xFFE2E8F0) else bgColor.copy(alpha = 0.85f),
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    val offsetY = if (isPressed) 2.dp else 0.dp
+    val elevation = if (isPressed) 1.dp else 3.dp
+
+    Box(
+        modifier = modifier
+            .aspectRatio(1.5f)
+            .padding(horizontal = 1.dp, vertical = 1.dp)
+            .offset(y = offsetY)
+            .shadow(elevation, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        bgColor,
+                        bevelColor
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = if (isPressed) 0.1f else 0.5f),
+                        Color.Black.copy(alpha = 0.18f)
+                    )
+                ),
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(color = Color.White.copy(alpha = 0.3f)),
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Text(text, fontSize = 16.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = text,
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = contentColor.copy(alpha = 0.85f)
+                    )
+                }
+            } else {
+                Text(
+                    text = text,
+                    fontSize = if (text.length > 2) 15.sp else 21.sp,
+                    fontWeight = FontWeight.Black,
+                    color = contentColor,
+                    fontFamily = if (text.all { it.isDigit() }) FontFamily.Monospace else FontFamily.Default,
+                    letterSpacing = if (text.all { it.isDigit() }) 1.sp else 0.sp
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = contentColor.copy(alpha = 0.85f)
+                    )
+                }
+            }
+        }
     }
+}
+
+/**
+ * Backwards-compatible KeypadButton wrapper delegating to TactileKeypadButton
+ */
+@Composable
+fun KeypadButton(
+    text: String,
+    bgColor: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    TactileKeypadButton(
+        text = text,
+        bgColor = bgColor,
+        modifier = modifier,
+        onClick = onClick
+    )
 }

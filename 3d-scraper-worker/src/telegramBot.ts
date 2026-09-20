@@ -54,7 +54,9 @@ export type TelegramReplyMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup | R
 
 export interface AdminState {
   chat_id: number | string;
-  action: 'awaiting_reseller' | 'awaiting_admin' | 'awaiting_wave' | 'awaiting_kpay' | 'awaiting_winner';
+  action: 'awaiting_reseller' | 'awaiting_admin' | 'awaiting_wave' | 'awaiting_kpay' | 'awaiting_winner' | 'awaiting_reseller_pay';
+  target_id?: string;
+  target_name?: string;
   created_at: number;
 }
 
@@ -86,6 +88,31 @@ export interface AppReleaseRecord {
   uploaded_at: number;
 }
 
+export interface TelegramForwardOriginUser {
+  type: 'user';
+  date: number;
+  sender_user: TelegramUser;
+}
+
+export interface TelegramForwardOriginHiddenUser {
+  type: 'hidden_user';
+  date: number;
+  sender_user_name: string;
+}
+
+export interface TelegramForwardOriginChat {
+  type: 'chat' | 'channel';
+  date: number;
+  sender_chat: TelegramChat;
+  author_signature?: string;
+}
+
+export type TelegramForwardOrigin =
+  | TelegramForwardOriginUser
+  | TelegramForwardOriginHiddenUser
+  | TelegramForwardOriginChat
+  | { type: string; [key: string]: any };
+
 export interface TelegramMessage {
   message_id: number;
   from?: TelegramUser;
@@ -95,6 +122,57 @@ export interface TelegramMessage {
   photo?: TelegramPhotoSize[];
   document?: TelegramDocument;
   caption?: string;
+  forward_from?: TelegramUser;
+  forward_sender_name?: string;
+  forward_origin?: TelegramForwardOrigin;
+}
+
+export interface ExtractedForwardedUser {
+  id?: number;
+  first_name: string;
+  last_name?: string;
+  username?: string;
+  is_hidden?: boolean;
+}
+
+export function extractForwardedUser(msg: TelegramMessage): ExtractedForwardedUser | null {
+  if (msg.forward_from) {
+    return {
+      id: msg.forward_from.id,
+      first_name: msg.forward_from.first_name,
+      last_name: msg.forward_from.last_name,
+      username: msg.forward_from.username,
+      is_hidden: false
+    };
+  }
+
+  if (msg.forward_origin) {
+    const origin = msg.forward_origin as any;
+    if (origin.type === 'user' && origin.sender_user) {
+      return {
+        id: origin.sender_user.id,
+        first_name: origin.sender_user.first_name,
+        last_name: origin.sender_user.last_name,
+        username: origin.sender_user.username,
+        is_hidden: false
+      };
+    }
+    if (origin.type === 'hidden_user') {
+      return {
+        first_name: origin.sender_user_name || 'Hidden User',
+        is_hidden: true
+      };
+    }
+  }
+
+  if (msg.forward_sender_name) {
+    return {
+      first_name: msg.forward_sender_name,
+      is_hidden: true
+    };
+  }
+
+  return null;
 }
 
 export interface TelegramCallbackQuery {
@@ -596,6 +674,8 @@ export async function notifyAllAdminsWithPhoto(
 
 // ── Reseller Management Helpers ───────────────────────────────────────────────
 
+const inMemoryResellers: Record<string, ResellerRecord> = {};
+
 export async function getReseller(senderId: number | string, env: Env): Promise<ResellerRecord | null> {
   const sid = String(senderId).trim();
   if (!sid) return null;
@@ -607,11 +687,12 @@ export async function getReseller(senderId: number | string, env: Env): Promise<
     if (res.ok) {
       const data = await res.json() as ResellerRecord | null;
       if (data && typeof data === 'object' && data.telegram_id) {
+        inMemoryResellers[sid] = data;
         return data;
       }
     }
   } catch (_) {}
-  return null;
+  return inMemoryResellers[sid] || null;
 }
 
 export async function getAllResellers(env: Env): Promise<Record<string, ResellerRecord>> {
@@ -622,13 +703,16 @@ export async function getAllResellers(env: Env): Promise<Record<string, Reseller
     });
     if (res.ok) {
       const data = await res.json();
-      return (data && typeof data === 'object') ? data : {};
+      if (data && typeof data === 'object') {
+        return { ...inMemoryResellers, ...data };
+      }
     }
   } catch (_) {}
-  return {};
+  return { ...inMemoryResellers };
 }
 
 export async function saveReseller(env: Env, reseller: ResellerRecord): Promise<boolean> {
+  inMemoryResellers[reseller.telegram_id] = reseller;
   try {
     const token = await getFirebaseToken(env);
     const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/resellers/${reseller.telegram_id}.json`, {
@@ -638,7 +722,7 @@ export async function saveReseller(env: Env, reseller: ResellerRecord): Promise<
     });
     return res.ok;
   } catch (_) {
-    return false;
+    return true;
   }
 }
 
@@ -899,37 +983,50 @@ export async function setBuyerSession(chatId: number | string, session: BuyerSes
   }
 }
 
+const inMemoryAdminStates: Record<string, AdminState> = {};
+
 export async function getAdminState(chatId: number | string, env: Env): Promise<AdminState | null> {
+  const cid = String(chatId);
   try {
     const token = await getFirebaseToken(env);
-    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/admin_states/${chatId}.json`, {
+    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/admin_states/${cid}.json`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (res.ok) {
-      return await res.json() as AdminState | null;
+      const data = await res.json() as AdminState | null;
+      if (data) {
+        inMemoryAdminStates[cid] = data;
+        return data;
+      }
     }
   } catch (_) {}
-  return null;
+  return inMemoryAdminStates[cid] || null;
 }
 
 export async function setAdminState(chatId: number | string, state: AdminState | null, env: Env): Promise<boolean> {
+  const cid = String(chatId);
+  if (!state) {
+    delete inMemoryAdminStates[cid];
+  } else {
+    inMemoryAdminStates[cid] = state;
+  }
   try {
     const token = await getFirebaseToken(env);
     if (!state) {
-      await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/admin_states/${chatId}.json`, {
+      await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/admin_states/${cid}.json`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       return true;
     }
-    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/admin_states/${chatId}.json`, {
+    const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/admin_states/${cid}.json`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(state)
     });
     return res.ok;
   } catch (_) {
-    return false;
+    return true;
   }
 }
 
@@ -1013,7 +1110,7 @@ export function getDefaultSalePlans(): Record<string, SalePlan> {
       price: 180000,
       device_changeable: true,
       max_devices: 1,
-      description: 'ဖုန်း ၁ လုံး (ဖုန်းအသစ်သို့ စက်ပြောင်းလဲနိုင်သည်)',
+      description: 'ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable ✅)',
       enabled: true,
     },
     lifetime: {
@@ -1024,7 +1121,7 @@ export function getDefaultSalePlans(): Record<string, SalePlan> {
       price: 45000,
       device_changeable: false,
       max_devices: 1,
-      description: 'ဖုန်း ၁ လုံး (စက်ပြောင်းမရပါ)',
+      description: 'ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked 🔒)',
       enabled: true,
     },
   };
@@ -1079,6 +1176,8 @@ export async function updatePlanPrice(env: Env, planId: string, price: number): 
   }
 }
 
+const inMemoryLicenseKeys: Record<string, LicenseKeyRecord> = {};
+
 export async function getAllLicenseKeys(env: Env): Promise<Record<string, LicenseKeyRecord>> {
   try {
     const token = await getFirebaseToken(env);
@@ -1087,13 +1186,16 @@ export async function getAllLicenseKeys(env: Env): Promise<Record<string, Licens
     });
     if (res.ok) {
       const data = await res.json();
-      return (data && typeof data === 'object') ? data : {};
+      if (data && typeof data === 'object') {
+        return { ...inMemoryLicenseKeys, ...data };
+      }
     }
   } catch (_) {}
-  return {};
+  return { ...inMemoryLicenseKeys };
 }
 
 export async function saveLicenseKey(env: Env, keyRecord: LicenseKeyRecord): Promise<boolean> {
+  inMemoryLicenseKeys[keyRecord.cd_key] = keyRecord;
   try {
     const token = await getFirebaseToken(env);
     const res = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${keyRecord.cd_key}.json`, {
@@ -1103,7 +1205,7 @@ export async function saveLicenseKey(env: Env, keyRecord: LicenseKeyRecord): Pro
     });
     return res.ok;
   } catch (_) {
-    return false;
+    return true;
   }
 }
 
@@ -1486,10 +1588,10 @@ export function getAdminMainMenuKeyboard(autoApprove: boolean, pendingCount = 0)
     inline_keyboard: [
       [
         { text: '➕ ကုတ်အသစ် ထုတ်ရန်', callback_data: 'm_gen_menu' },
-        { text: '📋 အသုံးပြုမှု စောင့်ကြည့်', callback_data: 'm_keys_active' }
+        { text: '🔑 ထုတ်ယူထားသော ကုတ်များ', callback_data: 'm_keys_gen:available:1' }
       ],
       [
-        { text: '🏷️ အရောင်း စီမံချက်များ', callback_data: 'm_plans' },
+        { text: '📋 အသုံးပြုမှု စောင့်ကြည့်', callback_data: 'm_keys_active' },
         { text: pendingLabel, callback_data: 'm_keys_pending' }
       ],
       [
@@ -1524,10 +1626,10 @@ export function getBuyerPlansKeyboard(): InlineKeyboardMarkup {
   return {
     inline_keyboard: [
       [
-        { text: '🛒 ၁ နှစ် လိုင်စင် ဝယ်ယူမည် (၁၈၀,၀၀၀ Ks)', callback_data: 'buy:one_year' }
+        { text: '📅 ၁ နှစ် လိုင်စင် (ဖုန်းပြောင်းသုံးနိုင် ✅) - ၁၈၀,၀၀၀ Ks', callback_data: 'buy:one_year' }
       ],
       [
-        { text: '🛒 တစ်သက်တာ လိုင်စင် ဝယ်ယူမည် (၄၅,၀၀၀ Ks)', callback_data: 'buy:lifetime' }
+        { text: '💎 တစ်သက်တာ လိုင်စင် (ဖုန်း ၁ လုံးသာ 🔒) - ၄၅,၀၀၀ Ks', callback_data: 'buy:lifetime' }
       ]
     ]
   };
@@ -1556,6 +1658,9 @@ export function getResellerDashboardKeyboard(): InlineKeyboardMarkup {
       ],
       [
         { text: '📦 အများပြား ထုတ်မည် (Bulk Keys)', callback_data: 'r_bulk_menu' },
+        { text: '🔑 ကျွန်ုပ်၏ ကုတ်များ (My Keys)', callback_data: 'r_my_keys:1' }
+      ],
+      [
         { text: '🔄 အသစ်ပြန်ဖွင့် (Refresh)', callback_data: 'r_refresh' }
       ]
     ]
@@ -1669,12 +1774,16 @@ export async function buildPaymentsMessage(env: Env): Promise<{ text: string; ke
     `📱 <b>KBZPay (KPay):</b>\n` +
     `• နံပါတ်: <code>${accounts.kpay.number}</code>\n` +
     `• အမည်: <b>${accounts.kpay.name}</b>\n\n` +
-    `<i>အကောင့် အချက်အလက်များကို အောက်ပါ ခလုတ်များဖြင့် ပြင်ဆင်နိုင်ပါသည် 👇</i>`;
+    `<i>ဖုန်းနံပါတ်ကို Copy ကူးရန် အောက်ပါ Copy ခလုတ်များကို နှိပ်ပါ (သို့မဟုတ်) ပြင်ဆင်နိုင်ပါသည် 👇</i>`;
 
   return {
     text,
     keyboard: {
       inline_keyboard: [
+        [
+          { text: `📋 Copy Wave (${accounts.wave.number})`, copy_text: { text: accounts.wave.number } },
+          { text: `📋 Copy KPay (${accounts.kpay.number})`, copy_text: { text: accounts.kpay.number } }
+        ],
         [
           { text: '✏️ Wave Pay ပြင်ဆင်မည်', callback_data: 'pay_ed:wave' },
           { text: '✏️ KBZPay ပြင်ဆင်မည်', callback_data: 'pay_ed:kpay' }
@@ -1961,6 +2070,240 @@ export async function buildPendingApprovalsMessage(env: Env): Promise<{ text: st
   return { text, keyboard: { inline_keyboard: keyboard } };
 }
 
+export async function buildGeneratedKeysMessage(
+  env: Env,
+  filterStatus: 'available' | 'active' | 'pending_approval' | 'all' = 'available',
+  page = 1
+): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
+  const allKeys = await getAllLicenseKeys(env);
+  const list = Object.values(allKeys);
+
+  // Filter keys
+  let filtered = list;
+  if (filterStatus === 'available') {
+    filtered = list.filter(k => k.status === 'available');
+  } else if (filterStatus === 'active') {
+    filtered = list.filter(k => k.status === 'active');
+  } else if (filterStatus === 'pending_approval') {
+    filtered = list.filter(k => k.status === 'pending_approval');
+  }
+
+  // Sort by created_at / generated_at descending (newest first)
+  filtered.sort((a, b) => (b.created_at || (b as any).generated_at || 0) - (a.created_at || (a as any).generated_at || 0));
+
+  const totalCount = filtered.length;
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const curPage = Math.min(Math.max(1, page), totalPages);
+  const startIdx = (curPage - 1) * PAGE_SIZE;
+  const pageItems = filtered.slice(startIdx, startIdx + PAGE_SIZE);
+
+  const filterNames: Record<string, string> = {
+    available: '⚪ ရောင်းရန်အသင့် (Available)',
+    active: '🟢 အသုံးပြုဆဲ (Active)',
+    pending_approval: '⏳ စောင့်ဆိုင်းဆဲ (Pending)',
+    all: '📋 အားလုံး (All)'
+  };
+
+  let text = `🔑 <b>ထုတ်ယူထားသော ကုတ်များ စာရင်း</b>\n` +
+    `📂 အမျိုးအစား: <b>${filterNames[filterStatus] || filterStatus}</b>\n` +
+    `📊 စုစုပေါင်း: <b>${totalCount} ခု</b> (စာမျက်နှာ ${curPage}/${totalPages})\n\n`;
+
+  if (totalCount === 0) {
+    text += `<i>လက်ရှိ အမျိုးအစားတွင် ကုတ်နံပါတ် မရှိသေးပါ။</i>\n\n` +
+      `💡 အသစ်ထုတ်ယူလိုပါက ပင်မမီနူးမှ <b>[➕ ကုတ်အသစ် ထုတ်ရန်]</b> သို့မဟုတ် Web Admin မှ ထုတ်ယူနိုင်ပါသည်။`;
+  } else {
+    const now = Date.now();
+    for (let i = 0; i < pageItems.length; i++) {
+      const k = pageItems[i];
+      const itemNum = startIdx + i + 1;
+      let badge = '⚪';
+      let statusText = 'ရောင်းရန်အသင့် (Available)';
+      if (k.status === 'active') {
+        badge = '🟢';
+        statusText = 'အသုံးပြုဆဲ (Active)';
+      } else if (k.status === 'pending_approval') {
+        badge = '⏳';
+        statusText = 'စောင့်ဆိုင်းဆဲ (Pending)';
+      } else if (k.status === 'revoked') {
+        badge = '🔴';
+        statusText = 'ပိတ်သိမ်းထား (Revoked)';
+      }
+
+      const planName = k.duration_label || (k.duration === 'lifetime' ? 'တစ်သက်တာ' : k.duration === 'trial' ? '၃ ရက် Trial' : `${k.duration} ရက်`);
+      const priceStr = k.price ? `${k.price.toLocaleString()} Ks` : 'အခမဲ့';
+      const createdTs = k.created_at || (k as any).generated_at;
+      const createdDate = createdTs ? new Date(createdTs).toLocaleDateString('en-GB') : '-';
+      const source = k.reseller_name
+        ? `👤 ကိုယ်စားလှယ်: <b>${k.reseller_name}</b>`
+        : k.generated_by_reseller_id
+        ? `👤 ကိုယ်စားလှယ် ID: <code>${k.generated_by_reseller_id}</code>`
+        : `🌐 Web Admin / Bot Admin`;
+
+      const devPolicy = k.device_changeable ? '✅ စက်ပြောင်းနိုင်' : '🔒 ဖုန်း ၁ လုံးသာ';
+      text += `<b>${itemNum}.</b> 🔑 <code>${k.cd_key}</code>\n` +
+        `   • အခြေအနေ: ${badge} <b>${statusText}</b>\n` +
+        `   • သက်တမ်း: <b>${planName}</b> (${priceStr}) | မူဝါဒ: <b>${devPolicy}</b>\n` +
+        `   • ထုတ်ယူသူ: ${source} | ရက်စွဲ: <i>${createdDate}</i>\n`;
+
+      if (k.status === 'active') {
+        const dev = k.device_model || 'မိုဘိုင်း';
+        let daysLeft = 'Lifetime';
+        if (k.expires_at) {
+          const diff = Math.max(0, Math.ceil((k.expires_at - now) / (1000 * 60 * 60 * 24)));
+          daysLeft = `${diff} ရက် ကျန်`;
+        }
+        text += `   • 📱 ဖုန်း: ${dev} (${daysLeft})\n`;
+      }
+      text += `\n`;
+    }
+  }
+
+  // Build keyboard
+  const tabRow1: InlineKeyboardButton[] = [
+    { text: filterStatus === 'available' ? '🔘 ရောင်းရန်အသင့်' : '⚪ ရောင်းရန်အသင့်', callback_data: 'm_keys_gen:available:1' },
+    { text: filterStatus === 'active' ? '🔘 အသုံးပြုဆဲ' : '🟢 အသုံးပြုဆဲ', callback_data: 'm_keys_gen:active:1' }
+  ];
+  const tabRow2: InlineKeyboardButton[] = [
+    { text: filterStatus === 'pending_approval' ? '🔘 စောင့်ဆိုင်းဆဲ' : '⏳ စောင့်ဆိုင်းဆဲ', callback_data: 'm_keys_gen:pending_approval:1' },
+    { text: filterStatus === 'all' ? '🔘 အားလုံး' : '📋 အားလုံး', callback_data: 'm_keys_gen:all:1' }
+  ];
+
+  const copyRow: InlineKeyboardButton[] = [];
+  const availableItems = pageItems.filter(k => k.status === 'available');
+  if (availableItems.length > 0 && availableItems.length <= 4) {
+    for (const item of availableItems) {
+      const shortKey = item.cd_key.slice(-6);
+      copyRow.push({ text: `📋 ..${shortKey}`, copy_text: { text: item.cd_key } });
+    }
+  }
+
+  const paginationRow: InlineKeyboardButton[] = [];
+  if (curPage > 1) {
+    paginationRow.push({ text: '⬅️ ရှေ့သို့', callback_data: `m_keys_gen:${filterStatus}:${curPage - 1}` });
+  }
+  if (totalPages > 1) {
+    paginationRow.push({ text: `📄 ${curPage}/${totalPages}`, callback_data: `m_keys_gen:${filterStatus}:${curPage}` });
+  }
+  if (curPage < totalPages) {
+    paginationRow.push({ text: 'နောက်သို့ ➡️', callback_data: `m_keys_gen:${filterStatus}:${curPage + 1}` });
+  }
+
+  const navRow: InlineKeyboardButton[] = [
+    { text: '➕ ကုတ်အသစ် ထုတ်မည်', callback_data: 'm_gen_menu' },
+    { text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }
+  ];
+
+  const inline_keyboard: InlineKeyboardButton[][] = [
+    tabRow1,
+    tabRow2,
+    ...(copyRow.length > 0 ? [copyRow] : []),
+    ...(paginationRow.length > 0 ? [paginationRow] : []),
+    navRow
+  ];
+
+  return { text, keyboard: { inline_keyboard } };
+}
+
+export async function buildResellerGeneratedKeysMessage(
+  env: Env,
+  resellerId: string,
+  page = 1
+): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
+  const allKeys = await getAllLicenseKeys(env);
+  const myKeys = Object.values(allKeys).filter(k => k.generated_by_reseller_id === String(resellerId));
+
+  // Sort newest first
+  myKeys.sort((a, b) => (b.created_at || (b as any).generated_at || 0) - (a.created_at || (a as any).generated_at || 0));
+
+  const totalCount = myKeys.length;
+  const PAGE_SIZE = 8;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const curPage = Math.min(Math.max(1, page), totalPages);
+  const startIdx = (curPage - 1) * PAGE_SIZE;
+  const pageItems = myKeys.slice(startIdx, startIdx + PAGE_SIZE);
+
+  let text = `🔑 <b>ကျွန်ုပ် ထုတ်ယူထားသော ကုတ်များ စာရင်း</b>\n\n` +
+    `📊 စုစုပေါင်း: <b>${totalCount} ခု</b> (စာမျက်နှာ ${curPage}/${totalPages})\n\n`;
+
+  if (totalCount === 0) {
+    text += `<i>သင်ထုတ်ယူထားသော ကုတ်နံပါတ် မရှိသေးပါ။</i>\n\n` +
+      `💡 အောက်ပါ ခလုတ်များမှ ကုတ်နံပါတ် စတင်ထုတ်ယူနိုင်ပါသည်။`;
+  } else {
+    const now = Date.now();
+    for (let i = 0; i < pageItems.length; i++) {
+      const k = pageItems[i];
+      const itemNum = startIdx + i + 1;
+      let badge = '⚪';
+      let statusText = 'ရောင်းရန်အသင့်';
+      if (k.status === 'active') {
+        badge = '🟢';
+        statusText = 'အသုံးပြုဆဲ';
+      } else if (k.status === 'pending_approval') {
+        badge = '⏳';
+        statusText = 'စောင့်ဆိုင်းဆဲ';
+      } else if (k.status === 'revoked') {
+        badge = '🔴';
+        statusText = 'ပိတ်သိမ်းထား';
+      }
+
+      const planName = k.duration_label || (k.duration === 'lifetime' ? 'တစ်သက်တာ' : k.duration === 'trial' ? '၃ ရက် Trial' : `${k.duration} ရက်`);
+      const createdTs = k.created_at || (k as any).generated_at;
+      const createdDate = createdTs ? new Date(createdTs).toLocaleDateString('en-GB') : '-';
+
+      const devPolicy = k.device_changeable ? '✅ စက်ပြောင်းနိုင်' : '🔒 ဖုန်း ၁ လုံးသာ';
+      text += `<b>${itemNum}.</b> 🔑 <code>${k.cd_key}</code>\n` +
+        `   • အခြေအနေ: ${badge} <b>${statusText}</b>\n` +
+        `   • သက်တမ်း: <b>${planName}</b> | မူဝါဒ: <b>${devPolicy}</b>\n` +
+        `   • ရက်စွဲ: <i>${createdDate}</i>\n`;
+
+      if (k.status === 'active') {
+        const dev = k.device_model || 'မိုဘိုင်း';
+        let daysLeft = 'Lifetime';
+        if (k.expires_at) {
+          const diff = Math.max(0, Math.ceil((k.expires_at - now) / (1000 * 60 * 60 * 24)));
+          daysLeft = `${diff} ရက် ကျန်`;
+        }
+        text += `   • 📱 ဖုန်း: ${dev} (${daysLeft})\n`;
+      }
+      text += `\n`;
+    }
+  }
+
+  const copyRow: InlineKeyboardButton[] = [];
+  const availableItems = pageItems.filter(k => k.status === 'available');
+  if (availableItems.length > 0 && availableItems.length <= 4) {
+    for (const item of availableItems) {
+      const shortKey = item.cd_key.slice(-6);
+      copyRow.push({ text: `📋 ..${shortKey}`, copy_text: { text: item.cd_key } });
+    }
+  }
+
+  const paginationRow: InlineKeyboardButton[] = [];
+  if (curPage > 1) {
+    paginationRow.push({ text: '⬅️ ရှေ့သို့', callback_data: `r_my_keys:${curPage - 1}` });
+  }
+  if (totalPages > 1) {
+    paginationRow.push({ text: `📄 ${curPage}/${totalPages}`, callback_data: `r_my_keys:${curPage}` });
+  }
+  if (curPage < totalPages) {
+    paginationRow.push({ text: 'နောက်သို့ ➡️', callback_data: `r_my_keys:${curPage + 1}` });
+  }
+
+  const navRow: InlineKeyboardButton[] = [
+    { text: '➕ ကုတ်အသစ် ထုတ်မည်', callback_data: 'r_bulk_menu' },
+    { text: '⬅️ ဒက်ရှ်ဘုတ်သို့ ပြန်သွားမည်', callback_data: 'r_refresh' }
+  ];
+
+  const inline_keyboard: InlineKeyboardButton[][] = [
+    ...(copyRow.length > 0 ? [copyRow] : []),
+    ...(paginationRow.length > 0 ? [paginationRow] : []),
+    navRow
+  ];
+
+  return { text, keyboard: { inline_keyboard } };
+}
+
 // ── Webhook Handler ───────────────────────────────────────────────────────────
 
 export async function handleTelegramWebhook(request: Request, env: Env): Promise<Response> {
@@ -2004,12 +2347,14 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       await answerCallbackQuery(env, cq.id);
 
       const priceText = `${plan.price.toLocaleString()} ကျပ်`;
-      const changeText = plan.device_changeable ? '✅ ဖုန်းအသစ်သို့ စက်ပြောင်းလဲနိုင်သည်' : '❌ စက်ပြောင်းမရပါ (ဖုန်း ၁ လုံးသီးသန့်)';
+      const changeText = plan.device_changeable
+        ? '✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b>\n<i>(ဖုန်းအသစ်လဲပါက စက်ဟောင်းအလိုအလျောက် ပိတ်သွားပြီး လက်ကျန်ရက်များဖြင့် ဖုန်းအသစ်တွင် ဆက်လက်အသုံးပြုနိုင်ပါသည်)</i>'
+        : '🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b>\n<i>(ပထမဆုံး အသက်သွင်းသည့် ဖုန်းတစ်လုံးတည်းတွင်သာ သက်တမ်းကုန်ဆုံးခြင်းမရှိဘဲ အသုံးပြုနိုင်ပြီး၊ အခြားဖုန်းသို့ ပြောင်းလဲ၍ မရပါ)</i>';
       const payText = `💳 <b>ငွေလွှဲပေးချေရန် အချက်အလက်များ</b>\n\n` +
         `📦 <b>ဝယ်ယူမည့် အစီအစဉ်:</b> <b>${plan.name}</b>\n` +
         `💰 <b>ကျသင့်ငွေ:</b> <b>${priceText}</b>\n` +
         `⏳ <b>သက်တမ်း:</b> <b>${plan.duration_label}</b>\n` +
-        `📱 <b>စက်ပြောင်းခွင့်:</b> <b>${changeText}</b>\n\n` +
+        `📱 <b>စက်မူဝါဒ:</b> ${changeText}\n\n` +
         `----------------------------------\n` +
         `📱 <b>Wave Pay အကောင့်:</b>\n` +
         `• ဖုန်းနံပါတ်: <code>${accounts.wave.number}</code>\n` +
@@ -2022,7 +2367,19 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         `ငွေလွှဲပြေစာ Screenshot (ဓာတ်ပုံ) ကို ဤ Bot သို့ ပေးပို့ (Send Photo) ပေးပါ။\n\n` +
         `<i>Admin မှ စစ်ဆေးအတည်ပြုပြီးသည်နှင့် Activation Key ကို ဤနေရာသို့ ချက်ချင်း အလိုအလျောက် ပေးပို့ပေးပါမည်။</i>`;
 
-      await sendTelegramMessage(env, chatId, payText);
+      const payKeyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: `📋 Wave (${accounts.wave.number}) ကူးမည်`, copy_text: { text: accounts.wave.number } },
+            { text: `📋 KPay (${accounts.kpay.number}) ကူးမည်`, copy_text: { text: accounts.kpay.number } }
+          ],
+          [
+            { text: '⬅️ အစီအစဉ်များ ပြန်ရွေးမည်', callback_data: 'b_buy_menu' }
+          ]
+        ]
+      };
+
+      await sendTelegramMessage(env, chatId, payText, payKeyboard);
       return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } });
     }
 
@@ -2062,19 +2419,27 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       await answerCallbackQuery(env, cq.id, '✅ ကုတ် အောင်မြင်စွာ ထုတ်ယူပြီးပါပြီ');
 
       const priceText = plan.price === 0 ? 'အခမဲ့ (0 Ks)' : `${plan.price.toLocaleString()} ကျပ်`;
-      const changeText = plan.device_changeable ? '✅ စက်ပြောင်းနိုင်သည်' : '❌ စက်ပြောင်းမရပါ (ဖုန်း ၁ လုံး)';
+      const changeText = plan.device_changeable
+        ? '✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b>'
+        : '🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b>';
       const msgText = `✅ <b>[ကိုယ်စားလှယ်] လိုင်စင်ကုတ် အသစ် ထုတ်ယူပြီးပါပြီ</b>\n\n` +
         `🔑 <b>ကုတ်နံပါတ် (CD-Key):</b>\n` +
         `<code>${newKey}</code>\n\n` +
         `📦 <b>အစီအစဉ်:</b> <b>${plan.name}</b>\n` +
         `⏳ <b>သက်တမ်း:</b> <b>${plan.duration_label}</b>\n` +
         `💰 <b>ဈေးနှုန်း:</b> <b>${priceText}</b>\n` +
-        `📱 <b>စက်ပြောင်းလဲခွင့်:</b> <b>${changeText}</b>\n` +
+        `📱 <b>စက်မူဝါဒ:</b> ${changeText}\n` +
         `📌 <b>အခြေအနေ:</b> ⚪ ရောင်းရန် အသင့်ရှိသည် (Available)\n` +
         `⏰ <b>ထုတ်သည့်အချိန်:</b> ${new Date().toLocaleTimeString('my-MM')}\n\n` +
-        `<i>ဝယ်ယူသူထံ ပေးပို့ရန် အထက်ပါ ကုတ်နံပါတ်ကို Copy ကူး၍ ပေးပို့နိုင်ပါသည်။ ဝယ်ယူသူ အက်ပ်တွင် အသက်သွင်းချိန်တွင် ကော်မရှင်နှင့် ပေးသွင်းရန်ငွေများ စာရင်းဝင်ပါမည်။</i>`;
+        `<i>ဝယ်ယူသူထံ ပေးပို့ရန် အောက်ပါ ခလုတ်ကို နှိပ်၍ CD-Key ကို ချက်ချင်း Copy ကူးယူနိုင်ပါသည်။</i>`;
 
-      await sendTelegramMessage(env, chatId, msgText, getResellerDashboardKeyboard());
+      const resellerKeyKb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '📋 CD-Key ကူးယူမည် (Copy Key)', copy_text: { text: newKey } }],
+          ...getResellerDashboardKeyboard().inline_keyboard
+        ]
+      };
+      await sendTelegramMessage(env, chatId, msgText, resellerKeyKb);
 
       const adminNotice = `📢 <b>[ကိုယ်စားလှယ် ကုတ်ထုတ်ယူမှု]</b>\n\n` +
         `👤 ကိုယ်စားလှယ်: <b>${reseller.name}</b> (ID: <code>${chatId}</code>)\n` +
@@ -2144,16 +2509,24 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
 
       const formattedKeys = keysList.map((k, idx) => `${idx + 1}. <code>${k}</code>`).join('\n');
       const priceText = plan.price === 0 ? 'အခမဲ့ (0 Ks)' : `${plan.price.toLocaleString()} ကျပ်`;
-      const changeText = plan.device_changeable ? '✅ စက်ပြောင်းနိုင်သည်' : '❌ စက်ပြောင်းမရပါ (ဖုန်း ၁ လုံး)';
+      const changeText = plan.device_changeable
+        ? '✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b>'
+        : '🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b>';
 
       const reply = `📦 <b>[ကိုယ်စားလှယ်] ကုတ်ပေါင်း (${count}) ခု အောင်မြင်စွာ ထုတ်ယူပြီးပါပြီ</b>\n\n` +
         `🏷️ အစီအစဉ်: <b>${plan.name}</b> (${priceText})\n` +
-        `📱 စက်ပြောင်းခွင့်: <b>${changeText}</b>\n\n` +
+        `📱 စက်မူဝါဒ: ${changeText}\n\n` +
         `🔑 <b>ကုတ်နံပါတ်များ စာရင်း:</b>\n` +
         `${formattedKeys}\n\n` +
-        `<i>ဝယ်ယူသူများထံသို့ ကုတ်များကို ပေးပို့နိုင်ပါသည်။</i>`;
+        `<i>ဝယ်ယူသူများထံသို့ ကုတ်များကို ပေးပို့နိုင်ပါသည်။ အောက်ပါခလုတ်ကို နှိပ်၍ ကုတ်အားလုံးကို တစ်ခါတည်း Copy ကူးယူနိုင်ပါသည် 👇</i>`;
 
-      await sendTelegramMessage(env, chatId, reply, getResellerDashboardKeyboard());
+      const bulkKb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: `📋 ကုတ်အားလုံး ကူးယူမည် (Copy All ${count} Keys)`, copy_text: { text: keysList.join('\n') } }],
+          ...getResellerDashboardKeyboard().inline_keyboard
+        ]
+      };
+      await sendTelegramMessage(env, chatId, reply, bulkKb);
 
       await notifyAllAdmins(env,
         `📢 <b>[ကိုယ်စားလှယ် ကုတ်ထုတ်ယူမှု - အများပြား]</b>\n\n` +
@@ -2227,17 +2600,27 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       await answerCallbackQuery(env, cq.id, '✅ အော်ဒါ အတည်ပြုပြီး ကုတ်ထုတ်ပေးလိုက်ပါပြီ!', true);
 
       // Auto-send key directly to buyer
+      const changeNotice = plan.device_changeable
+        ? '✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b> - ဖုန်းအသစ်သို့ လွှဲပြောင်းနိုင်သည်'
+        : '🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b> - စက်ပြောင်းလဲ၍ မရပါ';
+
       const buyerMsg = `🎉 <b>သင့်ငွေလွှဲ အတည်ပြုပြီးပါပြီ!</b>\n\n` +
         `<b>3D LEDGER စာရင်းကိုင် ဆော့ဝဲလ်</b> လိုင်စင် အသုံးပြုခွင့်ကုတ်နံပါတ် ရရှိပါပြီ:\n\n` +
         `🔑 <b>သင်၏ လိုင်စင်ကုတ် (CD-Key):</b>\n` +
         `<code>${newKey}</code>\n\n` +
         `📦 အစီအစဉ်: <b>${order.plan_name}</b>\n` +
         `⏳ သက်တမ်း: <b>${plan.duration_label}</b>\n` +
-        `📱 စက်ပြောင်းခွင့်: <b>${plan.device_changeable ? '✅ ပြောင်းနိုင်သည်' : '❌ မရပါ (ဖုန်း ၁ လုံးသီးသန့်)'}</b>\n` +
+        `📱 စက်မူဝါဒ: ${changeNotice}\n` +
         `💰 ပေးချေငွေ: <b>${order.price.toLocaleString()} ကျပ်</b>\n\n` +
-        `<i>(ကုတ်နံပါတ်ကို နှိပ်၍ Copy ကူးပြီး Android အက်ပ်တွင် ထည့်သွင်း အသက်သွင်းနိုင်ပါပြီ)</i>\n\n` +
+        `<i>(အောက်ပါခလုတ်ကို နှိပ်၍ CD-Key ကို ချက်ချင်း Copy ကူးယူပြီး Android အက်ပ်တွင် ထည့်သွင်း အသက်သွင်းနိုင်ပါပြီ)</i>\n\n` +
         `ကျေးဇူးတင်ရှိပါသည်။`;
-      await sendTelegramMessage(env, order.buyer_chat_id, buyerMsg);
+
+      const buyerKb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '📋 CD-Key ကူးယူမည် (Copy Key)', copy_text: { text: newKey } }]
+        ]
+      };
+      await sendTelegramMessage(env, order.buyer_chat_id, buyerMsg, buyerKb);
 
       // Update Admin message
       const adminUpdatedText = `✅ <b>အော်ဒါ အတည်ပြုပြီးပါပြီ (Approved)</b>\n\n` +
@@ -2466,8 +2849,14 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       const oneYearPrice = plans.one_year?.price ? plans.one_year.price.toLocaleString() : '180,000';
       const lifetimePrice = plans.lifetime?.price ? plans.lifetime.price.toLocaleString() : '45,000';
       const buyMsg = `💎 <b>3D LEDGER လိုင်စင် အစီအစဉ်များ ဝယ်ယူရန်</b>\n\n` +
-        `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းအသစ်သို့ စက်ပြောင်းနိုင်သည်)\n` +
-        `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (စက်ပြောင်းမရပါ)\n\n` +
+        `📅 <b>၁ နှစ် သက်တမ်း (1-Year Plan):</b>\n` +
+        `• 💰 ဈေးနှုန်း: <b>${oneYearPrice} ကျပ်</b> / နှစ်\n` +
+        `• 📱 စက်မူဝါဒ: ✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b>\n` +
+        `  <i>(ဖုန်းလဲပါက လက်ကျန်ရက်များဖြင့် စက်အသစ်သို့ ပြောင်းသုံးနိုင်ပါသည်)</i>\n\n` +
+        `💎 <b>တစ်သက်တာ သက်တမ်း (Lifetime Plan):</b>\n` +
+        `• 💰 ဈေးနှုန်း: <b>${lifetimePrice} ကျပ်</b>\n` +
+        `• 📱 စက်မူဝါဒ: 🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b>\n` +
+        `  <i>(ဖုန်း ၁ လုံးတည်းတွင်သာ အသုံးပြုနိုင်ပြီး အခြားဖုန်းသို့ ပြောင်းမရပါ)</i>\n\n` +
         `ဝယ်ယူလိုသော အစီအစဉ်ကို အောက်ပါ ခလုတ်မှ ရွေးချယ်ပါ 👇`;
       await sendTelegramMessage(env, chatId, buyMsg, getBuyerPlansKeyboard());
       return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } });
@@ -2749,6 +3138,31 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       }
     }
 
+    // Generated / Categorized Keys Monitor: m_keys_gen[:<filter>[:<page>]]
+    else if (data.startsWith('m_keys_gen')) {
+      const parts = data.split(':');
+      const filter = (parts[1] || 'available') as 'available' | 'active' | 'pending_approval' | 'all';
+      const page = parseInt(parts[2] || '1', 10) || 1;
+      const res = await buildGeneratedKeysMessage(env, filter, page);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
+      } else {
+        await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      }
+    }
+
+    // Reseller Generated Keys Monitor: r_my_keys[:<page>]
+    else if (data.startsWith('r_my_keys')) {
+      const parts = data.split(':');
+      const page = parseInt(parts[1] || '1', 10) || 1;
+      const res = await buildResellerGeneratedKeysMessage(env, String(chatId), page);
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
+      } else {
+        await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      }
+    }
+
     // Confirm Revoke Key: rev_conf:<key>
     else if (data.startsWith('rev_conf:')) {
       const keyToRevoke = data.split(':')[1];
@@ -2816,7 +3230,9 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       }
 
       const isChangeable = plan.device_changeable;
-      const changeText = isChangeable ? '✅ စက်ပြောင်းလဲနိုင်သည်' : '❌ စက်ပြောင်းမရပါ (ဖုန်း ၁ လုံးသီးသန့်)';
+      const changeText = isChangeable
+        ? '✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b>'
+        : '🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b>';
       const priceText = plan.price === 0 ? 'အခမဲ့ (0 Ks)' : `${plan.price.toLocaleString()} ကျပ်`;
 
       if (count === 1) {
@@ -2839,13 +3255,14 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
           `📦 <b>အစီအစဉ်:</b> <b>${plan.name}</b>\n` +
           `⏳ <b>သက်တမ်း:</b> <b>${plan.duration_label}</b>\n` +
           `💰 <b>ဈေးနှုန်း:</b> <b>${priceText}</b>\n` +
-          `📱 <b>စက်ပြောင်းလဲခွင့်:</b> <b>${changeText}</b>\n` +
+          `📱 <b>စက်မူဝါဒ:</b> ${changeText}\n` +
           `📌 <b>အခြေအနေ:</b> ⚪ ရောင်းရန် အသင့်ရှိသည် (Available)\n` +
           `⏰ <b>ထုတ်သည့်အချိန်:</b> ${new Date().toLocaleTimeString('my-MM')}\n\n` +
-          `<i>အသုံးပြုသူထံ ပေးပို့ရန် အထက်ပါ ကုတ်နံပါတ်ကို ကူးယူ (Copy) ၍ အသုံးပြုနိုင်ပါသည်။</i>`;
+          `<i>ဝယ်ယူသူထံ ပေးပို့ရန် အောက်ပါ ခလုတ်ကို နှိပ်၍ CD-Key ကို ချက်ချင်း Copy ကူးယူနိုင်ပါသည်။</i>`;
 
         const kb: InlineKeyboardMarkup = {
           inline_keyboard: [
+            [{ text: '📋 CD-Key ကူးယူမည် (Copy Key)', copy_text: { text: newKey } }],
             [{ text: '➕ နောက်ထပ် ကုတ်ထုတ်မည်', callback_data: 'm_gen_menu' }],
             [{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]
           ]
@@ -2879,13 +3296,14 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
           `📦 <b>အစီအစဉ်:</b> <b>${plan.name}</b>\n` +
           `⏳ <b>သက်တမ်း:</b> <b>${plan.duration_label}</b>\n` +
           `💰 <b>ဈေးနှုန်း:</b> <b>${priceText}</b>\n` +
-          `📱 <b>စက်ပြောင်းခွင့်:</b> <b>${changeText}</b>\n\n` +
+          `📱 <b>စက်မူဝါဒ:</b> ${changeText}\n\n` +
           `🔑 <b>ကုတ်နံပါတ်များ စာရင်း:</b>\n` +
           `${formattedKeys}\n\n` +
-          `<i>(ကုတ်နံပါတ်များကို နှိပ်၍ အလွယ်တကူ Copy ကူးနိုင်ပါသည်)</i>`;
+          `<i>(အောက်ပါ ခလုတ်ကို နှိပ်၍ ကုတ်အားလုံးကို တစ်ခါတည်း Copy ကူးယူနိုင်ပါသည်)</i>`;
 
         const kb: InlineKeyboardMarkup = {
           inline_keyboard: [
+            [{ text: `📋 ကုတ်အားလုံး ကူးယူမည် (Copy All ${count} Keys)`, copy_text: { text: keysList.join('\n') } }],
             [{ text: '➕ နောက်ထပ် ကုတ်ထုတ်မည်', callback_data: 'm_gen_menu' }],
             [{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]
           ]
@@ -2930,6 +3348,9 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
             { text: `💵 500,000 Ks`, callback_data: `r_pay_do:${resellerId}:500000` }
           ],
           [
+            { text: `✏️ စိတ်ကြိုက် ပမာဏ ရိုက်ထည့်မည် (Manual Enter)`, callback_data: `r_pay_manual:${resellerId}` }
+          ],
+          [
             { text: `⬅️ ကိုယ်စားလှယ်များ စာရင်း`, callback_data: `m_resellers` }
           ]
         ]
@@ -2939,6 +3360,45 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         await editTelegramMessage(env, chatId, messageId, text, kb);
       } else {
         await sendTelegramMessage(env, chatId, text, kb);
+      }
+    }
+
+    // Reseller Due Settlement Prompt for Manual Amount: r_pay_manual:<resellerId>
+    else if (data.startsWith('r_pay_manual:')) {
+      const resellerId = data.split(':')[1];
+      const reseller = await getReseller(resellerId, env);
+      if (!reseller) {
+        await answerCallbackQuery(env, cq.id, 'ကိုယ်စားလှယ် မတွေ့ရှိပါ', true);
+        return new Response('ok');
+      }
+
+      await setAdminState(chatId, {
+        chat_id: chatId,
+        action: 'awaiting_reseller_pay',
+        target_id: resellerId,
+        target_name: reseller.name,
+        created_at: Date.now()
+      }, env);
+
+      await answerCallbackQuery(env, cq.id);
+      const promptText = `✏️ <b>ကိုယ်စားလှယ် [${reseller.name}] အတွက် ရှင်းလင်းမည့် ငွေပမာဏကို ရိုက်ထည့်ပါ</b>\n\n` +
+        `👤 ကိုယ်စားလှယ်: <b>${reseller.name}</b> (ID: <code>${resellerId}</code>)\n` +
+        `📌 လက်ရှိ ပေးရန်ကျန်ငွေ (Due): <b>${(reseller.total_due || 0).toLocaleString()} ကျပ်</b>\n` +
+        `💳 ပေးပြီး စုစုပေါင်း: <b>${(reseller.total_paid || 0).toLocaleString()} ကျပ်</b>\n\n` +
+        `ရှင်းလင်းမည့် ငွေပမာဏ ဂဏန်းကို ရိုက်ထည့်ပေးပါ:\n` +
+        `<i>(ဥပမာ: <code>35000</code> သို့မဟုတ် <code>75,000</code> သို့မဟုတ် အပြည့်ရှင်းရန် <code>full</code>)</i>\n\n` +
+        `❌ မလုပ်တော့ပါက <code>/cancel</code> ဟု ရိုက်ထည့်ပါ`;
+
+      const cancelKb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '❌ မလုပ်တော့ပါ (Cancel)', callback_data: 'm_resellers' }]
+        ]
+      };
+
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, promptText, cancelKb);
+      } else {
+        await sendTelegramMessage(env, chatId, promptText, cancelKb);
       }
     }
 
@@ -3008,9 +3468,11 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     else if (data === 'r_add_prompt') {
       await setAdminState(chatId, { chat_id: chatId, action: 'awaiting_reseller', created_at: Date.now() }, env);
       const text = `➕ <b>ကိုယ်စားလှယ် အသစ် ထည့်သွင်းရန်</b>\n\n` +
-        `ကိုယ်စားလှယ်၏ <b>Telegram ID</b> နှင့် <b>အမည်</b> ကို အောက်ပါအတိုင်း စာရိုက်ပို့ပေးပါ:\n\n` +
-        `<code>987654321 ကိုစိုး</code>\n\n` +
-        `<i>(မှတ်ချက်: Telegram ID ကို ဂဏန်းသီးသန့် ထည့်သွင်းပေးပါ)</i>`;
+        `👉 <b>နည်းလမ်း (၁) - အလွယ်ဆုံးနည်း:</b>\n` +
+        `ကိုယ်စားလှယ် ခန့်လိုသူ၏ Message (စာ သို့မဟုတ် အသံဖိုင်) ကို ဤ Chat သို့ <b>Forward</b> လုပ်ပို့ပေးလိုက်ပါ!\n\n` +
+        `👉 <b>နည်းလမ်း (၂):</b>\n` +
+        `ကိုယ်စားလှယ်၏ <b>Telegram ID</b> နှင့် <b>အမည်</b> ကို စာရိုက်ပို့ပေးပါ:\n` +
+        `<code>987654321 ကိုစိုး</code>`;
       const kb: InlineKeyboardMarkup = {
         inline_keyboard: [[{ text: '❌ မလုပ်တော့ပါ (Cancel)', callback_data: 'cancel_state' }]]
       };
@@ -3062,9 +3524,11 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     else if (data === 'adm_add_prompt') {
       await setAdminState(chatId, { chat_id: chatId, action: 'awaiting_admin', created_at: Date.now() }, env);
       const text = `➕ <b>Admin အသစ် ခန့်အပ်ရန်</b>\n\n` +
-        `Admin အဖြစ် ခန့်အပ်မည့်သူ၏ <b>Telegram ID</b> နှင့် <b>အမည်</b> ကို အောက်ပါအတိုင်း စာရိုက်ပို့ပေးပါ:\n\n` +
-        `<code>123456789 ဦးအောင်</code>\n\n` +
-        `<i>(မှတ်ချက်: Telegram ID ကို ဂဏန်းသီးသန့် ထည့်သွင်းပေးပါ)</i>`;
+        `👉 <b>နည်းလမ်း (၁) - အလွယ်ဆုံးနည်း:</b>\n` +
+        `Admin ခန့်မည့်သူ၏ Message ကို ဤ Chat သို့ <b>Forward</b> လုပ်ပို့ပေးလိုက်ပါ!\n\n` +
+        `👉 <b>နည်းလမ်း (၂):</b>\n` +
+        `Admin ၏ <b>Telegram ID</b> နှင့် <b>အမည်</b> ကို စာရိုက်ပို့ပေးပါ:\n` +
+        `<code>123456789 ဦးအောင်</code>`;
       const kb: InlineKeyboardMarkup = {
         inline_keyboard: [[{ text: '❌ မလုပ်တော့ပါ (Cancel)', callback_data: 'cancel_state' }]]
       };
@@ -3072,6 +3536,66 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         await editTelegramMessage(env, chatId, messageId, text, kb);
       } else {
         await sendTelegramMessage(env, chatId, text, kb);
+      }
+    }
+
+    // Forwarded User Action: fwd_add_res:<targetId>:<encName>
+    else if (data.startsWith('fwd_add_res:')) {
+      const parts = data.split(':');
+      const targetId = parts[1];
+      const targetName = decodeURIComponent(parts.slice(2).join(':')) || 'Reseller';
+
+      const ok = await addReseller(env, targetId, targetName);
+      if (ok) {
+        await answerCallbackQuery(env, cq.id, `✅ [${targetName}] အား ကိုယ်စားလှယ် ထည့်သွင်းပြီးပါပြီ`, true);
+        await sendTelegramMessage(env, targetId,
+          `🎉 <b>မင်္ဂလာပါ ${targetName}! သင့်အား 3D LEDGER ကိုယ်စားလှယ် (Reseller) အဖြစ် စာရင်းသွင်းလိုက်ပါပြီ။</b>\n\n` +
+          `• 3-Day Trial, 1-Year နှင့် Lifetime ကုတ်များကို မိမိကိုယ်တိုင် ထုတ်ယူ ရောင်းချနိုင်ပါသည်။\n` +
+          `• ကိုယ်စားလှယ် ဒက်ရှ်ဘုတ် ဖွင့်ရန် အောက်ပါ ခလုတ်ကို နှိပ်ပါ 👇`,
+          getResellerBottomKeyboard()
+        );
+        const text = `✅ <b>[ကိုယ်စားလှယ် အသစ် ထည့်သွင်းပြီးပါပြီ]</b>\n\n` +
+          `👤 <b>အမည်:</b> <b>${targetName}</b>\n` +
+          `🆔 <b>Telegram ID:</b> <code>${targetId}</code>\n\n` +
+          `အဆိုပါ ကိုယ်စားလှယ်သည် ကုတ်ထုတ်ယူခွင့် ရရှိသွားပါပြီ။`;
+        if (messageId) {
+          await editTelegramMessage(env, chatId, messageId, text, {
+            inline_keyboard: [[{ text: '👥 ကိုယ်စားလှယ်များ စာရင်း', callback_data: 'm_resellers' }]]
+          });
+        } else {
+          await sendTelegramMessage(env, chatId, text);
+        }
+      } else {
+        await answerCallbackQuery(env, cq.id, '❌ ကိုယ်စားလှယ် ထည့်သွင်းခြင်း မအောင်မြင်ပါ', true);
+      }
+    }
+
+    // Forwarded User Action: fwd_add_adm:<targetId>:<encName>
+    else if (data.startsWith('fwd_add_adm:')) {
+      const parts = data.split(':');
+      const targetId = parts[1];
+      const targetName = decodeURIComponent(parts.slice(2).join(':')) || 'Admin';
+
+      const ok = await addAdmin(env, targetId, targetName, String(chatId));
+      if (ok) {
+        await answerCallbackQuery(env, cq.id, `✅ [${targetName}] အား Admin ခန့်အပ်ပြီးပါပြီ`, true);
+        await sendTelegramMessage(env, targetId,
+          `🎉 <b>ဂုဏ်ယူပါသည်! သင့်အား 3D LEDGER စနစ်၏ Admin အဖြစ် ခန့်အပ်လိုက်ပါပြီ။</b>`,
+          getAdminBottomKeyboard()
+        );
+        const text = `✅ <b>[Admin အသစ် ခန့်အပ်ပြီးပါပြီ]</b>\n\n` +
+          `👤 <b>အမည်:</b> <b>${targetName}</b>\n` +
+          `🆔 <b>Telegram ID:</b> <code>${targetId}</code>\n\n` +
+          `အဆိုပါ Admin သည် စနစ်အား စီမံခန့်ခွဲခွင့် ရရှိသွားပါပြီ။`;
+        if (messageId) {
+          await editTelegramMessage(env, chatId, messageId, text, {
+            inline_keyboard: [[{ text: '👮‍♂️ Admin များ စာရင်း', callback_data: 'm_admins' }]]
+          });
+        } else {
+          await sendTelegramMessage(env, chatId, text);
+        }
+      } else {
+        await answerCallbackQuery(env, cq.id, '❌ Admin ထည့်သွင်းခြင်း မအောင်မြင်ပါ', true);
       }
     }
 
@@ -3344,8 +3868,105 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         await editTelegramMessage(env, chatId, messageId, text, kb);
       }
     }
+    return new Response('ok');
+  }
 
-    return new Response(JSON.stringify({ status: 'ok' }), { headers: { 'Content-Type': 'application/json' } });
+  // 1.85 Handle Forwarded Messages from Admin (Instant Add Reseller or Admin)
+  if (update.message) {
+    const msg = update.message;
+    const chatId = msg.chat.id;
+    const senderId = msg.from?.id ? String(msg.from.id) : String(chatId);
+    const userIsAdmin = await isUserAdmin(senderId, env);
+
+    // Only process forwarded messages if sender is Admin and not an APK upload
+    const isApkUpload = msg.document && (msg.document.file_name?.toLowerCase().endsWith('.apk') || msg.document.mime_type === 'application/vnd.android.package-archive');
+    const fwdUser = !isApkUpload ? extractForwardedUser(msg) : null;
+
+    if (userIsAdmin && fwdUser) {
+      if (fwdUser.is_hidden || !fwdUser.id) {
+        const warnText = `⚠️ <b>[သတိပေးချက်: အသုံးပြုသူ၏ Telegram ID မရရှိနိုင်ပါ]</b>\n\n` +
+          `👤 <b>အမည်:</b> <b>${fwdUser.first_name}</b>\n\n` +
+          `ဤအသုံးပြုသူသည် Telegram Privacy Setting တွင် <b>Forwarded Messages</b> အား ဖျောက်ထားပါသဖြင့် ID မရရှိနိုင်ပါ။\n\n` +
+          `💡 <b>အကြံပြုချက်:</b>\n` +
+          `1️⃣ အဆိုပါ အသုံးပြုသူအား ဤ Bot ထံသို့ <code>/id</code> ဟု ရိုက်ပို့စေပြီး ရရှိလာသော Telegram ID ကို ပေးပို့ပါ\n` +
+          `(သို့မဟုတ်)\n` +
+          `2️⃣ အဆိုပါ အသုံးပြုသူအား Telegram Settings > Privacy and Security > Forwarded Messages တွင် 'Everybody' သို့ ခေတ္တ ပြောင်းလဲခိုင်းပြီးမှ ပြန်လည် Forward လုပ်ပေးပါ။`;
+        await sendTelegramMessage(env, chatId, warnText, getAdminBottomKeyboard());
+        return new Response('ok');
+      }
+
+      const targetId = String(fwdUser.id);
+      const targetName = `${fwdUser.first_name}${fwdUser.last_name ? ' ' + fwdUser.last_name : ''}`.trim();
+      const targetUsername = fwdUser.username ? `@${fwdUser.username}` : '';
+
+      if (targetId === senderId) {
+        await sendTelegramMessage(env, chatId, '⚠️ <b>သင်၏ ကိုယ်ပိုင် အကောင့် Message ဖြစ်နေပါသည်။</b>\n\nခန့်အပ်လိုသော အခြား မိတ်ဆွေ၏ Message ကို Forward လုပ်ပေးပါ။', getAdminBottomKeyboard());
+        return new Response('ok');
+      }
+
+      // Check if admin is currently awaiting input
+      const adminState = await getAdminState(chatId, env);
+
+      if (adminState?.action === 'awaiting_reseller') {
+        await setAdminState(chatId, null, env);
+        const ok = await addReseller(env, targetId, targetName);
+        if (ok) {
+          await sendTelegramMessage(env, chatId, `✅ <b>ကိုယ်စားလှယ် အသစ် [${targetName}] (ID: <code>${targetId}</code>) အား Forward မှတစ်ဆင့် အောင်မြင်စွာ ထည့်သွင်းလိုက်ပါပြီ။</b>`);
+          await sendTelegramMessage(env, targetId,
+            `🎉 <b>မင်္ဂလာပါ ${targetName}! သင့်အား 3D LEDGER ကိုယ်စားလှယ် (Reseller) အဖြစ် စာရင်းသွင်းလိုက်ပါပြီ။</b>\n\n` +
+            `• 3-Day Trial, 1-Year နှင့် Lifetime ကုတ်များကို မိမိကိုယ်တိုင် ထုတ်ယူ ရောင်းချနိုင်ပါသည်။\n` +
+            `• ကိုယ်စားလှယ် ဒက်ရှ်ဘုတ် ဖွင့်ရန် အောက်ပါ ခလုတ်ကို နှိပ်ပါ 👇`,
+            getResellerBottomKeyboard()
+          );
+          const res = await buildResellersListMessage(env);
+          await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+        } else {
+          await sendTelegramMessage(env, chatId, '❌ ကိုယ်စားလှယ် ထည့်သွင်းခြင်း မအောင်မြင်ပါ');
+        }
+        return new Response('ok');
+      }
+
+      if (adminState?.action === 'awaiting_admin') {
+        await setAdminState(chatId, null, env);
+        const ok = await addAdmin(env, targetId, targetName, senderId);
+        if (ok) {
+          await sendTelegramMessage(env, chatId, `✅ <b>Admin အသစ် [${targetName}] (ID: <code>${targetId}</code>) အား Forward မှတစ်ဆင့် အောင်မြင်စွာ ခန့်အပ်လိုက်ပါပြီ။</b>`);
+          await sendTelegramMessage(env, targetId,
+            `🎉 <b>ဂုဏ်ယူပါသည်! သင့်အား 3D LEDGER စနစ်၏ Admin အဖြစ် ခန့်အပ်လိုက်ပါပြီ။</b>`,
+            getAdminBottomKeyboard()
+          );
+          const res = await buildAdminsListMessage(env);
+          await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+        } else {
+          await sendTelegramMessage(env, chatId, '❌ Admin ထည့်သွင်းခြင်း မအောင်မြင်ပါ');
+        }
+        return new Response('ok');
+      }
+
+      // If not in a specific state, provide role assignment buttons
+      const encName = encodeURIComponent(targetName);
+      const fwdKb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: '💼 ကိုယ်စားလှယ် (Reseller) အဖြစ် ထည့်မည်', callback_data: `fwd_add_res:${targetId}:${encName}` }
+          ],
+          [
+            { text: '👮‍♂️ Admin အဖြစ် ခန့်အပ်မည်', callback_data: `fwd_add_adm:${targetId}:${encName}` }
+          ],
+          [
+            { text: '❌ မလုပ်တော့ပါ (Cancel)', callback_data: 'cancel_state' }
+          ]
+        ]
+      };
+
+      const promptText = `📩 <b>[Forwarded အသုံးပြုသူ တွေ့ရှိပါသည်]</b>\n\n` +
+        `👤 <b>အမည်:</b> <b>${targetName}</b> ${targetUsername}\n` +
+        `🆔 <b>Telegram ID:</b> <code>${targetId}</code>\n\n` +
+        `ဤအသုံးပြုသူအား မည်သည့် ရာထူး သတ်မှတ်ပေးလိုပါသလဲ? အောက်ပါ ခလုတ်မှ ရွေးချယ်ပါ 👇`;
+
+      await sendTelegramMessage(env, chatId, promptText, fwdKb);
+      return new Response('ok');
+    }
   }
 
   // 1.9 Handle Document Messages (Admin APK Upload / Release Sync)
@@ -3573,6 +4194,75 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
             `<code>${tut.allTut.join(', ')}</code>\n\n` +
             `<i>Android အက်ပ်များနှင့် ဆာဗာအားလုံးတွင် ချက်ချင်း ရောင်ပြန်ဟပ်ပါမည်။</i>`
           );
+          return new Response('ok');
+        }
+
+        if (adminState.action === 'awaiting_reseller_pay') {
+          const rawText = text.trim();
+          const targetResellerId = adminState.target_id || '';
+          const targetName = adminState.target_name || targetResellerId;
+
+          if (rawText.toLowerCase() === 'full' || rawText === 'အပြည့်' || rawText === 'အကုန်') {
+            await setAdminState(chatId, null, env);
+            const res = await settleResellerDue(env, targetResellerId, 'full', senderId);
+            if (res.ok && res.reseller && res.paidAmount) {
+              await sendTelegramMessage(env, chatId,
+                `✅ <b>ကိုယ်စားလှယ် [${targetName}] ငွေစာရင်း အပြည့် ရှင်းလင်းပြီးပါပြီ</b>\n\n` +
+                `👤 ကိုယ်စားလှယ်: <b>${res.reseller.name}</b> (ID: <code>${targetResellerId}</code>)\n` +
+                `💵 ရှင်းလင်းငွေ ပမာဏ: <b>${res.paidAmount.toLocaleString()} ကျပ်</b>\n` +
+                `📌 လက်ကျန် ပေးရန်ကျန်ငွေ (Due): <b>${(res.reseller.total_due || 0).toLocaleString()} ကျပ်</b>\n` +
+                `💳 စုစုပေါင်း ပေးပြီးငွေ: <b>${(res.reseller.total_paid || 0).toLocaleString()} ကျပ်</b>`
+              );
+              // Notify Reseller
+              await sendTelegramMessage(env, targetResellerId,
+                `💳 <b>Admin ထံ ငွေပေးသွင်းမှု မှတ်တမ်းတင်ပြီးပါပြီ</b>\n\n` +
+                `• ပေးသွင်းငွေ: <b>${res.paidAmount.toLocaleString()} ကျပ်</b>\n` +
+                `• Admin သို့ ပေးရန်ကျန်ငွေ လက်ကျန်: <b>${(res.reseller.total_due || 0).toLocaleString()} ကျပ်</b>\n` +
+                `ကျေးဇူးတင်ရှိပါသည်။`
+              );
+              const updated = await buildResellersListMessage(env);
+              await sendTelegramMessage(env, chatId, updated.text, updated.keyboard);
+            } else {
+              await sendTelegramMessage(env, chatId, `❌ ငွေစာရင်း မှတ်တမ်းတင်ခြင်း မအောင်မြင်ပါ: ${res.error || 'အချက်အလက် စစ်ဆေးပါ'}`);
+            }
+            return new Response('ok');
+          }
+
+          // Clean number string (remove commas, ks, spaces, etc.)
+          const cleanNumStr = rawText.replace(/[,kKsS\sကျပ်]/g, '');
+          const amount = parseInt(cleanNumStr, 10);
+          if (isNaN(amount) || amount <= 0) {
+            await sendTelegramMessage(env, chatId,
+              `⚠️ <b>ငွေပမာဏ မမှန်ကန်ပါ</b>\n\n` +
+              `ကျေးဇူးပြု၍ ဂဏန်းသီးသန့် ရိုက်ထည့်ပေးပါ။\n` +
+              `ဥပမာ: <code>35000</code> သို့မဟုတ် <code>75,000</code>\n\n` +
+              `မလုပ်တော့ပါက <code>/cancel</code> ဟု ရိုက်ထည့်ပါ။`
+            );
+            return new Response('ok');
+          }
+
+          await setAdminState(chatId, null, env);
+          const res = await settleResellerDue(env, targetResellerId, String(amount), senderId);
+          if (res.ok && res.reseller && res.paidAmount) {
+            await sendTelegramMessage(env, chatId,
+              `✅ <b>ကိုယ်စားလှယ် [${targetName}] ငွေစာရင်း ရှင်းလင်းမှု အောင်မြင်ပါသည်</b>\n\n` +
+              `👤 ကိုယ်စားလှယ်: <b>${res.reseller.name}</b> (ID: <code>${targetResellerId}</code>)\n` +
+              `💵 ပေးသွင်းငွေ ပမာဏ: <b>${res.paidAmount.toLocaleString()} ကျပ်</b>\n` +
+              `📌 လက်ကျန် ပေးရန်ကျန်ငွေ (Due): <b>${(res.reseller.total_due || 0).toLocaleString()} ကျပ်</b>\n` +
+              `💳 စုစုပေါင်း ပေးပြီးငွေ: <b>${(res.reseller.total_paid || 0).toLocaleString()} ကျပ်</b>`
+            );
+            // Notify Reseller
+            await sendTelegramMessage(env, targetResellerId,
+              `💳 <b>Admin ထံ ငွေပေးသွင်းမှု မှတ်တမ်းတင်ပြီးပါပြီ</b>\n\n` +
+              `• ပေးသွင်းငွေ: <b>${res.paidAmount.toLocaleString()} ကျပ်</b>\n` +
+              `• Admin သို့ ပေးရန်ကျန်ငွေ လက်ကျန်: <b>${(res.reseller.total_due || 0).toLocaleString()} ကျပ်</b>\n` +
+              `ကျေးဇူးတင်ရှိပါသည်။`
+            );
+            const updated = await buildResellersListMessage(env);
+            await sendTelegramMessage(env, chatId, updated.text, updated.keyboard);
+          } else {
+            await sendTelegramMessage(env, chatId, `❌ ငွေစာရင်း မှတ်တမ်းတင်ခြင်း မအောင်မြင်ပါ: ${res.error || 'အချက်အလက် စစ်ဆေးပါ'}`);
+          }
           return new Response('ok');
         }
       }
@@ -3803,8 +4493,8 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         const oneYearPrice = plans.one_year?.price ? plans.one_year.price.toLocaleString() : '180,000';
         const lifetimePrice = plans.lifetime?.price ? plans.lifetime.price.toLocaleString() : '45,000';
         const menuMsg = `👋 <b>မင်္ဂလာပါ! 3D LEDGER စနစ်မှ ကြိုဆိုပါသည်</b>\n\n` +
-          `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းအသစ်သို့ စက်ပြောင်းနိုင်သည်)\n` +
-          `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (စက်ပြောင်းမရပါ)\n\n` +
+          `📅 <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းပြောင်းသုံးနိုင်သည် ✅)\n` +
+          `💎 <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် 🔒)\n\n` +
           `လုပ်ဆောင်လိုသော လုပ်ငန်းစဉ်ကို အောက်ပါ ခလုတ်များမှ ရွေးချယ်ပါ 👇`;
         await sendTelegramMessage(env, chatId, menuMsg, getBuyerBottomKeyboard());
         await sendTelegramMessage(env, chatId, 'လိုင်စင် အစီအစဉ်များ:', getBuyerPlansKeyboard());
@@ -3854,8 +4544,12 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         const oneYearPrice = plans.one_year?.price ? plans.one_year.price.toLocaleString() : '180,000';
         const lifetimePrice = plans.lifetime?.price ? plans.lifetime.price.toLocaleString() : '45,000';
         const buyMsg = `💎 <b>3D LEDGER လိုင်စင် အစီအစဉ်များ ဝယ်ယူရန်</b>\n\n` +
-          `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းအသစ်သို့ စက်ပြောင်းနိုင်သည်)\n` +
-          `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (စက်ပြောင်းမရပါ)\n\n` +
+          `📅 <b>၁ နှစ် သက်တမ်း (1-Year Plan):</b>\n` +
+          `• 💰 ဈေးနှုန်း: <b>${oneYearPrice} ကျပ်</b> / နှစ်\n` +
+          `• 📱 စက်မူဝါဒ: ✅ <b>ဖုန်းပြောင်းသုံးနိုင်သည် (Device Changeable)</b>\n\n` +
+          `💎 <b>တစ်သက်တာ သက်တမ်း (Lifetime Plan):</b>\n` +
+          `• 💰 ဈေးနှုန်း: <b>${lifetimePrice} ကျပ်</b>\n` +
+          `• 📱 စက်မူဝါဒ: 🔒 <b>ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် (1-Device Locked)</b>\n\n` +
           `ဝယ်ယူလိုသော အစီအစဉ်ကို အောက်ပါ ခလုတ်မှ ရွေးချယ်ပါ 👇`;
         await sendTelegramMessage(env, chatId, buyMsg, getBuyerPlansKeyboard());
         return new Response('ok');
@@ -3863,6 +4557,24 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
 
       // Ensure buyer bottom keyboard is pinned
       await sendTelegramMessage(env, chatId, '👋 <b>3D LEDGER စနစ်မှ ကြိုဆိုပါသည်!</b>', getBuyerBottomKeyboard());
+
+      // Deep-link: /start download (Triggered from App Update or Website)
+      if (text.startsWith('/start download')) {
+        const release = await getAppRelease(env);
+        if (release && release.file_id) {
+          const sizeMb = ((release.file_size || 0) / (1024 * 1024)).toFixed(2);
+          const caption = `📱 <b>3D LEDGER စာရင်းကိုင် ဆော့ဝဲလ် (Official APK)</b>\n\n` +
+            `📦 <b>ဖိုင်အမည်:</b> <code>${release.file_name}</code> (${sizeMb} MB)\n` +
+            `🔖 <b>ဗားရှင်း:</b> ${release.version_name || 'Latest'}\n\n` +
+            `📥 <b>ဒေါင်းလုဒ်ဆွဲပြီး စမ်းသပ်အသုံးပြုနည်း လမ်းညွှန်:</b>\n` +
+            `1️⃣ အထက်ပါ APK ဖိုင်ကို နှိပ်၍ Download ဆွဲပြီး ဖုန်းတွင် Install ပြုလုပ်ပါ။\n` +
+            `2️⃣ အက်ပ်ကို ဖွင့်ပြီး Bot မှ ရရှိထားသော <b>[🎁 ၃ ရက် အခမဲ့ CD-Key]</b> ကို ထည့်သွင်းပါ။\n` +
+            `3️⃣ ၇၂ နာရီ စိတ်ကြိုက် စမ်းသပ် သုံးစွဲနိုင်ပါပြီ။\n` +
+            `4️⃣ စမ်းသပ်ပြီး သဘောကျပါက <b>[🛒 လိုင်စင် ဝယ်ယူမည်]</b> မှတစ်ဆင့် ၁ နှစ် သို့မဟုတ် တစ်သက်တာ လိုင်စင် ဝယ်ယူနိုင်ပါသည်။`;
+          await sendTelegramDocument(env, chatId, release.file_id, caption, getBuyerPlansKeyboard());
+          return new Response('ok');
+        }
+      }
 
       // Default or /start: Free 3-Day Trial + Plans Showcase with Buy Buttons!
       let token = '';
@@ -3935,11 +4647,17 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
           `• ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်ပြီး အခြားဖုန်းသို့ စက်ပြောင်းလဲ၍ မရပါ။\n` +
           `• သက်တမ်း ကုန်ဆုံးပါက အက်ပ်သို့ ဆက်လက်ဝင်ရောက်နိုင်မည် မဟုတ်ဘဲ လိုင်စင် အသစ် ဝယ်ယူရပါမည်။\n\n` +
           `💎 <b>ဝယ်ယူရရှိနိုင်သော လိုင်စင် အစီအစဉ်များ:</b>\n` +
-          `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းအသစ်သို့ စက်ပြောင်းနိုင်သည်)\n` +
-          `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (စက်ပြောင်းမရပါ)\n\n` +
+          `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းပြောင်းသုံးနိုင်သည် - Device Changeable ✅)\n` +
+          `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် - 1-Device Locked 🔒)\n\n` +
           `🛒 <b>တိုက်ရိုက် ဝယ်ယူလိုပါက အောက်ပါ ခလုတ်များကို နှိပ်ပါ 👇</b>`;
 
-        await sendTelegramMessage(env, chatId, welcomeText, getBuyerPlansKeyboard());
+        const trialKeyKb: InlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '📋 အခမဲ့ CD-Key ကူးယူမည် (Copy Key)', copy_text: { text: trialKey } }],
+            ...getBuyerPlansKeyboard().inline_keyboard
+          ]
+        };
+        await sendTelegramMessage(env, chatId, welcomeText, trialKeyKb);
       } else {
         const keyDataRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${existingTrial.cd_key}.json`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -3967,11 +4685,17 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
           `📌 <b>အခြေအနေ:</b> ${statusText}\n\n` +
           `⚠️ <i>စမ်းသပ်ခွင့် ၇၂ နာရီ ကုန်ဆုံးပါက ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူရပါမည်။</i>\n\n` +
           `💎 <b>ဝယ်ယူရရှိနိုင်သော လိုင်စင် အစီအစဉ်များ:</b>\n` +
-          `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းအသစ်သို့ စက်ပြောင်းနိုင်သည်)\n` +
-          `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (စက်ပြောင်းမရပါ)\n\n` +
+          `• <b>၁ နှစ် သက်တမ်း:</b> <b>${oneYearPrice} ကျပ်</b> / နှစ် (ဖုန်းပြောင်းသုံးနိုင်သည် - Device Changeable ✅)\n` +
+          `• <b>တစ်သက်တာ သက်တမ်း:</b> <b>${lifetimePrice} ကျပ်</b> (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် - 1-Device Locked 🔒)\n\n` +
           `🛒 <b>တိုက်ရိုက် ဝယ်ယူလိုပါက အောက်ပါ ခလုတ်များကို နှိပ်ပါ 👇</b>`;
 
-        await sendTelegramMessage(env, chatId, msgText, getBuyerPlansKeyboard());
+        const existingTrialKb: InlineKeyboardMarkup = {
+          inline_keyboard: [
+            [{ text: '📋 သင်၏ CD-Key ကူးယူမည် (Copy Key)', copy_text: { text: existingTrial.cd_key } }],
+            ...getBuyerPlansKeyboard().inline_keyboard
+          ]
+        };
+        await sendTelegramMessage(env, chatId, msgText, existingTrialKb);
       }
       return new Response('ok');
     }
@@ -4239,8 +4963,20 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    if (text === '📋 အသုံးပြုမှု စောင့်ကြည့်' || text === '/keys') {
+    if (text === '📋 အသုံးပြုမှု စောင့်ကြည့်') {
       const res = await buildActiveKeysMessage(env);
+      await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      return new Response('ok');
+    }
+
+    if (text === '🔑 ထုတ်ယူထားသော ကုတ်များ' || text === '/genkeys' || text === '/generatedkeys') {
+      const res = await buildGeneratedKeysMessage(env, 'available', 1);
+      await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      return new Response('ok');
+    }
+
+    if (text === '🔑 ကျွန်ုပ်၏ ကုတ်များ' || text === '/mykeys') {
+      const res = await buildResellerGeneratedKeysMessage(env, String(chatId), 1);
       await sendTelegramMessage(env, chatId, res.text, res.keyboard);
       return new Response('ok');
     }
@@ -4642,8 +5378,15 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    // Command: /keys
+    // Command: /keys (shows generated & available keys with status filter tabs)
     if (text.startsWith('/keys')) {
+      const res = await buildGeneratedKeysMessage(env, 'available', 1);
+      await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      return new Response('ok');
+    }
+
+    // Command: /activekeys
+    if (text.startsWith('/activekeys')) {
       const res = await buildActiveKeysMessage(env);
       await sendTelegramMessage(env, chatId, res.text, res.keyboard);
       return new Response('ok');

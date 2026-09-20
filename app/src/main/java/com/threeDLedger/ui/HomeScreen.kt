@@ -10,12 +10,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,17 +30,27 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class MenuItem(val title: String, val icon: ImageVector, val onClick: () -> Unit)
+data class MenuItem(
+    val title: String,
+    val subtitle: String,
+    val icon: ImageVector,
+    val iconColors: List<Color>,
+    val onClick: () -> Unit
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,13 +70,38 @@ fun HomeScreen(
     val currentDate = dateFormat.format(Date())
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
+    val haptic = LocalHapticFeedback.current
 
-    // Strictly ordered: Vouchers on the left, Overflow (တင်ကွက်များ) on the right
+    // Strictly ordered: 4 Core Modules
     val menuItems = listOf(
-        MenuItem("ကော်မရှင်", Icons.Default.People, onNavigateToCustomers),
-        MenuItem("ဂဏန်းများ", Icons.AutoMirrored.Filled.List, onNavigateToLedger),
-        MenuItem("ဘောင်ချာ", Icons.Default.Receipt, onNavigateToVouchers),
-        MenuItem("တင်ကွက်များ", Icons.Default.Payment, onNavigateToOverflow)
+        MenuItem(
+            title = "ကော်မရှင်",
+            subtitle = "စာရင်းသွင်းသူများ",
+            icon = Icons.Default.People,
+            iconColors = listOf(Color(0xFF059669), Color(0xFF047857)),
+            onClick = onNavigateToCustomers
+        ),
+        MenuItem(
+            title = "ဂဏန်းများ",
+            subtitle = "ပေါက်/တွတ် စစ်ဆေးချက်",
+            icon = Icons.AutoMirrored.Filled.List,
+            iconColors = listOf(Color(0xFF0284C7), Color(0xFF0369A1)),
+            onClick = onNavigateToLedger
+        ),
+        MenuItem(
+            title = "ဘောင်ချာ",
+            subtitle = "ရောင်းရငွေ ဘောင်ချာများ",
+            icon = Icons.Default.Receipt,
+            iconColors = listOf(Color(0xFFD97706), Color(0xFFB45309)),
+            onClick = onNavigateToVouchers
+        ),
+        MenuItem(
+            title = "တင်ကွက်များ",
+            subtitle = "အထက်ဒိုင် တင်ကွက်",
+            icon = Icons.Default.Payment,
+            iconColors = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
+            onClick = onNavigateToOverflow
+        )
     )
 
     Scaffold(
@@ -71,18 +110,40 @@ fun HomeScreen(
             CenterAlignedTopAppBar(
                 title = { 
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("3D စာရင်း", fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, letterSpacing = 1.sp)
-                        Text(currentDate, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                        Text(
+                            "3D စာရင်း PRO",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 20.sp,
+                            letterSpacing = 1.2.sp
+                        )
+                        Text(
+                            currentDate,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        )
                     }
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToWinner) {
-                        Icon(
-                            imageVector = Icons.Default.EmojiEvents,
-                            contentDescription = "ပေါက်ဂဏန်း",
-                            tint = Color(0xFFFFD93D),
-                            modifier = Modifier.size(28.dp)
-                        )
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToWinner()
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFD93D).copy(alpha = 0.25f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = "ပေါက်ဂဏန်း",
+                                tint = Color(0xFFFFD93D),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -99,20 +160,23 @@ fun HomeScreen(
                     .fillMaxSize()
                     .widthIn(max = 800.dp)
                     .padding(padding)
-                    .padding(horizontal = 20.dp),
+                    .padding(horizontal = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Premium Batch Selector Card
+                // ── Tactile Batch Stepper Controller Card ─────────────────────
                 Card(
-                    modifier = Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(24.dp)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(4.dp, RoundedCornerShape(20.dp)),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(24.dp)
+                    shape = RoundedCornerShape(20.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 ) {
                     Row(
                         modifier = Modifier
-                            .padding(20.dp)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                             .fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -124,178 +188,314 @@ fun HomeScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "လက်ရှိ အသုံးပြုနေသော အကြိမ်",
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        
-                        var batchText by remember { mutableStateOf(currentBatch.toString()) }
-                        LaunchedEffect(currentBatch) {
-                            batchText = currentBatch.toString()
+
+                        // Stepper buttons + Input
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (currentBatch > 1) viewModel.currentBatch.value = currentBatch - 1
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Icon(
+                                    Icons.Default.Remove,
+                                    contentDescription = "Decrease",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+
+                            var batchText by remember { mutableStateOf(currentBatch.toString()) }
+                            LaunchedEffect(currentBatch) {
+                                batchText = currentBatch.toString()
+                            }
+
+                            OutlinedTextField(
+                                value = batchText,
+                                onValueChange = { newText ->
+                                    batchText = newText
+                                    newText.toIntOrNull()?.let { num ->
+                                        if (num in 1..1000) viewModel.currentBatch.value = num
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier
+                                    .width(76.dp)
+                                    .padding(horizontal = 6.dp),
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 18.sp,
+                                    textAlign = TextAlign.Center,
+                                    fontFamily = FontFamily.Monospace,
+                                    color = MaterialTheme.colorScheme.primary
+                                ),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    if (currentBatch < 999) viewModel.currentBatch.value = currentBatch + 1
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Increase",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
-                        
-                        OutlinedTextField(
-                            value = batchText,
-                            onValueChange = { newText ->
-                                batchText = newText
-                                newText.toIntOrNull()?.let { num ->
-                                    if (num in 1..1000) viewModel.currentBatch.value = num
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.width(100.dp),
-                            singleLine = true,
-                            textStyle = LocalTextStyle.current.copy(
-                                fontWeight = FontWeight.Black,
-                                fontSize = 20.sp,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.primary
-                            ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha=0.5f)
-                            ),
-                            shape = RoundedCornerShape(16.dp)
-                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ── Hero Action Card: "ထိုးကြေး စာရင်းသွင်းမည်" (Direct Betting Entry) ────
+                Card(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToBetting()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(6.dp, RoundedCornerShape(20.dp)),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = EmeraldPrimary)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFF046A4E),
+                                        Color(0xFF065F46)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 18.dp, vertical = 14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Calculate,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(14.dp))
+                                Column {
+                                    Text(
+                                        "ထိုးကြေး စာရင်းသွင်းမည်",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 17.sp,
+                                        color = Color.White
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        "ကီးပက်ဖြင့် အမြန် စာရင်းသွင်းရန် နှိပ်ပါ",
+                                        fontSize = 12.sp,
+                                        color = Color.White.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = Color(0xFFFFD93D),
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 if (bannedNumbers.isNotEmpty()) {
                     Card(
-                        modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.error.copy(alpha=0.3f), RoundedCornerShape(20.dp)),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha=0.7f)),
-                        shape = RoundedCornerShape(20.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(
-                                modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.error, CircleShape),
+                                modifier = Modifier.size(36.dp).background(MaterialTheme.colorScheme.error, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Info, contentDescription = "Alert", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(20.dp))
+                                Icon(Icons.Default.Info, contentDescription = "Alert", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(18.dp))
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
                                     text = "ပိတ်ထားသော ဂဏန်းများ",
                                     color = MaterialTheme.colorScheme.onErrorContainer,
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 13.sp
+                                    fontSize = 12.sp
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = bannedNumbers.joinToString(", ") { it.number },
                                     color = MaterialTheme.colorScheme.error,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
                                 )
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
                 }
 
-                // Grid Menu - Fixed 2 columns so Vouchers and Overflow are strictly side-by-side
+                // ── 2x2 Grid Menu with Tactile Medallion Cards ─────────────────
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 ) {
                     items(menuItems) { item ->
-                        MenuCard(title = item.title, icon = item.icon, onClick = item.onClick)
+                        MenuCard(
+                            title = item.title,
+                            subtitle = item.subtitle,
+                            icon = item.icon,
+                            iconColors = item.iconColors,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                item.onClick()
+                            }
+                        )
                     }
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Settings Button - Polished
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Settings Button - Warm Champagne Gold Luxury Finish ────────
                 Button(
-                    onClick = onNavigateToSettings,
-                    modifier = Modifier.fillMaxWidth().height(60.dp),
-                    shape = RoundedCornerShape(20.dp),
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToSettings()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .shadow(3.dp, RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.secondaryContainer,
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                 ) {
                     Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("ဆက်တင်", fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("ဆက်တင်", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.5.sp)
                 }
-                
-                Spacer(modifier = Modifier.height(32.dp))
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
     }
 }
 
+// ── Tactile Pro Medallion Menu Card ──────────────────────────────────────────
 @Composable
-fun MenuCard(title: String, icon: ImageVector, onClick: () -> Unit) {
+fun MenuCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    iconColors: List<Color>,
+    onClick: () -> Unit
+) {
     Card(
         onClick = onClick,
         modifier = Modifier
-            .aspectRatio(1f)
+            .aspectRatio(1.15f)
             .fillMaxWidth()
-            .shadow(4.dp, RoundedCornerShape(28.dp))
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(28.dp)),
-        shape = RoundedCornerShape(28.dp),
+            .shadow(4.dp, RoundedCornerShape(22.dp)),
+        shape = RoundedCornerShape(22.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Subtle gradient background in the corner
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.surface,
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            )
-                        )
-                    )
-            )
-            
-            Column(
-                modifier = Modifier.fillMaxSize().padding(20.dp),
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
                 horizontalAlignment = Alignment.Start
             ) {
+                // Gradient Icon Medallion
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(16.dp)
-                        ),
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Brush.linearGradient(colors = iconColors)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        modifier = Modifier.size(26.dp),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                        modifier = Modifier.size(24.dp),
+                        tint = Color.White
                     )
                 }
-                Text(
-                    text = title,
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 17.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    lineHeight = 22.sp,
-                    letterSpacing = 0.5.sp
-                )
+
+                Column {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 17.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        letterSpacing = 0.3.sp
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

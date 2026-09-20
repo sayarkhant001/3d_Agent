@@ -28,7 +28,7 @@ fun LockScreen(viewModel: MainViewModel, onUnlock: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(EmeraldSoftBg),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -38,7 +38,7 @@ fun LockScreen(viewModel: MainViewModel, onUnlock: () -> Unit) {
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
         ) {
             Column(
                 modifier = Modifier
@@ -50,13 +50,13 @@ fun LockScreen(viewModel: MainViewModel, onUnlock: () -> Unit) {
                     modifier = Modifier
                         .size(68.dp)
                         .clip(CircleShape)
-                        .background(EmeraldLight),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Lock,
                         contentDescription = "Lock",
-                        tint = EmeraldPrimary,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(34.dp)
                     )
                 }
@@ -67,7 +67,7 @@ fun LockScreen(viewModel: MainViewModel, onUnlock: () -> Unit) {
                     "3D စာရင်း လော့ခ်စနစ်",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.ExtraBold,
-                    color = EmeraldDark
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
@@ -94,8 +94,8 @@ fun LockScreen(viewModel: MainViewModel, onUnlock: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = EmeraldPrimary,
-                        focusedLabelColor = EmeraldPrimary
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary
                     )
                 )
 
@@ -124,8 +124,8 @@ fun LockScreen(viewModel: MainViewModel, onUnlock: () -> Unit) {
                         .height(52.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = EmeraldPrimary,
-                        contentColor = Color.White
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
                     Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(20.dp))

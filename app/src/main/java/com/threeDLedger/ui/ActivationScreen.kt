@@ -3,12 +3,14 @@ package com.threeDLedger.ui
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,6 +37,7 @@ fun ActivationScreen(
     onActivated: () -> Unit
 ) {
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val licenseManager = remember { LicenseManager(context) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -73,7 +77,7 @@ fun ActivationScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(EmeraldSoftBg),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Card(
@@ -84,7 +88,7 @@ fun ActivationScreen(
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            border = BorderStroke(1.dp, CardBorderSubtle)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
         ) {
             Column(
                 modifier = Modifier
@@ -99,13 +103,13 @@ fun ActivationScreen(
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFEF3C7)),
+                            .background(MaterialTheme.colorScheme.secondaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.HourglassTop,
                             contentDescription = "Pending Approval",
-                            tint = Color(0xFFD97706),
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -116,7 +120,7 @@ fun ActivationScreen(
                         text = "ခွင့်ပြုချက် စောင့်ဆိုင်းနေပါသည်",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF92400E),
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
 
@@ -133,7 +137,8 @@ fun ActivationScreen(
 
                     Card(
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF3F4F6)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -151,7 +156,7 @@ fun ActivationScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF1F2937),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 textAlign = TextAlign.Center
                             )
                         }
@@ -191,7 +196,10 @@ fun ActivationScreen(
                             },
                             modifier = Modifier.weight(1f).height(48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
                         ) {
                             if (isLoading) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
@@ -279,13 +287,13 @@ fun ActivationScreen(
                         modifier = Modifier
                             .size(64.dp)
                             .clip(CircleShape)
-                            .background(EmeraldLight),
+                            .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Default.Key,
                             contentDescription = "Activation Key",
-                            tint = EmeraldPrimary,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(32.dp)
                         )
                     }
@@ -296,7 +304,7 @@ fun ActivationScreen(
                         text = "3D စာရင်း အသုံးပြုခွင့် ဖွင့်ရန်",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = EmeraldDark,
+                        color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.Center
                     )
 
@@ -313,8 +321,8 @@ fun ActivationScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9FAFB)),
-                        border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -324,7 +332,7 @@ fun ActivationScreen(
                                 text = "📋 ရရှိနိုင်သော ဝန်ဆောင်မှု အစီအစဉ်များ",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 13.sp,
-                                color = Color(0xFF374151)
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(8.dp))
 
@@ -332,19 +340,21 @@ fun ActivationScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFFEFF6FF), RoundedCornerShape(8.dp))
-                                    .padding(8.dp),
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("⭐ ၁ နှစ် (Device Changeable)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1E40AF))
-                                        Spacer(Modifier.width(4.dp))
-                                        Surface(color = Color(0xFFDBEAFE), shape = RoundedCornerShape(4.dp)) {
-                                            Text("စက်ပြောင်းနိုင်", fontSize = 10.sp, color = Color(0xFF1D4ED8), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
+                                        Text("⭐ ၁ နှစ် (Device Changeable)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(4.dp)) {
+                                            Text("စက်ပြောင်းနိုင်", fontSize = 10.sp, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
                                         }
                                     }
-                                    Text("၁၈၀,၀၀၀ ကျပ် / နှစ် (လက်ကျန်ရက် အပြည့်ဖြင့် ဖုန်းအသစ်ပြောင်းသုံးနိုင်)", fontSize = 11.sp, color = Color(0xFF475569))
+                                    Spacer(Modifier.height(2.dp))
+                                    Text("၁၈၀,၀၀၀ ကျပ် / နှစ် (လက်ကျန်ရက် အပြည့်ဖြင့် ဖုန်းအသစ်ပြောင်းသုံးနိုင်)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
 
@@ -354,19 +364,21 @@ fun ActivationScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFFF3F4F6), RoundedCornerShape(8.dp))
-                                    .padding(8.dp),
+                                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("💎 တစ်သက်တာ (Lifetime)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF374151))
-                                        Spacer(Modifier.width(4.dp))
-                                        Surface(color = Color(0xFFE5E7EB), shape = RoundedCornerShape(4.dp)) {
-                                            Text("စက်ပြောင်းမရ", fontSize = 10.sp, color = Color(0xFF4B5563), modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                        Text("💎 တစ်သက်တာ (Lifetime)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(4.dp)) {
+                                            Text("စက်ပြောင်းမရ", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp), fontWeight = FontWeight.Bold)
                                         }
                                     }
-                                    Text("၄၅,၀၀၀ ကျပ် (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်)", fontSize = 11.sp, color = Color(0xFF6B7280))
+                                    Spacer(Modifier.height(2.dp))
+                                    Text("၄၅,၀၀၀ ကျပ် (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
 
@@ -376,13 +388,15 @@ fun ActivationScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFFF0FDF4), RoundedCornerShape(8.dp))
-                                    .padding(8.dp),
+                                    .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                                    .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text("🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (Free 72-Hour Trial)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF166534))
-                                    Text("Telegram Bot တွင် /start နှိပ်၍ အခမဲ့ ကုတ် ရယူပါ (၇၂ နာရီတိတိ)", fontSize = 11.sp, color = Color(0xFF15803D))
+                                    Text("🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (Free 72-Hour Trial)", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.tertiary)
+                                    Spacer(Modifier.height(2.dp))
+                                    Text("Telegram Bot တွင် /start နှိပ်၍ အခမဲ့ ကုတ် ရယူပါ (၇၂ နာရီတိတိ)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -402,14 +416,31 @@ fun ActivationScreen(
                         singleLine = true,
                         isError = errorMessage != null,
                         shape = RoundedCornerShape(14.dp),
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    val clip = clipboardManager.getText()?.text
+                                    if (!clip.isNullOrBlank()) {
+                                        cdKey = clip.trim().uppercase()
+                                        errorMessage = null
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Default.ContentPaste,
+                                    contentDescription = "Clipboard မှ ကူးထည့်မည်",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        },
                         textStyle = LocalTextStyle.current.copy(
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 1.sp,
                             fontWeight = FontWeight.Bold
                         ),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = EmeraldPrimary,
-                            focusedLabelColor = EmeraldPrimary
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary
                         )
                     )
 
@@ -462,15 +493,15 @@ fun ActivationScreen(
                             .height(52.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldPrimary,
-                            contentColor = Color.White
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
                         ),
                         enabled = !isLoading
                     ) {
                         if (isLoading) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 strokeWidth = 2.5.dp
                             )
                         } else {
@@ -478,6 +509,29 @@ fun ActivationScreen(
                             Spacer(Modifier.width(8.dp))
                             Text("အတည်ပြု ဖွင့်လှစ်မည်", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedButton(
+                        onClick = {
+                            val tgUrl = "https://t.me/threed_ledger_bot?start=trial"
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(tgUrl)).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Telegram Bot မှ ၃ ရက် Trial ကုတ် ရယူမည်", fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }

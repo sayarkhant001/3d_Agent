@@ -369,15 +369,33 @@ The Telegram Bot provides a **100% button-driven user experience**. Users never 
 1. **1-Click Single & Bulk Key Generation Chips**:
    - `gen_b:<planId>:<count>`: Admin taps `[📅 ၁ နှစ် (၅ ခု)]` or `[💎 တစ်သက်တာ (၁၀ ခု)]` to instantly generate and copy bulk CD-keys.
    - `r_gen_b:<planId>:<count>`: Reseller taps `[📅 ၁ နှစ် (၅ ခု)]` or `[💎 တစ်သက်တာ (၁၀ ခု)]` for 1-click instant reseller stock generation.
-2. **Reseller Due Settlement Presets**:
+2. **Generated Keys Management (`m_keys_gen`) & Web Keys Synchronization**:
+   - Admin taps `[🔑 ထုတ်ယူထားသော ကုတ်များ (Generated Keys)]` or sends `/keys` or `/genkeys`.
+   - Filters available: `[⚪ ရောင်းရန်အသင့် (Available)]`, `[🟢 အသုံးပြုဆဲ (Active)]`, `[⏳ စောင့်ဆိုင်းဆဲ (Pending)]`, `[📋 အားလုံး (All)]`.
+   - Keys generated from Web Admin (`3d-admin`) immediately appear under `Available` with identical metadata (`created_at` timestamp, duration, price, and generator source).
+   - Resellers can view their generated keys portfolio via `[🔑 ကျွန်ုပ်၏ ကုတ်များ (My Keys)]` (`r_my_keys`) on their dashboard or by typing `/mykeys`.
+3. **Reseller Due Settlement Presets & Manual Amount Entry**:
    - Admin taps `[💵 ကိုစိုး ငွေရှင်းမည်]` $\rightarrow$ Bot presents quick settlement chips: `[💰 အပြည့်ရှင်းမည်]`, `[💵 50,000 Ks]`, `[💵 100,000 Ks]`, `[💵 200,000 Ks]`, `[💵 500,000 Ks]`.
-   - Tapping any chip immediately credits the payment, reduces due balance, records the transaction in `reseller_ledger`, and alerts the reseller.
-3. **No-Command Administrative Onboarding (`AdminState`)**:
-   - Tapping `[➕ ကိုယ်စားလှယ် အသစ် ထည့်မည်]` sets interactive session $\rightarrow$ Admin simply replies `987654321 ကိုစိုး`.
-   - Tapping `[➕ Admin အသစ် ထည့်မည်]` $\rightarrow$ Admin simply replies `123456789 ဦးအောင်`.
+   - **Manual Custom Settlement**: If the payment amount is different (e.g. 35,000 Ks or 125,000 Ks), Admin taps `[✏️ စိတ်ကြိုက် ပမာဏ ရိုက်ထည့်မည် (Manual Enter)]` (`r_pay_manual:<id>`). The Bot prompts for the amount, allowing the Admin to reply with any custom number.
+   - Tapping any chip or entering a manual amount immediately credits the payment, reduces due balance, records the transaction in `reseller_ledger`, and alerts the reseller.
+   - **Web Admin Settlement**: Admins can also view the Resellers & Due Settlement card in Web Admin (`3d-admin`), view total dues, and clear balances using the interactive settlement dialog with custom manual amount input.
+4. **1-Click Message Forwarding for Admins & Resellers (No Manual IDs Needed)**:
+   - **Direct Forward (Auto-Detect)**: The Admin simply forwards *any* message sent by a prospective Reseller or Admin directly to the Bot. The Bot automatically extracts their Telegram ID and display name, then presents instant action buttons:
+     - `[💼 ကိုယ်စားလှယ် (Reseller) အဖြစ် ထည့်မည်]`
+     - `[👮‍♂️ Admin အဖြစ် ခန့်အပ်မည်]`
+     - `[❌ မလုပ်တော့ပါ (Cancel)]`
+   - **Prompt-Driven Forward**: When Admin taps `[➕ ကိုယ်စားလှယ် အသစ် ထည့်မည်]` or `[➕ Admin အသစ် ထည့်မည်]`, they can either forward a message from that contact or reply with `ID အမည်`. Forwarding assigns the role immediately without requiring any typing!
+   - **Telegram Privacy Safeguard**: If a contact has `Forwarded Messages` hidden under *Settings > Privacy and Security*, Telegram strips the numeric ID. The Bot automatically detects this, alerts the Admin, and provides clear instructions (asking the user to type `/id` in the Bot or temporarily switch privacy to 'Everybody').
+4. **App Distribution & Instant Telegram Release Pipeline**:
+   - **Upload APK via Bot**: Admin sends any `.apk` file directly to the Telegram bot with an optional version caption (e.g. `v1.0.100 အသစ်ထွက်ရှိ`). The bot stores the Telegram `file_id`, registers it in Firebase `/3d_app_release.json`, and immediately serves it to all users.
+   - **Buyer 1-Click App Download**: Buyers and trial users can tap `[📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်]` or send `/app` or `/download` to receive the APK file directly in Telegram along with their 3-day trial key.
+   - **Dual Update Checking**: The Android app checks both GitHub Releases and Cloudflare Worker `/api/app/latest`, linking users to the Telegram bot for hassle-free downloads.
+5. **No-Command Administrative Onboarding (`AdminState`)**:
+   - Tapping `[➕ ကိုယ်စားလှယ် အသစ် ထည့်မည်]` $\rightarrow$ Forward a message OR type `987654321 ကိုစိုး`.
+   - Tapping `[➕ Admin အသစ် ထည့်မည်]` $\rightarrow$ Forward a message OR type `123456789 ဦးအောင်`.
    - Tapping `[✏️ Wave Pay ပြင်ဆင်မည်]` or `[✏️ KBZPay ပြင်ဆင်မည်]` $\rightarrow$ Admin simply replies `09778899001 ဦးအောင်ကို`.
    - Any prompt can be cancelled with `[❌ မလုပ်တော့ပါ (Cancel)]`.
-4. **Interactive Commission Presets**:
+6. **Interactive Commission Presets**:
    - Lifetime Commission: `[3,000 Ks]`, `[5,000 Ks]`, `[7,000 Ks]`, `[10,000 Ks]`.
    - 1-Year Commission: `[5,000 Ks]`, `[10,000 Ks]`, `[15,000 Ks]`, `[20,000 Ks]`, `[25,000 Ks]`, `[30,000 Ks]`.
 5. **Lottery Winner Declaration & Batch Toggles**:
@@ -507,10 +525,71 @@ The entire system is guarded by multi-layered automated test suites:
 | Subsystem | Test Command | Scope |
 | :--- | :--- | :--- |
 | **Android Calculations** | `.\gradlew.bat testDebugUnitTest` | Validates all 5 real settlement scenarios, တွတ် sets, and numbered voucher parsing. |
-| **Android Compose UI** | `.\gradlew.bat testDebugUnitTest` | Validates `ထွိုင်` button interactions and green/red financial indicators. |
-| **Cloudflare Worker** | `npm test` in `3d-scraper-worker/` | Validates GLO parser, Telegram `/start`, `/tut`, and inline callbacks. |
-| **Cloudflare Web Admin** | `node --test` in `3d-admin/` | Validates တွတ် calculation permutations and boundary cyclic behavior. |
+| **Android Security Guard** | `.\gradlew.bat testDebugUnitTest` | Validates SHA-256 certificate verification, anti-tampering, and anti-debug protections. |
+| **Android Compose UI** | `.\gradlew.bat testDebugUnitTest` | Validates `ထွိုင်` button interactions, responsive cards, and financial indicators. |
+| **Cloudflare Worker** | `npm test` in `3d-scraper-worker/` | Validates fast live lottery parser, Telegram `/start download`, `/api/app/latest`, and inline callbacks. |
+| **Cloudflare Web Admin** | `npm run build` in `3d-admin/` | Validates React 19 dashboard, real-time Firebase listeners, and app release card. |
+
+---
+
+## 5. App Distribution Pipeline & Reverse-Engineering Hardening
+
+### 5.1 Telegram Bot Direct App Distribution Pipeline
+The platform implements a serverless, zero-cost, high-speed APK distribution network hosted directly via Telegram Bot:
+
+1. **Admin APK Upload & Live Update Sync**:
+   - The Admin drops or sends any `.apk` file directly to the Telegram bot chat.
+   - The bot verifies `isUserAdmin(senderId)`, extracts the Telegram `file_id`, `file_name`, `file_size`, and timestamp, and writes them to Firebase Realtime Database at `/3d_app_release.json`.
+   - The updated release is instantly live for all buyers—no server restart, manual link updating, or third-party hosting required.
+2. **Buyer Download & Onboarding Experience**:
+   - Buyers tap the persistent bottom keyboard button `📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်` or send `/app`, `/download`, or `https://t.me/threed_ledger_bot?start=download`.
+   - The bot delivers the native `.apk` document directly into the chat with complete Myanmar installation instructions:
+     1. Download and install the APK on Android.
+     2. Tap `🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့်` to receive an instant 72-hour trial key.
+     3. Test all betting, printing, and ledger calculations without restrictions.
+     4. Tap `🛒 လိုင်စင် ဝယ်ယူမည်` to purchase a 1-Year or Lifetime license via Wave Pay / KBZPay.
+3. **Dual In-App Update Engine (`UpdateDialogHandler` + `AppUpdateChecker`)**:
+   - On application launch, the Android client queries Cloudflare Worker `/api/app/latest` (which reflects `/3d_app_release.json`).
+   - If an update is detected, users are shown an update alert with one-tap deep linking to the Telegram Bot or direct download.
+
+### 5.2 Anti-Reverse Engineering & Anti-Tampering Shield (`SecurityGuard.kt`)
+The Android client is protected by a multi-layered security shield designed to prevent cracking, smali patching, MT Manager re-signing, and dynamic hooking:
+
+1. **SHA-256 Certificate Signature Lock**:
+   - At runtime, `SecurityGuard.getAppSignatureSHA256(context)` extracts the APK's signing certificate via `PackageManager` and calculates its SHA-256 digest.
+   - The digest is compared against authorized developer keystore fingerprints.
+   - If an attacker de-compiles the app with MT Manager, APK Editor, or Apktool and modifies Dalvik bytecode, they must re-sign the APK with a custom key. The signature hash mismatch is immediately detected, wiping active JWT tokens and locking the app on a security alert.
+2. **Anti-Debugging (JDWP / TracerPid)**:
+   - Checks `Debug.isDebuggerConnected()` and `Debug.waitingForDebugger()`.
+   - Inspects `/proc/self/status` for `TracerPid != 0` to detect native debugging and ptrace injection (IDA Pro, GDB, LLDB).
+3. **Anti-Frida & Dynamic Hooking Inspection**:
+   - Scans `/proc/self/maps` for injected dynamic libraries: `libfrida`, `frida-gadget`, `frida-agent`, `xposed`, `edxposed`, `substrate`, `sandhook`.
+   - Scans active threads for Frida handler loops (`frida-agent-handler`, `gum-js-loop`, `gmain`).
+   - Tests localhost inspection ports (27042, 27043).
+4. **R8 / ProGuard Full-Mode Compilation Hardening**:
+   - **Package Flattening**: `-repackageclasses 'com.threeDLedger.obf'` collapses all internal classes into a single obfuscated package, destroying class hierarchies.
+   - **Log Stripping**: Strips all `android.util.Log` invocations (`Log.v`, `Log.d`, `Log.i`, `Log.w`) in production releases.
+   - **Metadata Obfuscation**: Strips `SourceFile` and `LineNumberTable` attributes to defeat decompilers.
+
+### 5.3 License Device Policies & Tactile Clipboard Integration
+1. **Device Switching vs 1-Device Lock Policy**:
+   - **1-Year License (`one_year`)**: Fully transferable across devices (`ဖုန်းပြောင်းသုံးနိုင်သည် / Device Changeable ✅`). When activated on a new handset with the same CD-Key, the previous device is automatically unbound, transferring all remaining validity days seamlessly.
+   - **Lifetime License (`lifetime`)**: Strictly bound to the first activated device (`ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် / 1-Device Locked 🔒`). Unbinding or transfer to other devices is disallowed.
+   - **3-Day Free Trial (`trial_3d`)**: Strictly bound to 1 device for 72 hours, non-transferable.
+2. **Tactile Copy Buttons & Clipboard Integration**:
+   - **Telegram Bot (Native Bot API 7.8 `copy_text`)**:
+     - Wave Pay & KBZPay account numbers feature 1-tap copy buttons in payment messages (`📋 Wave နံပါတ် ကူးယူမည်`, `📋 KPay နံပါတ် ကူးယူမည်`).
+     - Key delivery messages (Single, Bulk, Order approval, Reseller keys) feature instant copy buttons (`📋 CD-Key ကူးယူမည်`, `📋 ကုတ်အားလုံး ကူးယူမည်`).
+     - Generated keys list pagination includes 1-tap copy chips for quick distribution.
+   - **Web Admin Dashboard (`3d-admin`)**:
+     - Dedicated `📋 Copy` buttons next to each CD-Key with real-time tactile state transition (`✅ Copied`).
+     - Quick copy buttons for Reseller Telegram IDs and Settlement modal details.
+     - Tut combinations and permutations 1-tap copy links.
+3. **Live Cloudflare Infrastructure**:
+   - **Cloudflare Worker**: `https://3d-scraper-worker.khaingkhantkyaw001.workers.dev` (Active with real-time lottery scraper, Telegram bot webhook, and Firebase synchronization).
+   - **Cloudflare Pages**: `https://3d-admin.pages.dev` (Active production dashboard with refined dark UI/UX).
 
 ---
 
 *This document is maintained as the authoritative system specification for the 3D Ledger platform.*
+

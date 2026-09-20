@@ -9,6 +9,7 @@ import worker, { calculateNextThaiDrawDate } from "../src/index";
 import {
 	calculateTutNumbers,
 	generateCdKey,
+	extractForwardedUser,
 	getAdminBottomKeyboard,
 	getResellerBottomKeyboard,
 	getBuyerBottomKeyboard,
@@ -484,4 +485,357 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 		expect(json2.release.version_name).toBe("v1.0.100");
 		expect(json2.release.file_id).toBe("test_telegram_file_id_999");
 	});
+
+	it("correctly extracts forwarded users from Telegram messages (legacy, origin, hidden)", () => {
+		// 1. Legacy forward_from
+		const legacyMsg: any = {
+			message_id: 101,
+			chat: { id: 5684146708, type: "private" },
+			date: 123456,
+			forward_from: {
+				id: 99887766,
+				first_name: "Kyaw",
+				last_name: "Gyi",
+				username: "kyawgyi_bot"
+			}
+		};
+		const extLegacy = extractForwardedUser(legacyMsg);
+		expect(extLegacy).not.toBeNull();
+		expect(extLegacy?.id).toBe(99887766);
+		expect(extLegacy?.first_name).toBe("Kyaw");
+		expect(extLegacy?.last_name).toBe("Gyi");
+		expect(extLegacy?.is_hidden).toBe(false);
+
+		// 2. Modern Bot API 7.0+ forward_origin (user)
+		const modernMsg: any = {
+			message_id: 102,
+			chat: { id: 5684146708, type: "private" },
+			date: 123456,
+			forward_origin: {
+				type: "user",
+				date: 123450,
+				sender_user: {
+					id: 11223344,
+					first_name: "Aung",
+					last_name: "Ko",
+					username: "aungko123"
+				}
+			}
+		};
+		const extModern = extractForwardedUser(modernMsg);
+		expect(extModern).not.toBeNull();
+		expect(extModern?.id).toBe(11223344);
+		expect(extModern?.first_name).toBe("Aung");
+		expect(extModern?.last_name).toBe("Ko");
+		expect(extModern?.is_hidden).toBe(false);
+
+		// 3. Modern Bot API 7.0+ forward_origin (hidden_user)
+		const hiddenMsg: any = {
+			message_id: 103,
+			chat: { id: 5684146708, type: "private" },
+			date: 123456,
+			forward_origin: {
+				type: "hidden_user",
+				date: 123450,
+				sender_user_name: "Confidential Agent"
+			}
+		};
+		const extHidden = extractForwardedUser(hiddenMsg);
+		expect(extHidden).not.toBeNull();
+		expect(extHidden?.id).toBeUndefined();
+		expect(extHidden?.first_name).toBe("Confidential Agent");
+		expect(extHidden?.is_hidden).toBe(true);
+
+		// 4. Legacy forward_sender_name (hidden)
+		const legacyHiddenMsg: any = {
+			message_id: 104,
+			chat: { id: 5684146708, type: "private" },
+			date: 123456,
+			forward_sender_name: "Private Contact"
+		};
+		const extLegacyHidden = extractForwardedUser(legacyHiddenMsg);
+		expect(extLegacyHidden).not.toBeNull();
+		expect(extLegacyHidden?.id).toBeUndefined();
+		expect(extLegacyHidden?.first_name).toBe("Private Contact");
+		expect(extLegacyHidden?.is_hidden).toBe(true);
+	});
+
+	it("handles forwarded message from admin to add reseller or admin via inline role buttons", async () => {
+		const adminChatId = 5684146708; // Configured master admin
+		const forwardedPayload = {
+			update_id: 2001,
+			message: {
+				message_id: 55,
+				chat: { id: adminChatId, type: "private" },
+				from: { id: adminChatId, is_bot: false, first_name: "MasterAdmin" },
+				date: Math.floor(Date.now() / 1000),
+				text: "Hello from my client",
+				forward_from: {
+					id: 77889911,
+					is_bot: false,
+					first_name: "Ko",
+					last_name: "Zaw",
+					username: "kozaw3d"
+				}
+			}
+		};
+
+		const fwdReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(forwardedPayload)
+		});
+
+		const ctx1 = createExecutionContext();
+		const res1 = await worker.fetch(fwdReq, env, ctx1);
+		await waitOnExecutionContext(ctx1);
+		expect(res1.status).toBe(200);
+
+		// Now simulate clicking "fwd_add_res:77889911:Ko%20Zaw" to add as Reseller
+		const callbackPayload = {
+			update_id: 2002,
+			callback_query: {
+				id: "cq_fwd_1",
+				from: { id: adminChatId, is_bot: false, first_name: "MasterAdmin" },
+				data: "fwd_add_res:77889911:Ko%20Zaw",
+				message: {
+					message_id: 56,
+					chat: { id: adminChatId, type: "private" }
+				}
+			}
+		};
+
+		const cbReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(callbackPayload)
+		});
+
+		const ctx2 = createExecutionContext();
+		const res2 = await worker.fetch(cbReq, env, ctx2);
+		await waitOnExecutionContext(ctx2);
+		expect(res2.status).toBe(200);
+
+		// Now simulate clicking "fwd_add_adm:88990022:Ma%20Hnin" to add as Admin
+		const admCbPayload = {
+			update_id: 2003,
+			callback_query: {
+				id: "cq_fwd_2",
+				from: { id: adminChatId, is_bot: false, first_name: "MasterAdmin" },
+				data: "fwd_add_adm:88990022:Ma%20Hnin",
+				message: {
+					message_id: 57,
+					chat: { id: adminChatId, type: "private" }
+				}
+			}
+		};
+
+		const admReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(admCbPayload)
+		});
+
+		const ctx3 = createExecutionContext();
+		const res3 = await worker.fetch(admReq, env, ctx3);
+		await waitOnExecutionContext(ctx3);
+		expect(res3.status).toBe(200);
+	});
+
+	it("verifies buildGeneratedKeysMessage displays web-generated available keys and filter tabs", async () => {
+		const { buildGeneratedKeysMessage, saveLicenseKey } = await import("../src/telegramBot");
+		
+		// Create a web-generated available key
+		const webKey = "3D-WEB-TEST-KEY-9999";
+		await saveLicenseKey(env, {
+			cd_key: webKey,
+			duration: "one_year",
+			duration_label: "၁ နှစ် လိုင်စင် (1-Year)",
+			price: 180000,
+			status: "available",
+			created_at: Date.now()
+		});
+
+		const resAvailable = await buildGeneratedKeysMessage(env, "available", 1);
+		expect(resAvailable.text).toContain(webKey);
+		expect(resAvailable.text).toContain("ရောင်းရန်အသင့် (Available)");
+
+		// Check filter tabs
+		const flatButtons = resAvailable.keyboard.inline_keyboard.flat();
+		const callbacks = flatButtons.map(b => b.callback_data);
+		expect(callbacks).toContain("m_keys_gen:available:1");
+		expect(callbacks).toContain("m_keys_gen:active:1");
+		expect(callbacks).toContain("m_keys_gen:pending_approval:1");
+		expect(callbacks).toContain("m_keys_gen:all:1");
+	});
+
+	it("verifies buildResellerGeneratedKeysMessage displays reseller's keys", async () => {
+		const { buildResellerGeneratedKeysMessage, saveLicenseKey } = await import("../src/telegramBot");
+		
+		const resellerKey = "3D-RES-TEST-KEY-8888";
+		const resellerId = "77665544";
+		await saveLicenseKey(env, {
+			cd_key: resellerKey,
+			duration: "lifetime",
+			duration_label: "တစ်သက်တာ (Lifetime)",
+			price: 45000,
+			status: "available",
+			created_at: Date.now(),
+			generated_by_reseller_id: resellerId
+		});
+
+		const res = await buildResellerGeneratedKeysMessage(env, resellerId, 1);
+		expect(res.text).toContain(resellerKey);
+		expect(res.text).toContain("ကျွန်ုပ် ထုတ်ယူထားသော ကုတ်များ");
+	});
+
+	it("handles interactive manual reseller due settlement flow via r_pay_manual and custom amount text", async () => {
+		const { addReseller, getReseller, saveReseller, getAdminState } = await import("../src/telegramBot");
+		const adminChatId = Number(env.TELEGRAM_CHAT_ID) || 5684146708;
+		const resellerId = "55443322";
+
+		// Ensure reseller exists with some due
+		await addReseller(env, resellerId, "Ko Thar Gyi");
+		// Directly update due for test
+		const mockReseller = await getReseller(resellerId, env);
+		if (mockReseller) {
+			mockReseller.total_due = 100000;
+			mockReseller.total_paid = 20000;
+			await saveReseller(env, mockReseller);
+		}
+
+		// 1. Admin clicks "r_pay_manual:55443322"
+		const cbPayload = {
+			update_id: 3001,
+			callback_query: {
+				id: "cq_pay_man_1",
+				from: { id: adminChatId, is_bot: false, first_name: "MasterAdmin" },
+				data: `r_pay_manual:${resellerId}`,
+				message: {
+					message_id: 112,
+					chat: { id: adminChatId, type: "private" }
+				}
+			}
+		};
+
+		const cbReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(cbPayload)
+		});
+
+		const ctx1 = createExecutionContext();
+		const res1 = await worker.fetch(cbReq, env, ctx1);
+		await waitOnExecutionContext(ctx1);
+		expect(res1.status).toBe(200);
+
+		// Verify admin state is awaiting_reseller_pay
+		const state = await getAdminState(adminChatId, env);
+		expect(state?.action).toBe("awaiting_reseller_pay");
+		expect(state?.target_id).toBe(resellerId);
+
+		// 2. Admin enters custom manual amount: "35,000 Ks"
+		const textPayload = {
+			update_id: 3002,
+			message: {
+				message_id: 113,
+				from: { id: adminChatId, is_bot: false, first_name: "MasterAdmin" },
+				chat: { id: adminChatId, type: "private" },
+				text: "35,000 Ks"
+			}
+		};
+
+		const textReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(textPayload)
+		});
+
+		const ctx2 = createExecutionContext();
+		const res2 = await worker.fetch(textReq, env, ctx2);
+		await waitOnExecutionContext(ctx2);
+		expect(res2.status).toBe(200);
+
+		// Verify state is cleared
+		const stateAfter = await getAdminState(adminChatId, env);
+		expect(stateAfter).toBeNull();
+
+		// Verify reseller balance updated: due 100,000 - 35,000 = 65,000; paid 20,000 + 35,000 = 55,000
+		const updatedReseller = await getReseller(resellerId, env);
+		expect(updatedReseller?.total_due).toBe(65000);
+		expect(updatedReseller?.total_paid).toBe(55000);
+	});
+
+	it("verifies device policy declarations and payment copy_text buttons in Telegram Bot", async () => {
+		const { getBuyerPlansKeyboard, buildPaymentsMessage, getDefaultSalePlans } = await import("../src/telegramBot");
+
+		// 1. Check default sale plans description
+		const defaults = getDefaultSalePlans();
+		expect(defaults.one_year.description).toContain("Device Changeable");
+		expect(defaults.one_year.device_changeable).toBe(true);
+		expect(defaults.lifetime.description).toContain("1-Device Locked");
+		expect(defaults.lifetime.device_changeable).toBe(false);
+
+		// 2. Check buyer plans keyboard
+		const buyerKb = getBuyerPlansKeyboard();
+		const oneYearBtn = buyerKb.inline_keyboard[0][0];
+		const lifetimeBtn = buyerKb.inline_keyboard[1][0];
+		expect(oneYearBtn.text).toContain("ဖုန်းပြောင်းသုံးနိုင်");
+		expect(lifetimeBtn.text).toContain("ဖုန်း ၁ လုံးသာ");
+
+		// 3. Check payment accounts message keyboard contains copy_text buttons
+		const payMsg = await buildPaymentsMessage(env);
+		const copyButtons = payMsg.keyboard.inline_keyboard[0];
+		expect(copyButtons.length).toBe(2);
+		expect(copyButtons[0].copy_text).toBeDefined();
+		expect(copyButtons[0].copy_text?.text).toBe("09778899001");
+		expect(copyButtons[1].copy_text).toBeDefined();
+		expect(copyButtons[1].copy_text?.text).toBe("09778899001");
+	});
+
+	it("verifies buyer plan purchase flow provides payment copy_text buttons and device policy statement", async () => {
+		const buyerChatId = 88776655;
+		const { isUserAdmin } = await import("../src/telegramBot");
+
+		// Click "buy:one_year"
+		const reqOneYear = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 4001,
+				callback_query: {
+					id: "cq_buy_1yr",
+					from: { id: buyerChatId, is_bot: false, first_name: "BuyerMgMg" },
+					data: "buy:one_year",
+					message: { message_id: 201, chat: { id: buyerChatId, type: "private" } }
+				}
+			})
+		});
+
+		const ctx1 = createExecutionContext();
+		const res1 = await worker.fetch(reqOneYear, env, ctx1);
+		await waitOnExecutionContext(ctx1);
+		expect(res1.status).toBe(200);
+
+		// Click "buy:lifetime"
+		const reqLifetime = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 4002,
+				callback_query: {
+					id: "cq_buy_life",
+					from: { id: buyerChatId, is_bot: false, first_name: "BuyerMgMg" },
+					data: "buy:lifetime",
+					message: { message_id: 202, chat: { id: buyerChatId, type: "private" } }
+				}
+			})
+		});
+
+		const ctx2 = createExecutionContext();
+		const res2 = await worker.fetch(reqLifetime, env, ctx2);
+		await waitOnExecutionContext(ctx2);
+		expect(res2.status).toBe(200);
+	});
 });
+

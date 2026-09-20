@@ -66,7 +66,7 @@ fun VouchersScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
         },
-        containerColor = com.threeDLedger.ui.theme.EmeraldSoftBg
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
             items(filteredVouchers) { voucherWithBets ->
@@ -76,7 +76,7 @@ fun VouchersScreen(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, com.threeDLedger.ui.theme.CardBorderSubtle),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -165,7 +165,7 @@ fun VouchersScreen(
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
-                        HorizontalDivider(color = com.threeDLedger.ui.theme.CardBorderSubtle)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         Spacer(modifier = Modifier.height(8.dp))
                         
                         Row(
