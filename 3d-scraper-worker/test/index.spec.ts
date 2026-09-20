@@ -837,5 +837,141 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 		await waitOnExecutionContext(ctx2);
 		expect(res2.status).toBe(200);
 	});
+
+	it("correctly identifies active in-use license keys across claimed, activated, and bound states", async () => {
+		const { isKeyInActiveUse } = await import("../src/telegramBot");
+
+		// Active status
+		expect(isKeyInActiveUse({ cd_key: "K-1", status: "active", duration: "lifetime", duration_label: "Lifetime", price: 45000, created_at: Date.now() })).toBe(true);
+
+		// Claimed status (from Android or Web Admin)
+		expect(isKeyInActiveUse({ cd_key: "K-2", status: "claimed", duration: "lifetime", duration_label: "Lifetime", price: 45000, created_at: Date.now() })).toBe(true);
+
+		// Activated status
+		expect(isKeyInActiveUse({ cd_key: "K-3", status: "activated", duration: "lifetime", duration_label: "Lifetime", price: 45000, created_at: Date.now() })).toBe(true);
+
+		// Device fingerprint attached with activated_at timestamp
+		expect(isKeyInActiveUse({
+			cd_key: "K-4",
+			status: "in_use",
+			duration: 365,
+			duration_label: "1-Year",
+			price: 180000,
+			created_at: Date.now(),
+			device_fingerprint: "device_abc123",
+			activated_at: Date.now()
+		})).toBe(true);
+
+		// Revoked or banned keys must NOT show as active
+		expect(isKeyInActiveUse({ cd_key: "K-5", status: "revoked", duration: "lifetime", duration_label: "Lifetime", price: 45000, created_at: Date.now(), device_fingerprint: "dev1" })).toBe(false);
+		expect(isKeyInActiveUse({ cd_key: "K-6", status: "banned", duration: "lifetime", duration_label: "Lifetime", price: 45000, created_at: Date.now() })).toBe(false);
+
+		// Available unused key must NOT show as active
+		expect(isKeyInActiveUse({ cd_key: "K-7", status: "available", duration: "lifetime", duration_label: "Lifetime", price: 45000, created_at: Date.now() })).toBe(false);
+	});
+
+	it("handles /ban, /unban, and active keys monitor pagination in telegram bot", async () => {
+		const adminChatId = 123456789;
+
+		// 1. Test /ban command without arguments (prompts user to enter key)
+		const banPromptReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 5001,
+				message: {
+					message_id: 301,
+					chat: { id: adminChatId, type: "private" },
+					date: Math.floor(Date.now() / 1000),
+					text: "/ban",
+					from: { id: adminChatId, is_bot: false, first_name: "Admin" }
+				}
+			})
+		});
+		const ctx1 = createExecutionContext();
+		const res1 = await worker.fetch(banPromptReq, env, ctx1);
+		await waitOnExecutionContext(ctx1);
+		expect(res1.status).toBe(200);
+
+		// 2. Test /ban with key argument
+		const banExecReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 5002,
+				message: {
+					message_id: 302,
+					chat: { id: adminChatId, type: "private" },
+					date: Math.floor(Date.now() / 1000),
+					text: "/ban TEST-KEY-9999",
+					from: { id: adminChatId, is_bot: false, first_name: "Admin" }
+				}
+			})
+		});
+		const ctx2 = createExecutionContext();
+		const res2 = await worker.fetch(banExecReq, env, ctx2);
+		await waitOnExecutionContext(ctx2);
+		expect(res2.status).toBe(200);
+
+		// 3. Test /unban with key argument
+		const unbanExecReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 5003,
+				message: {
+					message_id: 303,
+					chat: { id: adminChatId, type: "private" },
+					date: Math.floor(Date.now() / 1000),
+					text: "/unban TEST-KEY-9999",
+					from: { id: adminChatId, is_bot: false, first_name: "Admin" }
+				}
+			})
+		});
+		const ctx3 = createExecutionContext();
+		const res3 = await worker.fetch(unbanExecReq, env, ctx3);
+		await waitOnExecutionContext(ctx3);
+		expect(res3.status).toBe(200);
+
+		// 4. Test bottom keyboard button "🚫 ကုတ် ပိတ်သိမ်းရန်"
+		const revokeButtonReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 5004,
+				message: {
+					message_id: 304,
+					chat: { id: adminChatId, type: "private" },
+					date: Math.floor(Date.now() / 1000),
+					text: "🚫 ကုတ် ပိတ်သိမ်းရန်",
+					from: { id: adminChatId, is_bot: false, first_name: "Admin" }
+				}
+			})
+		});
+		const ctx4 = createExecutionContext();
+		const res4 = await worker.fetch(revokeButtonReq, env, ctx4);
+		await waitOnExecutionContext(ctx4);
+		expect(res4.status).toBe(200);
+
+		// 5. Test callback query m_ban_by_input
+		const inputBanCqReq = new IncomingRequest("http://example.com/webhook", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				update_id: 5005,
+				callback_query: {
+					id: "cq_input_ban",
+					from: { id: adminChatId, is_bot: false, first_name: "Admin" },
+					data: "m_ban_by_input",
+					message: { message_id: 305, chat: { id: adminChatId, type: "private" } }
+				}
+			})
+		});
+		const ctx5 = createExecutionContext();
+		const res5 = await worker.fetch(inputBanCqReq, env, ctx5);
+		await waitOnExecutionContext(ctx5);
+		expect(res5.status).toBe(200);
+	});
 });
+
 

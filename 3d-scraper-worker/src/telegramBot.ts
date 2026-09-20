@@ -54,7 +54,7 @@ export type TelegramReplyMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup | R
 
 export interface AdminState {
   chat_id: number | string;
-  action: 'awaiting_reseller' | 'awaiting_admin' | 'awaiting_wave' | 'awaiting_kpay' | 'awaiting_winner' | 'awaiting_reseller_pay';
+  action: 'awaiting_reseller' | 'awaiting_admin' | 'awaiting_wave' | 'awaiting_kpay' | 'awaiting_winner' | 'awaiting_reseller_pay' | 'awaiting_ban_key';
   target_id?: string;
   target_name?: string;
   created_at: number;
@@ -209,7 +209,7 @@ export interface LicenseKeyRecord {
   duration_label: string;
   price: number;
   device_changeable?: boolean;
-  status: 'available' | 'pending_approval' | 'active' | 'revoked';
+  status: 'available' | 'pending_approval' | 'active' | 'claimed' | 'activated' | 'revoked' | 'banned' | string;
   created_at: number;
   device_fingerprint?: string;
   device_model?: string;
@@ -218,10 +218,12 @@ export interface LicenseKeyRecord {
   expires_at?: number | null;
   approved_by?: string;
   revoked_at?: number;
+  unbanned_at?: number;
   previous_device_fingerprint?: string;
   previous_device_model?: string;
   last_migrated_at?: number;
   migration_count?: number;
+  claimed_by?: string;
   claimed_by_telegram_id?: number | string;
   claimed_by_username?: string;
   generated_by_reseller_id?: string;
@@ -1187,7 +1189,16 @@ export async function getAllLicenseKeys(env: Env): Promise<Record<string, Licens
     if (res.ok) {
       const data = await res.json();
       if (data && typeof data === 'object') {
-        return { ...inMemoryLicenseKeys, ...data };
+        const normalized: Record<string, LicenseKeyRecord> = {};
+        for (const [keyId, keyVal] of Object.entries(data)) {
+          if (keyVal && typeof keyVal === 'object') {
+            normalized[keyId] = {
+              ...(keyVal as LicenseKeyRecord),
+              cd_key: (keyVal as any).cd_key || keyId
+            };
+          }
+        }
+        return { ...inMemoryLicenseKeys, ...normalized };
       }
     }
   } catch (_) {}
@@ -1503,6 +1514,41 @@ export async function revokeLicenseKey(env: Env, cdKey: string): Promise<boolean
   } catch (_) {
     return false;
   }
+}
+
+export async function unbanLicenseKey(env: Env, cdKey: string): Promise<boolean> {
+  try {
+    const token = await getFirebaseToken(env);
+    const patchRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${cdKey}.json`, {
+      method: 'PATCH',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'available',
+        claimed_by: null,
+        device_fingerprint: null,
+        device_model: null,
+        unbanned_at: Date.now()
+      })
+    });
+    return patchRes.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Robust check if a license key is currently in active / in-use state on a device.
+ * Covers status: 'active', 'claimed', 'activated', as well as any non-revoked key
+ * that has an assigned device_fingerprint, claimed_by, or activated_at timestamp.
+ */
+export function isKeyInActiveUse(key: LicenseKeyRecord): boolean {
+  if (!key) return false;
+  const status = String(key.status || '').toLowerCase().trim();
+  if (status === 'revoked' || status === 'banned') return false;
+  if (status === 'active' || status === 'claimed' || status === 'activated') return true;
+  if (status !== 'available' && (key.device_fingerprint || key.claimed_by || key.activated_at)) return true;
+  if (key.device_fingerprint && key.activated_at) return true;
+  return false;
 }
 
 export async function setWinningNumber(env: Env, num: string, authorId?: string): Promise<boolean> {
@@ -1998,23 +2044,52 @@ export async function buildSalesReportMessage(env: Env): Promise<string> {
     `<i>မှတ်ချက်: စာရင်းများသည် Firebase ဒေတာဘေ့စ်မှ တိုက်ရိုက်ရယူထားခြင်း ဖြစ်ပါသည်။</i>`;
 }
 
-export async function buildActiveKeysMessage(env: Env): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
+export async function buildActiveKeysMessage(
+  env: Env,
+  page = 1
+): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
   const keys = await getAllLicenseKeys(env);
-  const activeList = Object.values(keys).filter(k => k.status === 'active');
+  const activeList = Object.values(keys).filter(isKeyInActiveUse);
 
   if (activeList.length === 0) {
     return {
-      text: `📋 <b>အသုံးပြုဆဲ ကုတ်များ စာရင်း</b>\n\nလက်ရှိတွင် အသုံးပြုနေသော ကုတ်နံပါတ် မရှိသေးပါ။`,
-      keyboard: { inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]] }
+      text: `📋 <b>အသုံးပြုဆဲ ကုတ်များ စာရင်း</b>\n\n` +
+        `လက်ရှိတွင် အသုံးပြုနေသော (Active / Claimed) ကုတ်နံပါတ် မရှိသေးပါ။\n\n` +
+        `💡 <i>ကုတ်နံပါတ်ကို တိုက်ရိုက် ရိုက်ထည့်၍ ပိတ်သိမ်းလိုပါက အောက်ပါ [🔍 ကုတ်နံပါတ်ဖြင့် Ban မည်] ခလုတ်ကို နှိပ်ပါ သို့မဟုတ် <code>/ban ကုတ်နံပါတ်</code> ဟု ပို့နိုင်ပါသည်။</i>`,
+      keyboard: {
+        inline_keyboard: [
+          [{ text: '🔍 ကုတ်နံပါတ်ဖြင့် Ban မည်', callback_data: 'm_ban_by_input' }],
+          [{ text: '🔄 စာရင်း အသစ်ပြန်ဖွင့် (Refresh)', callback_data: 'm_keys_active:1' }],
+          [{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]
+        ]
+      }
     };
   }
 
-  let text = `📋 <b>အသုံးပြုဆဲ ကုတ်များ စာရင်း (${activeList.length} ခု)</b>\n\n`;
-  const keyboard: InlineKeyboardButton[][] = [];
+  // Sort by newest activity first
+  activeList.sort((a, b) => {
+    const timeA = a.activated_at || a.created_at || (a as any).generated_at || 0;
+    const timeB = b.activated_at || b.created_at || (b as any).generated_at || 0;
+    return timeB - timeA;
+  });
 
+  const PAGE_SIZE = 6;
+  const totalCount = activeList.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const curPage = Math.min(Math.max(1, page), totalPages);
+  const startIdx = (curPage - 1) * PAGE_SIZE;
+  const pageItems = activeList.slice(startIdx, startIdx + PAGE_SIZE);
+
+  let text = `📋 <b>အသုံးပြုဆဲ ကုတ်များ စာရင်း (Active / Claimed Keys)</b>\n` +
+    `📊 စုစုပေါင်း: <b>${totalCount} ခု</b> (စာမျက်နှာ ${curPage}/${totalPages})\n\n` +
+    `<i>အောက်ပါ ကုတ်များသည် ဖုန်းများတွင် အမှန်တကယ် စတင်အသုံးပြုထားသော ကုတ်များဖြစ်ပြီး Admin မှ လိုအပ်ပါက ချက်ချင်း ပိတ်သိမ်း (Ban/Revoke) နိုင်ပါသည် 👇</i>\n\n`;
+
+  const keyboard: InlineKeyboardButton[][] = [];
   const now = Date.now();
-  for (let i = 0; i < Math.min(activeList.length, 10); i++) {
-    const k = activeList[i];
+
+  for (let i = 0; i < pageItems.length; i++) {
+    const k = pageItems[i];
+    const itemNum = startIdx + i + 1;
     let daysLeft = 'မကန့်သတ် (Lifetime)';
     if (k.expires_at) {
       const diff = Math.max(0, Math.ceil((k.expires_at - now) / (1000 * 60 * 60 * 24)));
@@ -2022,14 +2097,41 @@ export async function buildActiveKeysMessage(env: Env): Promise<{ text: string; 
     }
 
     const shortKey = k.cd_key.length > 14 ? `${k.cd_key.substring(0, 9)}...${k.cd_key.substring(k.cd_key.length - 4)}` : k.cd_key;
-    text += `<b>${i + 1}.</b> <code>${k.cd_key}</code>\n` +
-      `   📱 ဖုန်း: ${k.device_model || 'အမည်မသိ'}\n` +
-      `   ⏳ သက်တမ်း: ${k.duration_label || k.duration} (${daysLeft})\n\n`;
+    const devPolicy = k.device_changeable ? '✅ စက်ပြောင်းနိုင်' : '🔒 ဖုန်း ၁ လုံးသာ';
+    const planName = k.duration_label || (k.duration === 'lifetime' ? 'တစ်သက်တာ' : k.duration === 'trial' ? '၃ ရက် Trial' : `${k.duration} ရက်`);
+    const actDate = k.activated_at ? new Date(k.activated_at).toLocaleDateString('my-MM') : (k.created_at ? new Date(k.created_at).toLocaleDateString('my-MM') : 'လတ်တလော');
+    const deviceName = k.device_model || (k.claimed_by ? `User: ${k.claimed_by}` : (k.device_fingerprint ? `ID: ${k.device_fingerprint.substring(0, 10)}...` : 'အမည်မသိ ဖုန်း'));
+
+    text += `<b>${itemNum}.</b> 🔑 <code>${k.cd_key}</code>\n` +
+      `   📱 ဖုန်း: <b>${deviceName}</b>\n` +
+      `   ⏳ သက်တမ်း: <b>${planName}</b> (${daysLeft})\n` +
+      `   🔄 မူဝါဒ: <b>${devPolicy}</b> | အခြေအနေ: 🟢 <b>${k.status || 'active'}</b>\n` +
+      `   ⏰ စတင်ချိန်: <i>${actDate}</i>\n\n`;
 
     keyboard.push([
-      { text: `🚫 ပိတ်သိမ်းမည်: ${shortKey}`, callback_data: `rev_conf:${k.cd_key}` }
+      { text: `📋 ကုတ် ကူးယူမည် (${itemNum})`, copy_text: { text: k.cd_key } },
+      { text: `🚫 Ban/Revoke မည် (${itemNum})`, callback_data: `rev_conf:${k.cd_key}` }
     ]);
   }
+
+  // Pagination row
+  const paginationRow: InlineKeyboardButton[] = [];
+  if (curPage > 1) {
+    paginationRow.push({ text: '⬅️ ရှေ့သို့', callback_data: `m_keys_active:${curPage - 1}` });
+  }
+  paginationRow.push({ text: `📄 ${curPage}/${totalPages}`, callback_data: `m_keys_active:${curPage}` });
+  if (curPage < totalPages) {
+    paginationRow.push({ text: 'နောက်သို့ ➡️', callback_data: `m_keys_active:${curPage + 1}` });
+  }
+  if (paginationRow.length > 1) {
+    keyboard.push(paginationRow);
+  }
+
+  // Quick Action row
+  keyboard.push([
+    { text: '🔍 ကုတ်နံပါတ် ရိုက်ထည့်၍ Ban မည်', callback_data: 'm_ban_by_input' },
+    { text: '🔄 Refresh စာရင်းပြန်ဖွင့်', callback_data: `m_keys_active:${curPage}` }
+  ]);
 
   keyboard.push([{ text: '⬅️ ပင်မ မီနူးသို့ ပြန်သွားမည်', callback_data: 'm_main' }]);
   return { text, keyboard: { inline_keyboard: keyboard } };
@@ -2072,7 +2174,7 @@ export async function buildPendingApprovalsMessage(env: Env): Promise<{ text: st
 
 export async function buildGeneratedKeysMessage(
   env: Env,
-  filterStatus: 'available' | 'active' | 'pending_approval' | 'all' = 'available',
+  filterStatus: 'available' | 'active' | 'pending_approval' | 'revoked' | 'all' = 'available',
   page = 1
 ): Promise<{ text: string; keyboard: InlineKeyboardMarkup }> {
   const allKeys = await getAllLicenseKeys(env);
@@ -2083,9 +2185,11 @@ export async function buildGeneratedKeysMessage(
   if (filterStatus === 'available') {
     filtered = list.filter(k => k.status === 'available');
   } else if (filterStatus === 'active') {
-    filtered = list.filter(k => k.status === 'active');
+    filtered = list.filter(isKeyInActiveUse);
   } else if (filterStatus === 'pending_approval') {
     filtered = list.filter(k => k.status === 'pending_approval');
+  } else if (filterStatus === 'revoked') {
+    filtered = list.filter(k => k.status === 'revoked' || k.status === 'banned');
   }
 
   // Sort by created_at / generated_at descending (newest first)
@@ -2100,8 +2204,9 @@ export async function buildGeneratedKeysMessage(
 
   const filterNames: Record<string, string> = {
     available: '⚪ ရောင်းရန်အသင့် (Available)',
-    active: '🟢 အသုံးပြုဆဲ (Active)',
+    active: '🟢 အသုံးပြုဆဲ (Active / Claimed)',
     pending_approval: '⏳ စောင့်ဆိုင်းဆဲ (Pending)',
+    revoked: '🔴 ပိတ်သိမ်းပြီး (Revoked)',
     all: '📋 အားလုံး (All)'
   };
 
@@ -2119,13 +2224,13 @@ export async function buildGeneratedKeysMessage(
       const itemNum = startIdx + i + 1;
       let badge = '⚪';
       let statusText = 'ရောင်းရန်အသင့် (Available)';
-      if (k.status === 'active') {
+      if (isKeyInActiveUse(k)) {
         badge = '🟢';
-        statusText = 'အသုံးပြုဆဲ (Active)';
+        statusText = `အသုံးပြုဆဲ (${k.status || 'active'})`;
       } else if (k.status === 'pending_approval') {
         badge = '⏳';
         statusText = 'စောင့်ဆိုင်းဆဲ (Pending)';
-      } else if (k.status === 'revoked') {
+      } else if (k.status === 'revoked' || k.status === 'banned') {
         badge = '🔴';
         statusText = 'ပိတ်သိမ်းထား (Revoked)';
       }
@@ -2146,14 +2251,14 @@ export async function buildGeneratedKeysMessage(
         `   • သက်တမ်း: <b>${planName}</b> (${priceStr}) | မူဝါဒ: <b>${devPolicy}</b>\n` +
         `   • ထုတ်ယူသူ: ${source} | ရက်စွဲ: <i>${createdDate}</i>\n`;
 
-      if (k.status === 'active') {
-        const dev = k.device_model || 'မိုဘိုင်း';
+      if (isKeyInActiveUse(k)) {
+        const dev = k.device_model || (k.claimed_by ? `User: ${k.claimed_by}` : (k.device_fingerprint ? `ID: ${k.device_fingerprint.substring(0, 10)}...` : 'မိုဘိုင်း'));
         let daysLeft = 'Lifetime';
         if (k.expires_at) {
           const diff = Math.max(0, Math.ceil((k.expires_at - now) / (1000 * 60 * 60 * 24)));
           daysLeft = `${diff} ရက် ကျန်`;
         }
-        text += `   • 📱 ဖုန်း: ${dev} (${daysLeft})\n`;
+        text += `   • 📱 ဖုန်း: <b>${dev}</b> (${daysLeft})\n`;
       }
       text += `\n`;
     }
@@ -2161,14 +2266,50 @@ export async function buildGeneratedKeysMessage(
 
   // Build keyboard
   const tabRow1: InlineKeyboardButton[] = [
-    { text: filterStatus === 'available' ? '🔘 ရောင်းရန်အသင့်' : '⚪ ရောင်းရန်အသင့်', callback_data: 'm_keys_gen:available:1' },
+    { text: filterStatus === 'available' ? '🔘 ရောင်းရန်' : '⚪ ရောင်းရန်', callback_data: 'm_keys_gen:available:1' },
     { text: filterStatus === 'active' ? '🔘 အသုံးပြုဆဲ' : '🟢 အသုံးပြုဆဲ', callback_data: 'm_keys_gen:active:1' }
   ];
   const tabRow2: InlineKeyboardButton[] = [
     { text: filterStatus === 'pending_approval' ? '🔘 စောင့်ဆိုင်းဆဲ' : '⏳ စောင့်ဆိုင်းဆဲ', callback_data: 'm_keys_gen:pending_approval:1' },
+    { text: filterStatus === 'revoked' ? '🔘 ပိတ်သိမ်းပြီး' : '🔴 ပိတ်သိမ်းပြီး', callback_data: 'm_keys_gen:revoked:1' },
     { text: filterStatus === 'all' ? '🔘 အားလုံး' : '📋 အားလုံး', callback_data: 'm_keys_gen:all:1' }
   ];
 
+  const actionRows: InlineKeyboardButton[][] = [];
+
+  // If viewing active keys, add Ban buttons for quick moderation!
+  if (filterStatus === 'active' && pageItems.length > 0) {
+    for (let i = 0; i < pageItems.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+      const item1 = pageItems[i];
+      const num1 = startIdx + i + 1;
+      row.push({ text: `🚫 Ban (${num1})`, callback_data: `rev_conf:${item1.cd_key}` });
+      if (i + 1 < pageItems.length) {
+        const item2 = pageItems[i + 1];
+        const num2 = startIdx + i + 2;
+        row.push({ text: `🚫 Ban (${num2})`, callback_data: `rev_conf:${item2.cd_key}` });
+      }
+      actionRows.push(row);
+    }
+  }
+
+  // If viewing revoked keys, add Unban buttons to restore access if needed!
+  if (filterStatus === 'revoked' && pageItems.length > 0) {
+    for (let i = 0; i < pageItems.length; i += 2) {
+      const row: InlineKeyboardButton[] = [];
+      const item1 = pageItems[i];
+      const num1 = startIdx + i + 1;
+      row.push({ text: `🟢 Unban (${num1})`, callback_data: `act_unban:${item1.cd_key}` });
+      if (i + 1 < pageItems.length) {
+        const item2 = pageItems[i + 1];
+        const num2 = startIdx + i + 2;
+        row.push({ text: `🟢 Unban (${num2})`, callback_data: `act_unban:${item2.cd_key}` });
+      }
+      actionRows.push(row);
+    }
+  }
+
+  // Quick copy chips for available keys
   const copyRow: InlineKeyboardButton[] = [];
   const availableItems = pageItems.filter(k => k.status === 'available');
   if (availableItems.length > 0 && availableItems.length <= 4) {
@@ -2197,6 +2338,7 @@ export async function buildGeneratedKeysMessage(
   const inline_keyboard: InlineKeyboardButton[][] = [
     tabRow1,
     tabRow2,
+    ...actionRows,
     ...(copyRow.length > 0 ? [copyRow] : []),
     ...(paginationRow.length > 0 ? [paginationRow] : []),
     navRow
@@ -3118,13 +3260,38 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       }
     }
 
-    // Active Keys Monitor
-    else if (data === 'm_keys_active') {
-      const res = await buildActiveKeysMessage(env);
+    // Active Keys Monitor: m_keys_active[:<page>] or m_revoke_list[:<page>]
+    else if (data.startsWith('m_keys_active') || data.startsWith('m_revoke_list')) {
+      const parts = data.split(':');
+      const page = parseInt(parts[1] || '1', 10) || 1;
+      const res = await buildActiveKeysMessage(env, page);
       if (messageId) {
         await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
       } else {
         await sendTelegramMessage(env, chatId, res.text, res.keyboard);
+      }
+    }
+
+    // Direct Input Ban Prompt: m_ban_by_input
+    else if (data === 'm_ban_by_input') {
+      await setAdminState(chatId, {
+        chat_id: chatId,
+        action: 'awaiting_ban_key',
+        created_at: Date.now()
+      }, env);
+      await answerCallbackQuery(env, cq.id);
+      const promptText = `🔍 <b>ပိတ်သိမ်းမည့် (Ban/Revoke) ကုတ်နံပါတ် ရိုက်ထည့်ပါ</b>\n\n` +
+        `ဖုန်းများတွင် အသုံးပြုဆဲဖြစ်သော သို့မဟုတ် Ban/Revoke ပြုလုပ်လိုသော ကုတ်နံပါတ် (ဥပမာ: <code>ABCD-1234-EFGH</code>) ကို ဤနေရာတွင် စာရိုက်၍ ပို့ပေးပါ:\n\n` +
+        `<i>(မလုပ်တော့ပါက အောက်ပါ 'မလုပ်တော့ပါ' ခလုတ်ကို နှိပ်ပါ သို့မဟုတ် <code>/cancel</code> ဟု ရိုက်ထည့်ပါ)</i>`;
+      const kb: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [{ text: '❌ မလုပ်တော့ပါ (Cancel)', callback_data: 'm_keys_active:1' }]
+        ]
+      };
+      if (messageId) {
+        await editTelegramMessage(env, chatId, messageId, promptText, kb);
+      } else {
+        await sendTelegramMessage(env, chatId, promptText, kb);
       }
     }
 
@@ -3141,7 +3308,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     // Generated / Categorized Keys Monitor: m_keys_gen[:<filter>[:<page>]]
     else if (data.startsWith('m_keys_gen')) {
       const parts = data.split(':');
-      const filter = (parts[1] || 'available') as 'available' | 'active' | 'pending_approval' | 'all';
+      const filter = (parts[1] || 'available') as 'available' | 'active' | 'pending_approval' | 'revoked' | 'all';
       const page = parseInt(parts[2] || '1', 10) || 1;
       const res = await buildGeneratedKeysMessage(env, filter, page);
       if (messageId) {
@@ -3173,7 +3340,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         inline_keyboard: [
           [
             { text: '🔴 ဟုတ်ကဲ့၊ ပိတ်သိမ်းမည်', callback_data: `rev_do:${keyToRevoke}` },
-            { text: '❌ မလုပ်တော့ပါ', callback_data: 'm_keys_active' }
+            { text: '❌ မလုပ်တော့ပါ', callback_data: 'm_keys_active:1' }
           ]
         ]
       };
@@ -3192,8 +3359,33 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         `အဆိုပါ ဖုန်းတွင် ဆော့ဝဲလ် အသုံးပြုခွင့်ကို အပြီးအပိုင် ရပ်ဆိုင်းလိုက်ပါပြီ။`;
       if (messageId) {
         await editTelegramMessage(env, chatId, messageId, text, {
-          inline_keyboard: [[{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]]
+          inline_keyboard: [
+            [{ text: '📋 အသုံးပြုဆဲ ကုတ်များ ကြည့်မည်', callback_data: 'm_keys_active:1' }],
+            [{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]
+          ]
         });
+      }
+    }
+
+    // Execute Unban Key: act_unban:<key>
+    else if (data.startsWith('act_unban:')) {
+      const keyToUnban = data.split(':')[1];
+      const ok = await unbanLicenseKey(env, keyToUnban);
+      if (ok) {
+        await answerCallbackQuery(env, cq.id, '🟢 ကုတ် ပြန်လည်အသုံးပြုနိုင်ပါပြီ', true);
+        const text = `🟢 <b>ကုတ်နံပါတ် ပြန်လည်ဖွင့်ပေးလိုက်ပါပြီ (Unbanned)</b>\n\n` +
+          `🔑 <code>${keyToUnban}</code>\n\n` +
+          `အဆိုပါ ကုတ်ကို Available အခြေအနေသို့ ပြန်လည်သတ်မှတ်လိုက်ပြီဖြစ်၍ မည်သည့် ဖုန်းတွင်မဆို ပြန်လည် အသုံးပြုနိုင်ပါပြီ။`;
+        if (messageId) {
+          await editTelegramMessage(env, chatId, messageId, text, {
+            inline_keyboard: [
+              [{ text: '📋 ကုတ်များ အားလုံး စာရင်း', callback_data: 'm_keys_gen:all:1' }],
+              [{ text: '⬅️ ပင်မ မီနူး', callback_data: 'm_main' }]
+            ]
+          });
+        }
+      } else {
+        await answerCallbackQuery(env, cq.id, '❌ မအောင်မြင်ပါ', true);
       }
     }
 
@@ -3207,14 +3399,6 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         await editTelegramMessage(env, chatId, messageId, rep, kb);
       } else {
         await sendTelegramMessage(env, chatId, rep, kb);
-      }
-    }
-
-    // Revoke List View
-    else if (data === 'm_revoke_list') {
-      const res = await buildActiveKeysMessage(env);
-      if (messageId) {
-        await editTelegramMessage(env, chatId, messageId, res.text, res.keyboard);
       }
     }
 
@@ -4265,6 +4449,29 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
           }
           return new Response('ok');
         }
+
+        if (adminState.action === 'awaiting_ban_key') {
+          const targetKey = text.trim();
+          if (!targetKey) {
+            await sendTelegramMessage(env, chatId, '⚠️ ပိတ်သိမ်းမည့် ကုတ်နံပါတ် ရိုက်ထည့်ပေးပါ။\nဥပမာ: <code>ABCD-1234-EFGH</code>');
+            return new Response('ok');
+          }
+          await setAdminState(chatId, null, env);
+          const ok = await revokeLicenseKey(env, targetKey);
+          if (ok) {
+            await sendTelegramMessage(env, chatId,
+              `🔴 <b>ကုတ်နံပါတ် အား ပိတ်သိမ်း (Revoke/Ban) လိုက်ပါပြီ</b>\n\n` +
+              `🔑 <code>${targetKey}</code>\n\n` +
+              `အဆိုပါ ဖုန်းတွင် ဆော့ဝဲလ် အသုံးပြုခွင့်ကို အပြီးအပိုင် ရပ်ဆိုင်းလိုက်ပါပြီ။`,
+              getAdminBottomKeyboard()
+            );
+            const activeMsg = await buildActiveKeysMessage(env, 1);
+            await sendTelegramMessage(env, chatId, activeMsg.text, activeMsg.keyboard);
+          } else {
+            await sendTelegramMessage(env, chatId, `❌ ကုတ်နံပါတ် <code>${targetKey}</code> အား ပိတ်သိမ်းခြင်း မအောင်မြင်ပါ သို့မဟုတ် ကုတ်နံပါတ် မတွေ့ရှိပါ။`, getAdminBottomKeyboard());
+          }
+          return new Response('ok');
+        }
       }
     }
 
@@ -4963,8 +5170,8 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    if (text === '📋 အသုံးပြုမှု စောင့်ကြည့်') {
-      const res = await buildActiveKeysMessage(env);
+    if (text === '📋 အသုံးပြုမှု စောင့်ကြည့်' || text === '🚫 ကုတ် ပိတ်သိမ်းရန်' || text === '🚫 ကုတ် ပိတ်သိမ်း') {
+      const res = await buildActiveKeysMessage(env, 1);
       await sendTelegramMessage(env, chatId, res.text, res.keyboard);
       return new Response('ok');
     }
@@ -5385,9 +5592,11 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    // Command: /activekeys
-    if (text.startsWith('/activekeys')) {
-      const res = await buildActiveKeysMessage(env);
+    // Command: /activekeys, /active, /inuse
+    if (text.startsWith('/activekeys') || text.startsWith('/active') || text.startsWith('/inuse')) {
+      const parts = text.split(/\s+/);
+      const page = parseInt(parts[1] || '1', 10) || 1;
+      const res = await buildActiveKeysMessage(env, page);
       await sendTelegramMessage(env, chatId, res.text, res.keyboard);
       return new Response('ok');
     }
@@ -5406,19 +5615,47 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       return new Response('ok');
     }
 
-    // Command: /revoke <key>
-    if (text.startsWith('/revoke')) {
+    // Command: /revoke <key> or /ban <key>
+    if (text.startsWith('/revoke') || text.startsWith('/ban')) {
       const parts = text.split(/\s+/);
       const targetKey = parts.length > 1 ? parts[1].trim() : '';
       if (!targetKey) {
-        await sendTelegramMessage(env, chatId, '⚠️ ပိတ်သိမ်းမည့် ကုတ်နံပါတ် ထည့်ပေးပါ။ ဥပမာ: <code>/revoke XXXX-XXXX...</code>');
+        await setAdminState(chatId, {
+          chat_id: chatId,
+          action: 'awaiting_ban_key',
+          created_at: Date.now()
+        }, env);
+        await sendTelegramMessage(env, chatId,
+          `⚠️ <b>ပိတ်သိမ်းမည့် ကုတ်နံပါတ် ရိုက်ထည့်ပေးပါ</b>\n\n` +
+          `ဥပမာ: <code>/ban ABCD-1234-EFGH</code> သို့မဟုတ် ကုတ်နံပါတ်ကို ဤနေရာတွင် တိုက်ရိုက် စာရိုက်ပို့ပေးနိုင်ပါသည်။\n\n` +
+          `<i>(မလုပ်တော့ပါက <code>/cancel</code> ဟု ရိုက်ထည့်ပါ)</i>`
+        );
         return new Response('ok');
       }
       const ok = await revokeLicenseKey(env, targetKey);
       if (ok) {
-        await sendTelegramMessage(env, chatId, `🔴 <b>ကုတ်နံပါတ် <code>${targetKey}</code> အား ပိတ်သိမ်း (Revoke) လိုက်ပါပြီ။</b>`);
+        await sendTelegramMessage(env, chatId, `🔴 <b>ကုတ်နံပါတ် <code>${targetKey}</code> အား ပိတ်သိမ်း (Revoke/Ban) လိုက်ပါပြီ။</b>`);
+        const activeMsg = await buildActiveKeysMessage(env, 1);
+        await sendTelegramMessage(env, chatId, activeMsg.text, activeMsg.keyboard);
       } else {
-        await sendTelegramMessage(env, chatId, '❌ ပိတ်သိမ်းမှု မအောင်မြင်ပါ');
+        await sendTelegramMessage(env, chatId, '❌ ပိတ်သိမ်းမှု မအောင်မြင်ပါ သို့မဟုတ် ကုတ်နံပါတ် မတွေ့ရှိပါ');
+      }
+      return new Response('ok');
+    }
+
+    // Command: /unban <key>
+    if (text.startsWith('/unban')) {
+      const parts = text.split(/\s+/);
+      const targetKey = parts.length > 1 ? parts[1].trim() : '';
+      if (!targetKey) {
+        await sendTelegramMessage(env, chatId, '⚠️ ပြန်လည်ဖွင့်ပေးမည့် ကုတ်နံပါတ် ထည့်ပေးပါ။ ဥပမာ: <code>/unban ABCD-1234-EFGH</code>');
+        return new Response('ok');
+      }
+      const ok = await unbanLicenseKey(env, targetKey);
+      if (ok) {
+        await sendTelegramMessage(env, chatId, `🟢 <b>ကုတ်နံပါတ် <code>${targetKey}</code> အား ပြန်လည်အသုံးပြုနိုင်အောင် ဖွင့်ပေးလိုက်ပါပြီ (Unbanned)။</b>`);
+      } else {
+        await sendTelegramMessage(env, chatId, '❌ Unban မအောင်မြင်ပါ သို့မဟုတ် ကုတ်နံပါတ် မတွေ့ရှိပါ');
       }
       return new Response('ok');
     }
