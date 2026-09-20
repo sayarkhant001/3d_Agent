@@ -818,36 +818,39 @@ function App() {
 
         {/* Batch & System Config Bar */}
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                အကြိမ် (Batch Number):
+          <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 'clamp(13px, 2vw, 15px)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                အကြိမ် (Batch):
               </span>
               <input
                 type="number"
                 value={batchInput}
                 onChange={e => setBatchInput(e.target.value)}
                 style={{
-                  width: 90,
+                  width: 80,
                   textAlign: 'center',
-                  fontSize: 18,
+                  fontSize: 16,
                   fontWeight: 700,
                   background: 'var(--bg-primary)',
                   border: '1px solid var(--border-color)',
                   color: 'var(--accent-primary)',
-                  padding: '6px 10px',
+                  padding: '6px 8px',
                   borderRadius: 8
                 }}
               />
               <button className="btn btn-primary btn-sm" onClick={saveBatch}>
                 💾 Save
               </button>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                📅 <b>ထွက်ရက်စွဲ:</b> {resultDate || '16-09-2026'} | ⏭️ <b>နောက်ထွက်မည့်ရက်:</b> {targetDrawDate || '01-10-2026'} <span style={{ fontSize: 11, opacity: 0.8 }}>(အက်ပ်များတွင် အကြိမ်ကို သီးခြားစီမံသည်)</span>
-              </span>
+              <div className="batch-draw-date-badge">
+                <span>📅 <b>ထွက်ရက်စွဲ:</b> {liveResults.result_date || gloResult?.drawDate || '16-09-2026'}</span>
+                <span>&bull;</span>
+                <span>⏭️ <b>နောက်ထွက်မည့်ရက်:</b> {liveResults.target_draw_date || '01-10-2026'}</span>
+                <span style={{ fontSize: 11, opacity: 0.75 }}>(အက်ပ်များတွင် အကြိမ်ကို သီးခြားစီမံသည်)</span>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Scraper Mode:</span>
               <select
                 className="select-input"
@@ -878,7 +881,7 @@ function App() {
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {gloResult?.threeD && (
                 <span className={`sync-status-indicator ${gloResult.threeD === liveResults.winning_number ? 'synced' : 'out-of-sync'}`}>
                   {gloResult.threeD === liveResults.winning_number
@@ -902,11 +905,11 @@ function App() {
               </div>
             )}
             {gloResult ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div className="glo-stat-grid">
                   <div className="glo-stat-box">
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>1st Prize (รางวัลที่ 1)</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
+                    <div style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
                       {gloResult.firstPrize || '—'}
                     </div>
                   </div>
@@ -914,14 +917,14 @@ function App() {
                     <div style={{ fontSize: 11, color: 'var(--accent-success)', fontWeight: 800, textTransform: 'uppercase' }}>
                       3D Winning (နောက် ၃ လုံး)
                     </div>
-                    <div style={{ fontSize: 30, fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-success)', letterSpacing: 2, marginTop: 2 }}>
+                    <div style={{ fontSize: 'clamp(22px, 3.5vw, 30px)', fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-success)', letterSpacing: 2, marginTop: 2 }}>
                       {gloResult.threeD || '—'}
                     </div>
                   </div>
                   {gloResult.twoD && (
                     <div className="glo-stat-box">
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>2D (အောက် ၂ လုံး)</div>
-                      <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
+                      <div style={{ fontSize: 'clamp(16px, 2.2vw, 20px)', fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
                         {gloResult.twoD}
                       </div>
                     </div>
@@ -929,7 +932,7 @@ function App() {
                   {gloResult.date && (
                     <div className="glo-stat-box">
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Draw Date (ရက်စွဲ)</div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
+                      <div style={{ fontSize: 'clamp(12px, 1.6vw, 14px)', fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
                         {gloResult.date}
                       </div>
                     </div>
@@ -938,9 +941,9 @@ function App() {
                     <div style={{ fontSize: 11, color: '#818cf8', textTransform: 'uppercase', fontWeight: 700 }}>
                       Feed Source (ရင်းမြစ်)
                     </div>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <div style={{ fontSize: 'clamp(11px, 1.5vw, 12px)', fontWeight: 800, color: 'var(--text-primary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span>{gloResult.source?.includes('Sanook') ? '⚡' : '🏛️'}</span>
-                      <span>{gloResult.source || gloResult.session || 'Live Fast Feed'}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gloResult.source || gloResult.session || 'Live Fast Feed'}</span>
                     </div>
                   </div>
                 </div>
@@ -1549,85 +1552,87 @@ function App() {
                 <p>No resellers registered yet. Add resellers via Telegram bot or /addreseller command.</p>
               </div>
             ) : (
-              <table className="keys-table">
-                <thead>
-                  <tr>
-                    <th>Reseller Name</th>
-                    <th>Telegram ID</th>
-                    <th>Generated / Active</th>
-                    <th>Commission</th>
-                    <th>Due Balance (ပေးရန်ကျန်ငွေ)</th>
-                    <th>Total Paid (ပေးပြီးငွေ)</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.values(resellers).map((r) => {
-                    const due = r.total_due || 0;
-                    const paid = r.total_paid || 0;
-                    const commission = r.total_commission || 0;
-                    return (
-                      <tr key={r.telegram_id}>
-                        <td>
-                          <strong>{r.name}</strong>
-                          {r.username && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>@{r.username}</span>}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <code>{r.telegram_id}</code>
+              <div className="table-responsive">
+                <table className="keys-table">
+                  <thead>
+                    <tr>
+                      <th>Reseller Name</th>
+                      <th>Telegram ID</th>
+                      <th>Generated / Active</th>
+                      <th>Commission</th>
+                      <th>Due Balance (ပေးရန်ကျန်ငွေ)</th>
+                      <th>Total Paid (ပေးပြီးငွေ)</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.values(resellers).map((r) => {
+                      const due = r.total_due || 0;
+                      const paid = r.total_paid || 0;
+                      const commission = r.total_commission || 0;
+                      return (
+                        <tr key={r.telegram_id}>
+                          <td>
+                            <strong>{r.name}</strong>
+                            {r.username && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>@{r.username}</span>}
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <code>{r.telegram_id}</code>
+                              <button
+                                type="button"
+                                className={`copy-btn ${copiedId === `reseller-${r.telegram_id}` ? 'copied' : ''}`}
+                                onClick={() => copyToClipboard(r.telegram_id, `reseller-${r.telegram_id}`)}
+                                title="Copy Telegram ID"
+                              >
+                                {copiedId === `reseller-${r.telegram_id}` ? '✅' : '📋'}
+                              </button>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 13 }}>
+                              🔢 {r.total_generated || 0} ထုတ် / 🟢 {r.total_activated || 0} သုံး
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ color: '#10b981', fontWeight: 600 }}>
+                              {commission.toLocaleString()} Ks
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className="status-badge"
+                              style={{
+                                background: due > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+                                color: due > 0 ? '#ef4444' : '#10b981',
+                                fontWeight: 700,
+                                fontSize: 13
+                              }}
+                            >
+                              {due.toLocaleString()} Ks
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ color: '#6366f1', fontWeight: 600 }}>
+                              {paid.toLocaleString()} Ks
+                            </span>
+                          </td>
+                          <td>
                             <button
                               type="button"
-                              className={`copy-btn ${copiedId === `reseller-${r.telegram_id}` ? 'copied' : ''}`}
-                              onClick={() => copyToClipboard(r.telegram_id, `reseller-${r.telegram_id}`)}
-                              title="Copy Telegram ID"
+                              className="btn btn-sm btn-primary"
+                              onClick={() => handleOpenSettleModal(r)}
+                              style={{ padding: '6px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                             >
-                              {copiedId === `reseller-${r.telegram_id}` ? '✅' : '📋'}
+                              💳 Clear Due / ရှင်းလင်းမည်
                             </button>
-                          </div>
-                        </td>
-                        <td>
-                          <span style={{ fontSize: 13 }}>
-                            🔢 {r.total_generated || 0} ထုတ် / 🟢 {r.total_activated || 0} သုံး
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ color: '#10b981', fontWeight: 600 }}>
-                            {commission.toLocaleString()} Ks
-                          </span>
-                        </td>
-                        <td>
-                          <span
-                            className="status-badge"
-                            style={{
-                              background: due > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
-                              color: due > 0 ? '#ef4444' : '#10b981',
-                              fontWeight: 700,
-                              fontSize: 13
-                            }}
-                          >
-                            {due.toLocaleString()} Ks
-                          </span>
-                        </td>
-                        <td>
-                          <span style={{ color: '#6366f1', fontWeight: 600 }}>
-                            {paid.toLocaleString()} Ks
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary"
-                            onClick={() => handleOpenSettleModal(r)}
-                            style={{ padding: '6px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                          >
-                            💳 Clear Due / ရှင်းလင်းမည်
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
@@ -1691,87 +1696,89 @@ function App() {
                 </p>
               </div>
             ) : (
-              <table className="keys-table">
-                <thead>
-                  <tr>
-                    <th>CD-Key</th>
-                    <th>Plan / Duration</th>
-                    <th>Device Mode</th>
-                    <th>Status</th>
-                    <th>Active Device</th>
-                    <th>Date</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredKeys.map(([keyId, keyData]) => (
-                    <tr key={keyId}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span
-                            className="key-code"
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
-                            title="Click to copy"
-                          >
-                            {keyId}
-                          </span>
-                          <button
-                            type="button"
-                            className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
-                            onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
-                            title="Copy CD-Key"
-                          >
-                            {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
-                          </button>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
-                          {formatDuration(keyData.duration, keyData.plan_id)}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
-                          {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${keyData.status}`}>
-                          {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
-                          {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
-                          {keyData.previous_device_fingerprint && (
-                            <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
-                              (Migrated)
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {keyData.generated_at || keyData.created_at
-                          ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
-                          : '—'}
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {(keyData.status === 'claimed' || keyData.status === 'active') && (
-                            <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
-                              Revoke
-                            </button>
-                          )}
-                          <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+              <div className="table-responsive">
+                <table className="keys-table">
+                  <thead>
+                    <tr>
+                      <th>CD-Key</th>
+                      <th>Plan / Duration</th>
+                      <th>Device Mode</th>
+                      <th>Status</th>
+                      <th>Active Device</th>
+                      <th>Date</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredKeys.map(([keyId, keyData]) => (
+                      <tr key={keyId}>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span
+                              className="key-code"
+                              style={{ cursor: 'pointer' }}
+                              onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                              title="Click to copy"
+                            >
+                              {keyId}
+                            </span>
+                            <button
+                              type="button"
+                              className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
+                              onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                              title="Copy CD-Key"
+                            >
+                              {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
+                            </button>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
+                            {formatDuration(keyData.duration, keyData.plan_id)}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
+                            {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${keyData.status}`}>
+                            {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
+                          </span>
+                        </td>
+                        <td>
+                          <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
+                            {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
+                            {keyData.previous_device_fingerprint && (
+                              <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
+                                (Migrated)
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {keyData.generated_at || keyData.created_at
+                            ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
+                            : '—'}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {(keyData.status === 'claimed' || keyData.status === 'active') && (
+                              <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
+                                Revoke
+                              </button>
+                            )}
+                            <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

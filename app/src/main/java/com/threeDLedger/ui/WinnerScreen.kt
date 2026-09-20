@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -646,8 +647,8 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                     Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(agent.customerName, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(agent.customerName, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (agent.exactCount > 0) WinTypeBadge("ဒဲ့ ×${agent.exactCount}", Color(0xFF43AA8B))
                         if (agent.tuwtCount  > 0) WinTypeBadge("တွတ် ×${agent.tuwtCount}", Color(0xFF6C63FF))
@@ -779,7 +780,7 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
             // Voucher header
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                     Box(Modifier.size(28.dp).clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center) {
@@ -787,7 +788,7 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                             fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                     if (!compact)
-                        Text(vs.customerName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text(vs.customerName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (vs.totalPayout > 0) {

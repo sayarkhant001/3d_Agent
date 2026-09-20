@@ -30,6 +30,7 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.threeDLedger.ui.theme.rememberResponsiveDimens
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +39,7 @@ fun VouchersScreen(
     initialCustomerId: Int? = null,
     onNavigateBack: () -> Unit
 ) {
+    val dimens = rememberResponsiveDimens()
     val vouchers by viewModel.vouchersWithCustomer.collectAsStateWithLifecycle()
     val allVouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
@@ -68,7 +70,7 @@ fun VouchersScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(16.dp)) {
+        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(dimens.responsiveDp(8.dp, 12.dp, 16.dp))) {
             items(filteredVouchers) { voucherWithBets ->
                 val customerName = vouchers.find { it.voucher.id == voucherWithBets.voucher.id }?.customer?.name ?: "Unknown"
                 
@@ -79,23 +81,21 @@ fun VouchersScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("ဘောင်ချာအမှတ်: ${voucherWithBets.voucher.id} (အကြိမ်: ${voucherWithBets.voucher.batchNumber})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                        Text("အမည်: $customerName")
+                    Column(modifier = Modifier.padding(dimens.responsiveDp(10.dp, 14.dp, 16.dp))) {
+                        Text("ဘောင်ချာအမှတ်: ${voucherWithBets.voucher.id} (အကြိမ်: ${voucherWithBets.voucher.batchNumber})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = dimens.responsiveSp(12.5.sp, 13.5.sp, 14.5.sp))
+                        Text("အမည်: $customerName", fontSize = dimens.responsiveSp(12.sp, 13.sp, 14.sp))
                         
                         val dateString = SimpleDateFormat("yyyy.MM.dd/HH:mm:ss").format(Date(voucherWithBets.voucher.timestamp))
-                        Text("အချိန်: $dateString", style = MaterialTheme.typography.bodySmall)
+                        Text("အချိန်: $dateString", style = MaterialTheme.typography.bodySmall, fontSize = dimens.responsiveSp(10.5.sp, 11.5.sp, 12.sp))
                         
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // === BET BOX — visually distinct, large text for readability ===
-                        val maxAmtV = voucherWithBets.bets.maxOfOrNull { it.amount } ?: 0
-                        val amtWidthV = "%,d".format(maxAmtV).length
+                        // === BET BOX — visually distinct, responsive typography ===
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(
-                                    width = 2.dp,
+                                    width = 1.5.dp,
                                     color = MaterialTheme.colorScheme.primary,
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                 )
@@ -103,7 +103,7 @@ fun VouchersScreen(
                                     MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
                                     shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
                                 )
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                                .padding(horizontal = dimens.responsiveDp(8.dp, 10.dp, 12.dp), vertical = dimens.responsiveDp(6.dp, 8.dp, 10.dp)),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             voucherWithBets.bets.forEachIndexed { idx, bet ->
@@ -114,46 +114,46 @@ fun VouchersScreen(
                                     // Row number
                                     Text(
                                         "${idx + 1}.",
-                                        fontSize = 11.sp,
+                                        fontSize = dimens.responsiveSp(9.sp, 10.sp, 11.sp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.width(24.dp),
+                                        modifier = Modifier.width(dimens.responsiveDp(18.dp, 22.dp, 24.dp)),
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                     )
                                     // Number
                                     Text(
                                         bet.number,
-                                        fontSize = 20.sp,
+                                        fontSize = dimens.responsiveSp(16.sp, 18.sp, 20.sp),
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        letterSpacing = 2.sp,
-                                        modifier = Modifier.width(54.dp)
+                                        letterSpacing = 1.sp,
+                                        modifier = Modifier.width(dimens.responsiveDp(42.dp, 48.dp, 54.dp))
                                     )
                                     // Separator
                                     Text(
                                         "=",
-                                        fontSize = 18.sp,
+                                        fontSize = dimens.responsiveSp(14.sp, 16.sp, 18.sp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        modifier = Modifier.padding(horizontal = 6.dp)
+                                        modifier = Modifier.padding(horizontal = dimens.responsiveDp(2.dp, 4.dp, 6.dp))
                                     )
                                     // Amount right-aligned, with breathing room from right
                                     Text(
                                         "%,d".format(bet.amount),
-                                        fontSize = 20.sp,
+                                        fontSize = dimens.responsiveSp(15.sp, 18.sp, 20.sp),
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurface,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                         textAlign = TextAlign.End,
-                                        modifier = Modifier.weight(1f).padding(end = 6.dp)
+                                        modifier = Modifier.weight(1f).padding(end = 4.dp)
                                     )
                                     // Ks label
                                     Text(
                                         "Ks",
-                                        fontSize = 12.sp,
+                                        fontSize = dimens.responsiveSp(10.sp, 11.sp, 12.sp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        modifier = Modifier.width(30.dp).padding(end = 4.dp)
+                                        modifier = Modifier.width(dimens.responsiveDp(22.dp, 26.dp, 30.dp))
                                     )
                                 }
                                 if (idx < voucherWithBets.bets.size - 1)
@@ -176,6 +176,7 @@ fun VouchersScreen(
                             Text(
                                 "စုစုပေါင်း: %,d Ks".format(voucherWithBets.voucher.totalAmount),
                                 fontWeight = FontWeight.Bold,
+                                fontSize = dimens.responsiveSp(13.sp, 14.5.sp, 16.sp),
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
                             

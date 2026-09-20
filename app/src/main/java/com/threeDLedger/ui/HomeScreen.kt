@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -71,6 +72,7 @@ fun HomeScreen(
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
+    val rDimens = rememberResponsiveDimens()
 
     // Strictly ordered: 4 Core Modules
     val menuItems = listOf(
@@ -181,18 +183,23 @@ fun HomeScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
                             Text(
                                 text = "အကြိမ်",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = rDimens.responsiveSp(16f),
+                                maxLines = 1
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "လက်ရှိ အသုံးပြုနေသော အကြိမ်",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = rDimens.responsiveSp(11f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
 
@@ -318,19 +325,23 @@ fun HomeScreen(
                                         modifier = Modifier.size(26.dp)
                                     )
                                 }
-                                Spacer(Modifier.width(14.dp))
-                                Column {
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         "ထိုးကြေး စာရင်းသွင်းမည်",
                                         fontWeight = FontWeight.Black,
-                                        fontSize = 17.sp,
-                                        color = Color.White
+                                        fontSize = rDimens.responsiveSp(16f),
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Spacer(Modifier.height(2.dp))
                                     Text(
                                         "ကီးပက်ဖြင့် အမြန် စာရင်းသွင်းရန် နှိပ်ပါ",
-                                        fontSize = 12.sp,
-                                        color = Color.White.copy(alpha = 0.85f)
+                                        fontSize = rDimens.responsiveSp(11.5f),
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
@@ -338,7 +349,7 @@ fun HomeScreen(
                                 Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
                                 tint = Color(0xFFFFD93D),
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
@@ -446,56 +457,61 @@ fun MenuCard(
     iconColors: List<Color>,
     onClick: () -> Unit
 ) {
+    val rDimens = rememberResponsiveDimens()
     Card(
         onClick = onClick,
         modifier = Modifier
-            .aspectRatio(1.15f)
             .fillMaxWidth()
+            .heightIn(min = if (rDimens.isCompact) 115.dp else 128.dp)
             .shadow(4.dp, RoundedCornerShape(22.dp)),
         shape = RoundedCornerShape(22.dp),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(rDimens.responsiveDp(14f)),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.Start
+        ) {
+            // Gradient Icon Medallion
+            Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-                horizontalAlignment = Alignment.Start
+                    .size(if (rDimens.isCompact) 42.dp else 48.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Brush.linearGradient(colors = iconColors)),
+                contentAlignment = Alignment.Center
             ) {
-                // Gradient Icon Medallion
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Brush.linearGradient(colors = iconColors)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = title,
-                        modifier = Modifier.size(24.dp),
-                        tint = Color.White
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    modifier = Modifier.size(if (rDimens.isCompact) 22.dp else 24.dp),
+                    tint = Color.White
+                )
+            }
 
-                Column {
-                    Text(
-                        text = title,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 17.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        letterSpacing = 0.3.sp
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+            Spacer(Modifier.height(8.dp))
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = title,
+                    fontWeight = FontWeight.Black,
+                    fontSize = rDimens.responsiveSp(16f),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    letterSpacing = 0.3.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = rDimens.responsiveSp(11f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

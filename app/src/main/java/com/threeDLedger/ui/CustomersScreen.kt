@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -237,6 +238,7 @@ private fun CustomerCard(
     onBetsTap    : () -> Unit,
     onAddBetTap  : () -> Unit
 ) {
+    val rDimens = rememberResponsiveDimens()
     Card(
         modifier  = Modifier.fillMaxWidth(),
         shape     = RoundedCornerShape(16.dp),
@@ -250,7 +252,7 @@ private fun CustomerCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onEditTap)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = rDimens.responsiveDp(14f), vertical = rDimens.responsiveDp(10f)),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -263,43 +265,48 @@ private fun CustomerCard(
                             "အမှတ် ${customer.id}",
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 12.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            fontFamily = FontFamily.Monospace
+                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Text(
                             customer.name,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
+                            fontSize = if (rDimens.isCompact) 15.sp else 17.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                                 Text(
                                     "ကော် $commPct%",
                                     fontSize = 10.sp,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
+                                    maxLines = 1
                                 )
                             }
                             Text(
                                 "အဆ: ${customer.multiplier}",
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
                             )
                         }
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (rDimens.isCompact) 4.dp else 6.dp)) {
                     IconButton(
                         onClick = onEditTap,
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(if (rDimens.isCompact) 32.dp else 36.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
@@ -307,7 +314,7 @@ private fun CustomerCard(
                             Icons.Default.Edit,
                             "ပြင်ဆင်မည်",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(if (rDimens.isCompact) 15.dp else 17.dp)
                         )
                     }
 
@@ -319,13 +326,13 @@ private fun CustomerCard(
                             contentColor = Color.White
                         ),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(36.dp),
+                        contentPadding = PaddingValues(horizontal = if (rDimens.isCompact) 8.dp else 10.dp, vertical = 2.dp),
+                        modifier = Modifier.height(if (rDimens.isCompact) 32.dp else 36.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("ထိုးမည်", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text("ထိုးမည်", fontSize = if (rDimens.isCompact) 11.sp else 12.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
@@ -338,7 +345,7 @@ private fun CustomerCard(
                     .fillMaxWidth()
                     .clickable(onClick = onBetsTap)
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .padding(horizontal = rDimens.responsiveDp(14f), vertical = 8.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -348,13 +355,16 @@ private fun CustomerCard(
                     Text(
                         "စုစုပေါင်း: %,d Ks".format(totalAmount),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
+                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         "ဘောင်ချာ: $voucherCount စောင်",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
+                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                        maxLines = 1
                     )
                 }
                 Spacer(Modifier.height(3.dp))
@@ -366,15 +376,18 @@ private fun CustomerCard(
                     Text(
                         "ကော်မရှင် ($commPct%): ${"%,d".format(commCut)} Ks",
                         color = MaterialTheme.colorScheme.secondary,
-                        fontSize = 12.sp,
+                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
                         fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         "ပေးငွေ: %,d Ks".format(customer.paidAmount.toInt()),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
+                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
                     )
                 }
                 Spacer(Modifier.height(4.dp))
@@ -388,16 +401,19 @@ private fun CustomerCard(
                 ) {
                     Text(
                         netLabel,
-                        fontSize = 13.sp,
+                        fontSize = if (rDimens.isCompact) 11.5.sp else 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = netColor
+                        color = netColor,
+                        maxLines = 1
                     )
                     Text(
                         "%,d Ks".format(netAmount),
                         color = netColor,
                         fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        fontFamily = FontFamily.Monospace
+                        fontSize = if (rDimens.isCompact) 14.sp else 16.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

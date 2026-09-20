@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -97,6 +98,7 @@ fun LedgerScreen(
     val tuwtPayout  = tuwtWonBets * tuwtMult
     val totalPayout = exactPayout + tuwtPayout
     val netBalance  = totalAll - totalPayout
+    val rDimens = rememberResponsiveDimens()
 
     Scaffold(
         topBar = {
@@ -143,7 +145,7 @@ fun LedgerScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = rDimens.responsiveDp(14f), vertical = rDimens.responsiveDp(10f)),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -151,14 +153,14 @@ fun LedgerScreen(
                         Text(
                             "အကြိမ် :",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp,
+                            fontSize = if (rDimens.isCompact) 12.sp else 14.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             "$currentBatch",
                             color = MaterialTheme.colorScheme.primary,
-                            fontSize = 18.sp,
+                            fontSize = if (rDimens.isCompact) 16.sp else 18.sp,
                             fontWeight = FontWeight.ExtraBold
                         )
                     }
@@ -442,13 +444,14 @@ fun LedgerScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("စုစုပေါင်း ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
-                                Text("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                Text("ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
+                                Text("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, fontSize = if (rDimens.isCompact) 12.sp else 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
                             }
+                            Spacer(Modifier.width(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("ပေါက်ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
-                                Text("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                                Text("ပေါက်ကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
+                                Text("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, fontSize = if (rDimens.isCompact) 12.sp else 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
                             }
                         }
 
@@ -460,18 +463,20 @@ fun LedgerScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("စုစုပေါင်း လျော်ကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
-                                Text("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                Text("လျော်ကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
+                                Text("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, fontSize = if (rDimens.isCompact) 12.sp else 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
                             }
+                            Spacer(Modifier.width(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (netBalance >= 0) "အသားတင် အမြတ် : " else "အသားတင် အရှုံး : ", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                                Text(if (netBalance >= 0) "အမြတ် : " else "အရှုံး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
                                 Text(
                                     "${if (netBalance >= 0) "+" else ""}${"%,.0f Ks".format(netBalance)}",
                                     color = if (netBalance >= 0) Color(0xFF69F0AE) else Color(0xFFFF5252),
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 15.sp,
-                                    fontFamily = FontFamily.Monospace
+                                    fontSize = if (rDimens.isCompact) 12.sp else 14.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1
                                 )
                             }
                         }
