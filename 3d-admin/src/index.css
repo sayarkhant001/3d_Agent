@@ -57,16 +57,47 @@ body {
   border-radius: 24px;
   padding: 48px 40px;
   width: 100%;
-  max-width: 440px;
-  box-shadow: var(--shadow-card), 0 0 40px rgba(99, 102, 241, 0.15);
+  max-width: 460px;
+  box-shadow: var(--shadow-card), 0 0 50px rgba(99, 102, 241, 0.2);
   animation: fadeInUp 0.5s ease-out;
+  position: relative;
+}
+
+.login-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin: 0 auto 16px auto;
+  letter-spacing: 0.3px;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+}
+
+.live-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseGlow 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
 
 .login-card h1 {
   font-size: 28px;
   font-weight: 800;
   text-align: center;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   background: linear-gradient(135deg, #818cf8, #34d399);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -74,18 +105,48 @@ body {
   letter-spacing: -0.5px;
 }
 
+.login-card .burmese-subtitle {
+  text-align: center;
+  color: #a7f3d0;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
 .login-card .subtitle {
   text-align: center;
   color: var(--text-secondary);
-  font-size: 14px;
-  margin-bottom: 32px;
+  font-size: 13px;
+  margin-bottom: 24px;
 }
 
 .login-card .logo {
   text-align: center;
-  font-size: 48px;
-  margin-bottom: 16px;
+  font-size: 44px;
+  margin-bottom: 12px;
   filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.3));
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.login-divider span {
+  padding: 0 12px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
 }
 
 .form-group {
