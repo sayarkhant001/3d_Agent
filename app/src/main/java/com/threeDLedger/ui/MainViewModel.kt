@@ -81,9 +81,23 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         } catch (_: Exception) {}
     }
 
-    fun saveWinningNumber(number: String) {
-        winningNumber.value = number
-        prefs.edit().putString("winningNumber_${currentBatch.value}", number).apply()
+    fun saveWinningNumber(number: String, batch: Int = currentBatch.value) {
+        if (batch == currentBatch.value) {
+            winningNumber.value = number
+        }
+        prefs.edit().putString("winningNumber_$batch", number).apply()
+    }
+
+    fun clearWinningNumber(batch: Int = currentBatch.value) {
+        if (batch == currentBatch.value) {
+            winningNumber.value = ""
+        }
+        prefs.edit().remove("winningNumber_$batch").apply()
+    }
+
+    fun isBatchDeclared(batch: Int = currentBatch.value): Boolean {
+        val num = prefs.getString("winningNumber_$batch", "") ?: ""
+        return num.length == 3
     }
 
     fun loadWinningNumber() {
@@ -100,14 +114,16 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     val savedPermMult  = MutableStateFlow(100.0)
     val savedNearMult  = MutableStateFlow(100.0)
 
-    fun saveMultipliers(exact: Double, tuwt: Double, near: Double = tuwt) {
-        savedExactMult.value = exact
-        savedPermMult.value  = tuwt
-        savedNearMult.value  = near
+    fun saveMultipliers(exact: Double, tuwt: Double, near: Double = tuwt, batch: Int = currentBatch.value) {
+        if (batch == currentBatch.value) {
+            savedExactMult.value = exact
+            savedPermMult.value  = tuwt
+            savedNearMult.value  = near
+        }
         prefs.edit()
-            .putFloat("exactMult_${currentBatch.value}", exact.toFloat())
-            .putFloat("permMult_${currentBatch.value}",  tuwt.toFloat())
-            .putFloat("nearMult_${currentBatch.value}",  near.toFloat())
+            .putFloat("exactMult_$batch", exact.toFloat())
+            .putFloat("permMult_$batch",  tuwt.toFloat())
+            .putFloat("nearMult_$batch",  near.toFloat())
             .apply()
     }
 

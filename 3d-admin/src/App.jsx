@@ -584,6 +584,29 @@ function App() {
     showToast(`Result ${manualNumber} pushed to app as "${manualStatus}"!`);
   };
 
+  const clearWinningResult = async () => {
+    if (!window.confirm('ပေါက်သီး ထွက်ဂဏန်းကို ပြန်လည် ဖျက်သိမ်းပြီး စောင့်ဆိုင်း (Waiting) အခြေအနေသို့ ပြောင်းမည်လား?\n(Are you sure you want to reset/clear the declared winning number from Live App & Firebase?)')) {
+      return;
+    }
+
+    const updates = {
+      '3d_live_results/winning_number': '',
+      '3d_live_results/first_prize': '',
+      '3d_live_results/twod': '',
+      '3d_live_results/is_final': false,
+      '3d_live_results/updated_at': Date.now(),
+      '3d_lottery_status/state': 'waiting',
+      '3d_live_results/tut_permutations': [],
+      '3d_live_results/tut_near_misses': [],
+      '3d_live_results/tut_all': []
+    };
+
+    await update(ref(db), updates);
+    setManualNumber('');
+    setManualStatus('waiting');
+    showToast('ပေါက်သီး ရလဒ်ကို အောင်မြင်စွာ ဖျက်သိမ်းပြီးပါပြီ (Winning number cleared & reset to Waiting)');
+  };
+
   const copyToClipboard = (text, id = null) => {
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -886,7 +909,7 @@ function App() {
                 <span className={`sync-status-indicator ${gloResult.threeD === liveResults.winning_number ? 'synced' : 'out-of-sync'}`}>
                   {gloResult.threeD === liveResults.winning_number
                     ? `🟢 IN SYNC: Live App has ${gloResult.threeD}`
-                    : `⚠️ OUT OF SYNC: Live App has ${liveResults.winning_number || 'None'} (Feed: ${gloResult.threeD})`}
+                    : `ℹ️ Feed: ${gloResult.threeD} (Live App: ${liveResults.winning_number || 'Undeclared / Waiting'})`}
                 </span>
               )}
               <button
@@ -1101,14 +1124,105 @@ function App() {
               </span>
             </div>
             <div className="card-body">
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>
-                Current Status: <strong style={{ color: lotteryStatus === 'declared' ? 'var(--accent-success)' : 'var(--accent-warning)' }}>
-                  {lotteryStatus.toUpperCase()}
-                </strong>
-                {liveResults.target_draw_date && (
-                  <span> · Draw: {liveResults.target_draw_date}</span>
-                )}
-              </div>
+              {/* Distinct Declared vs Waiting Screen State Banner */}
+              {liveResults.winning_number ? (
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(0, 200, 151, 0.15) 0%, rgba(4, 120, 87, 0.25) 100%)',
+                  border: '1.5px solid rgba(0, 200, 151, 0.5)',
+                  borderRadius: 12,
+                  padding: '16px 18px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 12
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{
+                      fontSize: 32,
+                      background: 'rgba(0, 200, 151, 0.2)',
+                      width: 54,
+                      height: 54,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid rgba(0, 200, 151, 0.4)'
+                    }}>
+                      🏆
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent-success)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                        ပေါက်သီး အတည်ပြု ကြေညာပြီး (OFFICIALLY DECLARED)
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+                        <span style={{ fontSize: 26, fontWeight: 900, fontFamily: 'monospace', color: '#fff', letterSpacing: 4 }}>
+                          [ {liveResults.winning_number} ]
+                        </span>
+                        {liveResults.target_draw_date && (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            • Draw: {liveResults.target_draw_date}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    className="btn btn-danger"
+                    style={{
+                      background: 'rgba(239, 68, 68, 0.18)',
+                      color: '#f87171',
+                      border: '1.5px solid rgba(239, 68, 68, 0.45)',
+                      fontWeight: 800,
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      cursor: 'pointer'
+                    }}
+                    onClick={clearWinningResult}
+                    title="ပေါက်သီး ထွက်ဂဏန်းကို ပြန်လည် ဖျက်သိမ်းပြီး Waiting အခြေအနေသို့ ပြောင်းမည်"
+                  >
+                    ❌ ပေါက်သီး ပြန်ဖျက်မည် (Remove Result)
+                  </button>
+                </div>
+              ) : (
+                <div style={{
+                  background: 'rgba(99, 102, 241, 0.08)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: 10,
+                  padding: '12px 16px',
+                  marginBottom: 16,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 10
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>⏳</span>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                        အကြိမ် #{currentBatch} ပေါက်သီး မကြေညာရသေးပါ (Waiting / Open)
+                      </span>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        ထိုးကြေးများ ဆက်လက်လက်ခံနိုင်သော အခြေအနေ ဖြစ်ပါသည်။
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: 6,
+                    background: 'rgba(255, 179, 71, 0.15)',
+                    color: 'var(--accent-warning)',
+                    border: '1px solid rgba(255, 179, 71, 0.3)'
+                  }}>
+                    WAITING
+                  </span>
+                </div>
+              )}
 
               {gloResult?.threeD && gloResult.threeD !== liveResults.winning_number && (
                 <div style={{ background: 'rgba(255, 179, 71, 0.12)', border: '1px solid rgba(255, 179, 71, 0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
@@ -1117,7 +1231,7 @@ function App() {
                       🇹🇭 Official Thai GLO 3D: <strong>{gloResult.threeD}</strong>
                     </span>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      Live App has "{liveResults.winning_number || 'None'}". Click to sync:
+                      Live App has "{liveResults.winning_number || 'Undeclared'}". (မှတ်ချက် - ယခင်အကြိမ် ထွက်ဂဏန်းဖြစ်နိုင်ပါသည်):
                     </div>
                   </div>
                   <button className="btn btn-warning btn-sm" style={{ fontWeight: 700 }} onClick={applyGloDirectlyToFirebase}>
@@ -1180,9 +1294,26 @@ function App() {
                   </label>
                 </div>
 
-                <button className="btn btn-warning btn-full" onClick={pushManualResult}>
-                  📤 Push Live Result to App (ပေါက်သီး လွှင့်တင်မည်)
-                </button>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button className="btn btn-warning" style={{ flex: 1, minWidth: 200, padding: '12px 16px', fontWeight: 800 }} onClick={pushManualResult}>
+                    📤 Push Live Result to App (ပေါက်သီး လွှင့်တင်မည်)
+                  </button>
+                  {liveResults.winning_number && (
+                    <button
+                      className="btn btn-danger"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#f87171',
+                        border: '1px solid rgba(239, 68, 68, 0.4)',
+                        fontWeight: 700,
+                        padding: '12px 16px'
+                      }}
+                      onClick={clearWinningResult}
+                    >
+                      ❌ ပေါက်သီး ပြန်ဖျက်မည်
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* ── တွတ် (Tut) Live Breakdown Preview ───────────────────────── */}

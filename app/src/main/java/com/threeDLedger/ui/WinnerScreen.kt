@@ -4,6 +4,7 @@ import com.threeDLedger.ui.theme.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +98,10 @@ fun WinnerScreen(
     var fetchStatus    by remember { mutableStateOf("") }
     var isFinalResult  by remember { mutableStateOf(false) }
     var resultSession  by remember { mutableStateOf("") }
+    var fetchedGloNumber by remember { mutableStateOf<String?>(null) }
+    var fetchedGloDate   by remember { mutableStateOf<String?>(null) }
+    var isDeclared     by remember { mutableStateOf(false) }
+    var showClearDialog by remember { mutableStateOf(false) }
     var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher, 2=Overflow
 
     val allBets          by viewModel.allBets.collectAsStateWithLifecycle()
@@ -153,31 +159,53 @@ fun WinnerScreen(
                 }
             }
 
-        // Persist winning number and multipliers for this batch
-        viewModel.saveWinningNumber(winningNumber)
-        viewModel.saveMultipliers(eM, tM, tM)
+        // Persist winning number and multipliers specifically for this batch
+        viewModel.saveWinningNumber(winningNumber, batchInt)
+        viewModel.saveMultipliers(eM, tM, tM, batchInt)
+        isDeclared = true
     }
 
-    // Auto-fetch on open — loads saved winning number if available, or fetches from live API
-    LaunchedEffect(Unit) {
-        val saved = viewModel.winningNumber.value
+    // Load batch winning number and multipliers when targetBatch changes
+    LaunchedEffect(targetBatch) {
+        val b = targetBatch.toIntOrNull() ?: currentBatch
+        val saved = viewModel.getWinningNumberForBatch(b)
+        val (eM, pM, _) = viewModel.getMultipliersForBatch(b)
+        exactMult = eM.toInt().toString()
+        tuwtMult = pM.toInt().toString()
         if (saved.length == 3) {
             winningNumber = saved
+            isDeclared = true
             runCalc()
         } else {
-            fetchWinningNumber(
-                onStart  = { isFetching = true; fetchStatus = "checking" },
-                onResult = { num, isFinal, session ->
-                    if (!num.isNullOrEmpty()) winningNumber = num   // fill field, don't calc
-                    isFinalResult = isFinal; resultSession = session
-                    fetchStatus = if (num.isNullOrEmpty()) "error" else "ok"
-                    isFetching = false
-                },
-                onError = { isFetching = false; fetchStatus = "error" }
-            )
+            winningNumber = ""
+            isDeclared = false
+            results = emptyList()
+            overflowResults = emptyList()
         }
     }
-    // Calculation only happens when user explicitly taps ပေါက်သီး ကြေညာသည် or auto-restored
+
+    // Background GLO fetch on open for reference without auto-overwriting active undeclared batch
+    LaunchedEffect(Unit) {
+        fetchWinningNumber(
+            onStart  = { isFetching = true; fetchStatus = "checking" },
+            onResult = { num, isFinal, session ->
+                isFetching = false
+                isFinalResult = isFinal
+                resultSession = session
+                if (!num.isNullOrEmpty()) {
+                    fetchedGloNumber = num
+                    fetchedGloDate = session
+                    fetchStatus = "ok"
+                } else {
+                    fetchStatus = "error"
+                }
+            },
+            onError = {
+                isFetching = false
+                fetchStatus = "error"
+            }
+        )
+    }
 
     // Derived grouped data — include ALL commissioners who placed bets in this batch
     // Derived grouped data — include ALL commissioners whether they won or not
@@ -257,31 +285,86 @@ fun WinnerScreen(
 
     val grandTotal = results.sumOf { it.payoutAmount }
 
+    if (showClearDialog) {
+        val b = targetBatch.toIntOrNull() ?: currentBatch
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            icon = { Icon(Icons.Default.Warning, null, tint = Color(0xFFDC2626), modifier = Modifier.size(28.dp)) },
+            title = { Text("ပေါက်သီး ကြေညာချက် ပယ်ဖျက်မည်လား?", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
+            text = {
+                Text(
+                    "အကြိမ် ($b) အတွက် သတ်မှတ်ထားသော ပေါက်ဂဏန်း ($winningNumber) ကို ဖျက်ပြီး ထိုးကြေးလက်ခံသည့် မူလအခြေအနေသို့ ပြန်ထားပါမည်။ စာရင်းများကို ပြန်လည်ပြင်ဆင်နိုင်ပါမည်။",
+                    fontSize = 13.5.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showClearDialog = false
+                        viewModel.clearWinningNumber(b)
+                        winningNumber = ""
+                        isDeclared = false
+                        results = emptyList()
+                        overflowResults = emptyList()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626), contentColor = Color.White)
+                ) {
+                    Text("သေချာသည်၊ ဖျက်မည်", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showClearDialog = false }) {
+                    Text("မဖျက်ပါ")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("ပေါက်ဂဏန်း စာရင်း", fontWeight = FontWeight.Bold, fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onPrimary)
-                        if (winningNumber.length == 3) {
-                            if (results.isNotEmpty()) {
-                                Text("${results.size} ကြိမ် ပေါက် — %,.0f Ks".format(grandTotal),
-                                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
-                            } else {
-                                Text("ပေါက်သူ မရှိပါ (အကြိမ်: $targetBatch)",
-                                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
-                            }
+                        if (isDeclared) {
+                            Text(
+                                "အကြိမ် $targetBatch ပေါက်သီး ကြေညာပြီး",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                "${results.size} ကြိမ် ပေါက် — %,.0f Ks".format(grandTotal),
+                                fontSize = 11.5.sp,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        } else {
+                            Text(
+                                "ပေါက်ဂဏန်း စာရင်း",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Text(
+                                "အကြိမ် $targetBatch • မကြေညာရသေးပါ",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                            )
                         }
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back",
-                            tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            "Back",
+                            tint = if (isDeclared) Color.White else MaterialTheme.colorScheme.onPrimary
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDeclared) Color(0xFF047857) else MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { padding ->
@@ -290,63 +373,84 @@ fun WinnerScreen(
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // ── Input card ─────────────────────────────────────────────────────
-            item { InputCard(
-                targetBatch = targetBatch, onBatchChange = { targetBatch = it },
-                winningNumber = winningNumber, onNumberChange = { v -> if (v.length <= 3 && v.all { it.isDigit() }) { winningNumber = v; fetchStatus = "" } },
-                exactMult = exactMult, onExactChange = { exactMult = it },
-                tuwtMult  = tuwtMult,  onTuwtChange  = { tuwtMult  = it },
-                fetchStatus = fetchStatus, isFinalResult = isFinalResult, resultSession = resultSession, isFetching = isFetching,
-                onFetch = { coroutineScope.launch { fetchWinningNumber(
-                    onStart  = { isFetching = true; fetchStatus = "checking" },
-                    onResult = { num, isFinal, session ->
-                        if (!num.isNullOrEmpty()) winningNumber = num
-                        isFinalResult = isFinal; resultSession = session
-                        fetchStatus = if (num.isNullOrEmpty()) "error" else "ok"
-                        isFetching = false
-                    },
-                    onError = { isFetching = false; fetchStatus = "error" }
-                )}},
-                onRecalc = { runCalc() }
-            )}
-
-            // ── Clear / Reset button — visible once winning number is set ─────
-            if (winningNumber.length == 3) {
+            if (!isDeclared) {
+                // ── State 1: PENDING / UNDECLARED BATCH ───────────────────────────
+                val totalBatchAmount = batchCustomerVouchers.flatMap { it.bets }.sumOf { it.amount }
                 item {
-                    OutlinedButton(
-                        onClick = {
-                            viewModel.saveWinningNumber("")   // clears for ALL pages
-                            winningNumber = ""
-                            results = emptyList()
-                            fetchStatus = ""
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.5.dp, MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "ဖျက်မည်။ ဆက်ထိုးနိုင်သည်။",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    PendingBatchBanner(
+                        batchNumber = batchInt,
+                        voucherCount = batchCustomerVouchers.size,
+                        totalBets = totalBatchAmount
+                    )
                 }
-            }
 
-            val overflowWonTotal = overflowResults.sumOf { it.payoutAmount }
+                item {
+                    InputCard(
+                        targetBatch = targetBatch,
+                        onBatchChange = { targetBatch = it },
+                        winningNumber = winningNumber,
+                        onNumberChange = { v ->
+                            if (v.length <= 3 && v.all { it.isDigit() }) {
+                                winningNumber = v
+                                fetchStatus = ""
+                            }
+                        },
+                        exactMult = exactMult,
+                        onExactChange = { exactMult = it },
+                        tuwtMult  = tuwtMult,
+                        onTuwtChange  = { tuwtMult  = it },
+                        fetchStatus = fetchStatus,
+                        isFinalResult = isFinalResult,
+                        resultSession = resultSession,
+                        isFetching = isFetching,
+                        fetchedGloNumber = fetchedGloNumber,
+                        fetchedGloDate = fetchedGloDate,
+                        onApplyGloNumber = { chosen ->
+                            winningNumber = chosen
+                        },
+                        onFetch = {
+                            coroutineScope.launch {
+                                fetchWinningNumber(
+                                    onStart  = { isFetching = true; fetchStatus = "checking" },
+                                    onResult = { num, isFinal, session ->
+                                        isFetching = false
+                                        isFinalResult = isFinal
+                                        resultSession = session
+                                        if (!num.isNullOrEmpty()) {
+                                            fetchedGloNumber = num
+                                            fetchedGloDate = session
+                                            fetchStatus = "ok"
+                                        } else {
+                                            fetchStatus = "error"
+                                        }
+                                    },
+                                    onError = { isFetching = false; fetchStatus = "error" }
+                                )
+                            }
+                        },
+                        onRecalc = { runCalc() }
+                    )
+                }
 
-            // ── Grand total bar & Tabs (Visible whenever winningNumber has 3 digits) ────
-            if (winningNumber.length == 3) {
+                item {
+                    PendingPlaceholderCard(batchNumber = batchInt)
+                }
+            } else {
+                // ── State 2: OFFICIALLY DECLARED BATCH ─────────────────────────────
+                val overflowWonTotal = overflowResults.sumOf { it.payoutAmount }
+
+                item {
+                    DeclaredHeroCard(
+                        batchNumber = batchInt,
+                        winningNumber = winningNumber,
+                        exactMult = exactMult,
+                        tuwtMult = tuwtMult,
+                        winnersCount = results.size,
+                        totalPayout = grandTotal,
+                        onUndeclareClick = { showClearDialog = true }
+                    )
+                }
+
                 // If no one won anything, show informational banner
                 if (results.isEmpty() && overflowResults.isEmpty()) {
                     item {
@@ -455,6 +559,7 @@ private fun InputCard(
     exactMult: String, onExactChange: (String) -> Unit,
     tuwtMult: String,  onTuwtChange:  (String) -> Unit,
     fetchStatus: String, isFinalResult: Boolean, resultSession: String, isFetching: Boolean,
+    fetchedGloNumber: String?, fetchedGloDate: String?, onApplyGloNumber: (String) -> Unit,
     onFetch: () -> Unit, onRecalc: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
@@ -467,6 +572,45 @@ private fun InputCard(
                 label = { Text("အကြိမ်") },
                 leadingIcon = { Icon(Icons.Default.Numbers, null) },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
+
+            // GLO Recommendation Pill (if fetched and not applied)
+            if (!fetchedGloNumber.isNullOrEmpty() && winningNumber != fetchedGloNumber) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "🇹🇭 GLO ထွက်ဂဏန်း: $fetchedGloNumber",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                            Text(
+                                if (!fetchedGloDate.isNullOrEmpty()) "ရက်စွဲ: $fetchedGloDate (ယခင်အကြိမ် ဖြစ်နိုင်ပါသည်)"
+                                else "ယခင်အကြိမ် ထွက်ဂဏန်း ဖြစ်နိုင်ပါသည်",
+                                fontSize = 10.5.sp,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        FilledTonalButton(
+                            onClick = { onApplyGloNumber(fetchedGloNumber) },
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            Text("ရွေးမည်", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
 
             // Winning number row
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -512,22 +656,272 @@ private fun InputCard(
             // ── Declare button ───────────────────────────────────────────────────
             Button(
                 onClick = onRecalc,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(12.dp),
                 enabled = winningNumber.length == 3,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFFD32F2F),   // strong red — declaration is final
+                    containerColor = Color(0xFF047857),   // Emerald verified color
                     contentColor   = Color.White
                 )
             ) {
-                Icon(Icons.Default.Star, null, Modifier.size(18.dp))
+                Icon(Icons.Default.Verified, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "ပေါက်သီး ကြေညာသည်",
+                    "🚨 ပေါက်သီး အတည်ပြု ကြေညာသည်",
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 15.sp
                 )
             }
+        }
+    }
+}
+
+// ── Declared Official Hero Card ──────────────────────────────────────────────
+@Composable
+private fun DeclaredHeroCard(
+    batchNumber: Int,
+    winningNumber: String,
+    exactMult: String,
+    tuwtMult: String,
+    winnersCount: Int,
+    totalPayout: Double,
+    onUndeclareClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(1.5.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Top verified banner
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(Color(0xFF065F46), Color(0xFF047857), Color(0xFF0D9488))
+                        )
+                    )
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Verified, null, tint = Color(0xFFFFD700), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "အကြိမ် ($batchNumber) ပေါက်သီး အတည်ပြုပြီး",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Surface(
+                        color = Color(0xFF022C22).copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text(
+                            "✅ အောင်မြင်စွာ ကြေညာပြီး",
+                            color = Color(0xFF6EE7B7),
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+            }
+
+            // Big 3D Digit Blocks
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "အတည်ပြု ပေါက်ဂဏန်း",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    winningNumber.forEach { digit ->
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFECFDF5),
+                            border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                            shadowElevation = 3.dp
+                        ) {
+                            Box(
+                                modifier = Modifier.size(52.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = digit.toString(),
+                                    fontSize = 32.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFF065F46),
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Multiplier rate tags
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        color = Color(0xFFECFDF5),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color(0xFFA7F3D0))
+                    ) {
+                        Text(
+                            "ပေါက်သီး (ဒဲ့): ×$exactMult ဆ",
+                            fontSize = 11.sp,
+                            color = Color(0xFF047857),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                    Surface(
+                        color = Color(0xFFEEF2FF),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color(0xFFC7D2FE))
+                    ) {
+                        Text(
+                            "တွတ် (အလှည့်): ×$tuwtMult ဆ",
+                            fontSize = 11.sp,
+                            color = Color(0xFF4338CA),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                Spacer(Modifier.height(12.dp))
+
+                // Prominent remove/undeclare winning number button
+                Button(
+                    onClick = onUndeclareClick,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFEF2F2),
+                        contentColor = Color(0xFFDC2626)
+                    ),
+                    border = BorderStroke(1.5.dp, Color(0xFFFCA5A5))
+                ) {
+                    Icon(Icons.Default.DeleteForever, null, modifier = Modifier.size(18.dp), tint = Color(0xFFDC2626))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "❌ ပေါက်သီး ကြေညာချက် ပယ်ဖျက်မည် (Remove)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Pending / Undeclared Guidance Banner ─────────────────────────────────────
+@Composable
+private fun PendingBatchBanner(
+    batchNumber: Int,
+    voucherCount: Int,
+    totalBets: Int
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+        border = BorderStroke(1.dp, Color(0xFFFDE68A))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFFEF3C7)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.HourglassTop, null, tint = Color(0xFFD97706), modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "အကြိမ် ($batchNumber) — ပေါက်သီး မကြေညာရသေးပါ",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.5.sp,
+                    color = Color(0xFF92400E)
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "လက်ရှိ ထိုးငွေ စုစုပေါင်း: %,d Ks (${voucherCount} ဘောင်ချာ)".format(totalBets),
+                    fontSize = 11.sp,
+                    color = Color(0xFFB45309)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingPlaceholderCard(batchNumber: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                Icons.Default.EmojiEvents,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.outline
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "အကြိမ် ($batchNumber) ပေါက်သီး စောင့်ဆိုင်းနေပါသည်",
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "ထိုင်းထီ ပေါက်ဂဏန်း ၃ လုံး ထည့်သွင်းပြီး \"ပေါက်သီး အတည်ပြု ကြေညာသည်\" ကို နှိပ်ပါက ကိုယ်စားလှယ်များ၊ ဘောင်ချာများနှင့် တင်ကွက် အလျော်အစား စာရင်းများ ပေါ်ထွက်လာပါမည်။",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.outline,
+                textAlign = TextAlign.Center,
+                lineHeight = 18.sp
+            )
         }
     }
 }
