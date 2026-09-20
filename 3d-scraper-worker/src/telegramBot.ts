@@ -539,7 +539,13 @@ export async function getAppRelease(env: Env): Promise<AppReleaseRecord | null> 
     });
     if (res.ok) {
       const data = await res.json();
-      if (data && typeof data === 'object') return data as AppReleaseRecord;
+      if (data && typeof data === 'object') {
+        const rel = data as AppReleaseRecord;
+        if (rel.file_size === 24000000 || !rel.file_size) {
+          rel.file_size = 9284449;
+        }
+        return rel;
+      }
     }
   } catch (_) {}
   return null;
@@ -1364,7 +1370,8 @@ export async function sendAppToUser(
     ]
   };
 
-  const sizeMb = release?.file_size ? ((release.file_size) / (1024 * 1024)).toFixed(1) : '24.0';
+  const rawSize = (release?.file_size && release.file_size !== 24000000) ? release.file_size : 9284449;
+  const sizeMb = ((rawSize) / (1024 * 1024)).toFixed(1);
   const versionName = release?.version_name || 'v1.0.100';
 
   const caption = `📱 <b>3D LEDGER (မြန်မာ 3D စာရင်းကိုင် ဆော့ဝဲလ် တရားဝင် APK)</b>\n\n` +
@@ -1392,8 +1399,9 @@ export async function sendAppToUser(
       'HTML',
       release.file_name || '3D_Ledger.apk'
     );
-    if (sent?.result?.document?.file_id) {
-      release.file_id = sent.result.document.file_id;
+    if (sent?.result?.document) {
+      if (sent.result.document.file_id) release.file_id = sent.result.document.file_id;
+      if (sent.result.document.file_size) release.file_size = sent.result.document.file_size;
       await saveAppRelease(env, release);
     }
   } else {
@@ -5845,7 +5853,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
       const release: AppReleaseRecord = {
         file_id: fileId,
         file_name: `3D_Ledger_${version}.apk`,
-        file_size: 24000000,
+        file_size: 9284449,
         version_name: version.startsWith('v') ? version : `v${version}`,
         version_code: parseInt(version.replace(/\D/g, ''), 10) || 100,
         release_notes: notes,
@@ -5893,7 +5901,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         file_id: '',
         download_url: url,
         file_name: `3D_Ledger_${version}.apk`,
-        file_size: 24000000,
+        file_size: 9284449,
         version_name: version.startsWith('v') ? version : `v${version}`,
         version_code: parseInt(version.replace(/\D/g, ''), 10) || 100,
         release_notes: notes,

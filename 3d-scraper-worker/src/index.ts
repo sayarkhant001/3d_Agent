@@ -280,6 +280,9 @@ export default {
             );
             if (tgRes?.result?.document?.file_id) {
               fileId = tgRes.result.document.file_id;
+              if (tgRes.result.document.file_size && !body.file_size) {
+                body.file_size = tgRes.result.document.file_size;
+              }
             }
           } catch (_) {}
         }
@@ -287,7 +290,7 @@ export default {
         const releaseRecord: AppReleaseRecord = {
           file_id: fileId,
           file_name: body.file_name || `3D_Ledger_${versionName}.apk`,
-          file_size: body.file_size || 24000000,
+          file_size: body.file_size || 9284449,
           version_name: versionName,
           version_code: versionCode,
           download_url: downloadUrl,

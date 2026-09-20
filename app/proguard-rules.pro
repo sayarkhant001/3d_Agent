@@ -45,11 +45,20 @@
 -keep class androidx.compose.** { *; }
 -dontwarn androidx.compose.**
 
-# 8. Retrofit / OkHttp / Okio
+# 8. Retrofit / OkHttp / Okio / Moshi
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -keep class retrofit2.** { *; }
 -dontwarn retrofit2.**
+-keep class com.squareup.moshi.** { *; }
+-dontwarn com.squareup.moshi.**
+-keep class kotlin.reflect.jvm.internal.** { *; }
+-dontwarn kotlin.reflect.jvm.internal.**
+-keep class kotlin.Metadata { *; }
+-keepclassmembers class * {
+    @com.squareup.moshi.Json <fields>;
+    @com.squareup.moshi.JsonClass <fields>;
+}
 
 # 9. Kotlin Coroutines
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}

@@ -11,6 +11,10 @@ import com.threeDLedger.security.SecurityGuard
 import com.threeDLedger.security.SecurityReport
 import org.json.JSONObject
 import java.nio.charset.StandardCharsets
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 import java.security.MessageDigest
 import javax.crypto.Mac
@@ -137,65 +141,140 @@ class LicenseManager(private val context: Context) {
         }
     }
 
+    private fun handleActivationSuccess(
+        cdKey: String,
+        status: String?,
+        token: String?,
+        message: String?,
+        error: String?,
+        deviceMigrated: Boolean?,
+        remainingDays: Int?
+    ): ActivationResult {
+        return if (status == "activated" && !token.isNullOrBlank()) {
+            prefs.edit()
+                .putString("jwt_token", token)
+                .putString("active_cd_key", cdKey)
+                .remove("pending_cd_key")
+                .remove("expired_warning")
+                .apply()
+            ActivationResult.Success(
+                token = token,
+                message = message,
+                deviceMigrated = deviceMigrated == true,
+                remainingDays = remainingDays
+            )
+        } else if (status == "pending_approval") {
+            prefs.edit().putString("pending_cd_key", cdKey).apply()
+            ActivationResult.Pending(message ?: "Admin ၏ အတည်ပြုချက်ကို စောင့်ဆိုင်းနေပါသည်")
+        } else {
+            ActivationResult.Error(error ?: message ?: "အသုံးပြုခွင့် ဖွင့်လှစ်ခြင်း မအောင်မြင်ပါ")
+        }
+    }
+
+    private fun handleActivationHttpError(code: Int, errorBody: String?): ActivationResult {
+        val errJson = try {
+            errorBody?.let { JSONObject(it).optString("error") }
+        } catch (_: Exception) { null }
+
+        val errorMsg = errJson ?: when (code) {
+            400 -> "CD-Key ပုံစံ မှားယွင်းနေပါသည်။ စစ်ဆေးပြီး ပြန်လည်ရိုက်ထည့်ပါ။"
+            404 -> "CD-Key မတွေ့ရှိပါ။ မှန်ကန်သော ကုတ်နံပါတ်ကို ထည့်ပေးပါ။"
+            403 -> "ဤ CD-Key အား အခြားဖုန်းတွင် သို့မဟုတ် သက်တမ်းကုန်ဆုံး/ပိတ်သိမ်းထားပြီး ဖြစ်ပါသည်။"
+            500 -> "ဆာဗာ အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည်ကြိုးစားပါ။"
+            else -> "အသုံးပြုခွင့် ဖွင့်လှစ်ခြင်း မအောင်မြင်ပါ။"
+        }
+        return ActivationResult.Error(errorMsg)
+    }
+
+    private suspend fun activateLicenseDirect(
+        cdKey: String,
+        deviceFingerprint: String,
+        deviceModel: String
+    ): ActivationResult = withContext(Dispatchers.IO) {
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("cd_key", cdKey)
+                put("device_fingerprint", deviceFingerprint)
+                put("device_model", deviceModel)
+            }.toString()
+
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val request = okhttp3.Request.Builder()
+                .url("${NetworkClient.BASE_URL}/activate")
+                .post(jsonPayload.toRequestBody(mediaType))
+                .build()
+
+            val response = NetworkClient.okHttpClient.newCall(request).execute()
+            val responseBody = response.body?.string().orEmpty()
+
+            if (response.isSuccessful && responseBody.isNotBlank()) {
+                val json = JSONObject(responseBody)
+                val status = json.optString("status")
+                val token = json.optString("token")
+                val message = if (json.has("message") && !json.isNull("message")) json.getString("message") else null
+                val error = if (json.has("error") && !json.isNull("error")) json.getString("error") else null
+                val deviceMigrated = if (json.has("device_migrated")) json.optBoolean("device_migrated") else null
+                val remainingDays = if (json.has("remaining_days")) json.optInt("remaining_days") else null
+
+                handleActivationSuccess(cdKey, status, token, message, error, deviceMigrated, remainingDays)
+            } else {
+                handleActivationHttpError(response.code, responseBody)
+            }
+        } catch (e: Exception) {
+            ActivationResult.Error(e.message ?: "အသုံးပြုခွင့် ဖွင့်လှစ်ခြင်း မအောင်မြင်ပါ")
+        }
+    }
+
     suspend fun activateLicense(cdKey: String): ActivationResult {
         if (!checkSecurityIntegrity()) {
             return ActivationResult.Error("လုံခြုံရေး စစ်ဆေးချက် မအောင်မြင်ပါ (Security Violation Detected)")
         }
+        val deviceFingerprint = getDeviceFingerprint()
+        val deviceModel = getDeviceModel()
+
+        // 1. Try Retrofit with Moshi
         return try {
             val request = ActivationRequest(
                 cd_key = cdKey,
-                device_fingerprint = getDeviceFingerprint(),
-                device_model = getDeviceModel()
+                device_fingerprint = deviceFingerprint,
+                device_model = deviceModel
             )
             val response = NetworkClient.licenseApi.activateLicense(request)
 
             if (response.isSuccessful && response.body() != null) {
                 val body = response.body()!!
-                if (body.status == "activated" && !body.token.isNullOrBlank()) {
-                    prefs.edit()
-                        .putString("jwt_token", body.token)
-                        .putString("active_cd_key", cdKey)
-                        .remove("pending_cd_key")
-                        .remove("expired_warning")
-                        .apply()
-                    ActivationResult.Success(
-                        token = body.token,
-                        message = body.message,
-                        deviceMigrated = body.device_migrated == true,
-                        remainingDays = body.remaining_days
-                    )
-                } else if (body.status == "pending_approval") {
-                    prefs.edit().putString("pending_cd_key", cdKey).apply()
-                    ActivationResult.Pending(body.message ?: "Admin ၏ အတည်ပြုချက်ကို စောင့်ဆိုင်းနေပါသည်")
-                } else {
-                    ActivationResult.Error(body.error ?: body.message ?: "အသုံးပြုခွင့် ဖွင့်လှစ်ခြင်း မအောင်မြင်ပါ")
-                }
+                handleActivationSuccess(
+                    cdKey = cdKey,
+                    status = body.status,
+                    token = body.token,
+                    message = body.message,
+                    error = body.error,
+                    deviceMigrated = body.device_migrated,
+                    remainingDays = body.remaining_days
+                )
             } else {
-                val errJson = try {
-                    response.errorBody()?.string()?.let { JSONObject(it).optString("error") }
-                } catch (_: Exception) { null }
-
-                val errorMsg = errJson ?: when (response.code()) {
-                    400 -> "CD-Key ပုံစံ မှားယွင်းနေပါသည်။ စစ်ဆေးပြီး ပြန်လည်ရိုက်ထည့်ပါ။"
-                    404 -> "CD-Key မတွေ့ရှိပါ။ မှန်ကန်သော ကုတ်နံပါတ်ကို ထည့်ပေးပါ။"
-                    403 -> "ဤ CD-Key အား အခြားဖုန်းတွင် သို့မဟုတ် သက်တမ်းကုန်ဆုံး/ပိတ်သိမ်းထားပြီး ဖြစ်ပါသည်။"
-                    500 -> "ဆာဗာ အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။ ခေတ္တစောင့်ပြီး ပြန်လည်ကြိုးစားပါ။"
-                    else -> "အသုံးပြုခွင့် ဖွင့်လှစ်ခြင်း မအောင်မြင်ပါ။"
-                }
-                ActivationResult.Error(errorMsg)
+                handleActivationHttpError(response.code(), response.errorBody()?.string())
             }
-        } catch (e: java.net.UnknownHostException) {
-            ActivationResult.Error("အင်တာနက် ချိတ်ဆက်မှု မရှိပါ။ ကျေးဇူးပြု၍ ကွန်ရက် စစ်ဆေးပါ။")
-        } catch (e: java.net.SocketTimeoutException) {
-            ActivationResult.Error("ဆာဗာ တုံ့ပြန်မှု အချိန်ကျော်လွန်သွားပါသည်။ ပြန်လည်ကြိုးစားပါ။")
         } catch (e: Exception) {
-            ActivationResult.Error(e.message ?: "ချိတ်ဆက်မှု အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။")
+            // If Retrofit or converter encounters any issue, seamlessly execute direct OkHttp + JSONObject
+            try {
+                return activateLicenseDirect(cdKey, deviceFingerprint, deviceModel)
+            } catch (_: Exception) {}
+
+            if (e is java.net.UnknownHostException) {
+                ActivationResult.Error("အင်တာနက် ချိတ်ဆက်မှု မရှိပါ။ ကျေးဇူးပြု၍ ကွန်ရက် စစ်ဆေးပါ။")
+            } else if (e is java.net.SocketTimeoutException) {
+                ActivationResult.Error("ဆာဗာ တုံ့ပြန်မှု အချိန်ကျော်လွန်သွားပါသည်။ ပြန်လည်ကြိုးစားပါ။")
+            } else {
+                ActivationResult.Error(e.message ?: "ချိတ်ဆက်မှု အမှားအယွင်း ဖြစ်ပေါ်နေပါသည်။")
+            }
         }
     }
 
     suspend fun checkPendingStatus(cdKey: String): ActivationResult {
+        val deviceFingerprint = getDeviceFingerprint()
         return try {
-            val request = CheckStatusRequest(cdKey, getDeviceFingerprint())
+            val request = CheckStatusRequest(cdKey, deviceFingerprint)
             val response = NetworkClient.licenseApi.checkStatus(request)
 
             if (response.isSuccessful && response.body() != null) {
@@ -237,6 +316,32 @@ class LicenseManager(private val context: Context) {
                 ActivationResult.Pending("အခြေအနေ စစ်ဆေးနေဆဲ ဖြစ်ပါသည်...")
             }
         } catch (e: Exception) {
+            // Direct fallback
+            try {
+                val jsonPayload = JSONObject().apply {
+                    put("cd_key", cdKey)
+                    put("device_fingerprint", deviceFingerprint)
+                }.toString()
+                val mediaType = "application/json; charset=utf-8".toMediaType()
+                val req = okhttp3.Request.Builder()
+                    .url("${NetworkClient.BASE_URL}/check-status")
+                    .post(jsonPayload.toRequestBody(mediaType))
+                    .build()
+                val resp = NetworkClient.okHttpClient.newCall(req).execute()
+                val respBody = resp.body?.string().orEmpty()
+                if (resp.isSuccessful && respBody.isNotBlank()) {
+                    val json = JSONObject(respBody)
+                    val status = json.optString("status")
+                    val token = json.optString("token")
+                    if (status == "activated" && token.isNotBlank()) {
+                        prefs.edit().putString("jwt_token", token).putString("active_cd_key", cdKey).remove("pending_cd_key").apply()
+                        return ActivationResult.Success(token)
+                    } else if (status == "pending_approval") {
+                        return ActivationResult.Pending("Admin ၏ အတည်ပြုချက်ကို စောင့်ဆိုင်းနေဆဲ ဖြစ်ပါသည်")
+                    }
+                }
+            } catch (_: Exception) {}
+
             ActivationResult.Pending("ချိတ်ဆက်မှု စစ်ဆေးနေပါသည်...")
         }
     }
@@ -244,8 +349,9 @@ class LicenseManager(private val context: Context) {
     suspend fun verifyCurrentLicense(): Boolean {
         if (!checkSecurityIntegrity()) return false
         val cdKey = getActiveCdKey() ?: return isActivated()
+        val deviceFingerprint = getDeviceFingerprint()
         return try {
-            val request = VerifyLicenseRequest(cdKey, getDeviceFingerprint())
+            val request = VerifyLicenseRequest(cdKey, deviceFingerprint)
             val response = NetworkClient.licenseApi.verifyLicense(request)
             if (response.isSuccessful && response.body() != null) {
                 val resBody = response.body()!!
@@ -265,7 +371,6 @@ class LicenseManager(private val context: Context) {
                 }
                 true
             } else {
-                // If offline or network error, verify with local token exp
                 isActivated()
             }
         } catch (_: Exception) {
