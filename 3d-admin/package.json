@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "deploy": "vite build && wrangler pages deploy dist --project-name=3d-admin",
+    "deploy": "vite build && wrangler pages deploy dist --project-name=3d-lottery-admin",
     "lint": "oxlint",
     "test": "node --test test/*.test.js",
     "preview": "vite preview"

@@ -82,7 +82,7 @@ export interface LotteryResult {
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(processDraw(env));
+    ctx.waitUntil(processDraw(env, { force: false }));
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -371,13 +371,52 @@ export default {
       }
     }
 
-    // Manual draw processing / Apply GLO trigger
+    // Manual draw processing / Apply GLO trigger (Purposeful manual test send supported)
     if (url.pathname === '/process-draw' || url.pathname === '/apply-glo' || (url.pathname === '/' && request.method === 'POST')) {
       try {
-        const drawResult = await processDraw(env);
-        return new Response(JSON.stringify({ status: 'ok', message: 'Official GLO Draw processed and synced to Firebase', result: drawResult }), {
+        const force = url.searchParams.get('force') !== 'false';
+        const drawResult = await processDraw(env, { force });
+        return new Response(JSON.stringify({
+          status: 'ok',
+          message: force
+            ? 'Official GLO Draw processed, synced to Firebase, and broadcasted to Telegram (Purpose Test / Force)'
+            : 'Official GLO Draw processed and synced to Firebase',
+          broadcasted: drawResult ? (drawResult as any).broadcasted : false,
+          result: drawResult
+        }), {
           headers: corsHeaders
         });
+      } catch (e: any) {
+        return new Response(JSON.stringify({ status: 'error', message: e.message }), {
+          status: 500, headers: corsHeaders
+        });
+      }
+    }
+
+    // Direct winning number test broadcast to Telegram (Purpose test send)
+    if (url.pathname === '/broadcast-winner' || url.pathname === '/test-broadcast') {
+      try {
+        const token = await getFirebaseToken(env);
+        const crRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const currentData = crRes.ok ? await crRes.json() as any : null;
+        const winNum = currentData?.winning_number || '000';
+        const tut = calculateTutNumbers(winNum);
+        const drawDate = currentData?.result_date || new Date().toISOString().split('T')[0];
+        const nextDate = currentData?.target_draw_date || calculateNextThaiDrawDate(drawDate);
+        const sourceName = currentData?.source || 'Official Thai Lottery';
+
+        await sendTelegramAlert(env,
+          `🇹🇭 <b>Thai 3D Lottery Result (${sourceName})</b>\n\n🎯 <b>3D ပေါက်ဂဏန်း: ${winNum}</b>\n🥇 1st Prize: ${currentData?.first_prize || '---'}\n🔢 2D: ${currentData?.twod || winNum.slice(-2)}\n📅 Draw Date: ${drawDate}\n⏭️ Next Draw: ${nextDate}\n\n🔄 တွတ်ဂဏန်းများ: ${tut.allTut.join(', ')}\n<i>[စမ်းသပ် တိုက်ရိုက် ပေးပို့ခြင်း / Test Send by Admin]</i>`
+        );
+
+        return new Response(JSON.stringify({
+          status: 'ok',
+          message: 'Winning number test declaration sent to Telegram',
+          winning_number: winNum,
+          draw_date: drawDate
+        }), { headers: corsHeaders });
       } catch (e: any) {
         return new Response(JSON.stringify({ status: 'error', message: e.message }), {
           status: 500, headers: corsHeaders
@@ -468,14 +507,39 @@ export async function getFirebaseToken(env: Env): Promise<string> {
   return tokenData.access_token;
 }
 
+// ── Draw Date Detection & Timing ──────────────────────────────────────────────
+
+export function getLocalDrawDateInfo(): { dateStr: string; day: number; isStandardDrawDay: boolean } {
+  // Myanmar (UTC+6:30) / Thailand (UTC+7) local draw date calculation
+  const now = new Date();
+  const mmtTime = new Date(now.getTime() + (6.5 * 60 + now.getTimezoneOffset()) * 60000);
+  const year = mmtTime.getFullYear();
+  const month = String(mmtTime.getMonth() + 1).padStart(2, '0');
+  const day = mmtTime.getDate();
+  const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
+  // Standard Thai lottery draw days: 1st and 16th of each month
+  const isStandardDrawDay = (day === 1 || day === 16);
+  return { dateStr, day, isStandardDrawDay };
+}
+
 // ── Main Logic ────────────────────────────────────────────────────────────────
 
-export async function processDraw(env: Env) {
+export interface ProcessDrawOptions {
+  force?: boolean;
+}
+
+export async function processDraw(env: Env, options?: ProcessDrawOptions) {
+  const isForce = options?.force === true;
+
   // 1. Fetch official lottery data from Thai GLO API
   const result = await fetchFromGloLottery();
   if (!result) {
-    await sendTelegramAlert(env, '⚠️ No official Thai 3D result available from GLO API.');
-    return;
+    if (isForce) {
+      await sendTelegramAlert(env, '⚠️ No official Thai 3D result available from GLO API.');
+    } else {
+      console.log('Scheduled draw check: No GLO result available. Silently skipping Telegram alert.');
+    }
+    return null;
   }
 
   // 2. Get Firebase auth token
@@ -489,12 +553,15 @@ export async function processDraw(env: Env) {
     });
     if (modeRes.ok) {
       const mode = await modeRes.json();
-      if (mode === 'manual') { console.log('Manual mode, skipping.'); return; }
+      if (mode === 'manual' && !isForce) {
+        console.log('Manual mode active, skipping automated draw processing.');
+        return null;
+      }
     }
   } catch (_) {}
 
-  // 4. Get current Firebase data for archiving
-  let currentResults: Record<string, unknown> | null = null;
+  // 4. Get current Firebase data for archiving & duplicate broadcast detection
+  let currentResults: Record<string, any> | null = null;
   try {
     const cr = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`, {
       headers: { 'Authorization': `Bearer ${token}` }
@@ -502,7 +569,21 @@ export async function processDraw(env: Env) {
     if (cr.ok) currentResults = await cr.json() as any;
   } catch (_) {}
 
-  // 5. Build update payload
+  // 5. Determine whether winning number declaration should be broadcast to Telegram:
+  // - If forced (manual test trigger on purpose), always broadcast!
+  // - Otherwise (scheduled automatic cron), only broadcast if:
+  //     a) Today is the day of winning number declaration (standard 1st/16th or today matches result.date)
+  //     b) AND this specific draw date and winning number have NOT already been broadcast to Telegram!
+  const localInfo = getLocalDrawDateInfo();
+  const isDrawDay = localInfo.isStandardDrawDay || (result.date === localInfo.dateStr);
+  const alreadyBroadcast = Boolean(
+    currentResults?.telegram_broadcast_date === result.date &&
+    currentResults?.telegram_broadcast_winning_number === result.threeD
+  );
+
+  const shouldBroadcast = isForce || (isDrawDay && !alreadyBroadcast);
+
+  // 6. Build update payload
   const nextDate = calculateNextThaiDrawDate(result.date);
   const tut = calculateTutNumbers(result.threeD);
   const updates: Record<string, unknown> = {
@@ -521,13 +602,19 @@ export async function processDraw(env: Env) {
     '3d_live_results/tut_all':          tut.allTut,
   };
 
+  if (shouldBroadcast) {
+    updates['3d_live_results/telegram_broadcast_date'] = result.date;
+    updates['3d_live_results/telegram_broadcast_winning_number'] = result.threeD;
+    updates['3d_live_results/telegram_broadcast_at'] = new Date().toISOString();
+  }
+
   const anyRes = currentResults as any;
   if (anyRes?.winning_number && anyRes?.winning_number !== result.threeD) {
     updates['3d_live_results/previous_winning_number'] = anyRes.winning_number;
     updates['3d_live_results/previous_draw_date']      = anyRes.result_date || anyRes.target_draw_date;
   }
 
-  // 6. Write to Firebase (authenticated)
+  // 7. Write to Firebase (authenticated)
   const patchRes = await fetch(`${env.FIREBASE_DB_URL}/.json`, {
     method: 'PATCH',
     headers: authHeaders,
@@ -539,13 +626,23 @@ export async function processDraw(env: Env) {
     throw new Error(`Firebase PATCH failed: ${patchRes.status} ${errText}`);
   }
 
-  // 7. Telegram Alert
-  const sourceName = result.source || result.session || 'Official Thai Lottery';
-  await sendTelegramAlert(env,
-    `🇹🇭 <b>Thai 3D Lottery Result (${sourceName})</b>\n\n🎯 <b>3D ပေါက်ဂဏန်း: ${result.threeD}</b>\n🥇 1st Prize: ${result.firstPrize}\n🔢 2D: ${result.twoD}\n📅 Draw Date: ${result.date}\n⏭️ Next Draw: ${nextDate}\n\n🔄 တွတ်ဂဏန်းများ: ${tut.allTut.join(', ')}`
-  );
+  // 8. Telegram Alert (strictly on declaration day or when intentionally tested)
+  if (shouldBroadcast) {
+    const sourceName = result.source || result.session || 'Official Thai Lottery';
+    const testTag = isForce && (!isDrawDay || alreadyBroadcast) ? '\n<i>[စမ်းသပ်ပေးပို့ခြင်း / Test Send]</i>' : '';
+    await sendTelegramAlert(env,
+      `🇹🇭 <b>Thai 3D Lottery Result (${sourceName})</b>\n\n🎯 <b>3D ပေါက်ဂဏန်း: ${result.threeD}</b>\n🥇 1st Prize: ${result.firstPrize}\n🔢 2D: ${result.twoD}\n📅 Draw Date: ${result.date}\n⏭️ Next Draw: ${nextDate}\n\n🔄 တွတ်ဂဏန်းများ: ${tut.allTut.join(', ')}${testTag}`
+    );
+  } else {
+    console.log(`Skipped Telegram broadcast: draw date is ${result.date} (today: ${localInfo.dateStr}, isDrawDay: ${isDrawDay}, alreadyBroadcast: ${alreadyBroadcast})`);
+  }
 
-  return result;
+  return {
+    ...result,
+    broadcasted: shouldBroadcast,
+    isDrawDay,
+    alreadyBroadcast
+  };
 }
 
 export async function fetchFastThaiLottery(): Promise<LotteryResult | null> {

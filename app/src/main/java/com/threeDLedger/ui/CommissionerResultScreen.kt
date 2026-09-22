@@ -625,12 +625,15 @@ fun AgentSettlementCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    SmallCol("ရောင်းကြေး", fmt(s.totalBet), MaterialTheme.colorScheme.onSurface)
-                    SmallCol("ကော်မရှင်", fmt(s.commission), ResGold)
-                    SmallCol("နုတ်ပြီးငွေ", fmt(s.netAfterComm), ResPrimary)
+                    SmallCol("ရောင်းကြေး", fmt(s.totalBet), MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                    Box(Modifier.width(0.8.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                    SmallCol("ကော်မရှင်", fmt(s.commission), ResGold, modifier = Modifier.weight(1f))
+                    Box(Modifier.width(0.8.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                    SmallCol("နုတ်ပြီးငွေ", fmt(s.netAfterComm), ResPrimary, modifier = Modifier.weight(1f))
                 }
 
                 // Row 2: Winning breakdown if any
@@ -649,8 +652,7 @@ fun AgentSettlementCard(
                                 bet = fmt(s.exactBetAmt),
                                 payout = fmt(s.exactPayout),
                                 iconTint = ResRed,
-                                onClick = onTapExact,
-                                showDetailHint = true
+                                onClick = onTapExact
                             )
                         }
                         if (s.tuwtBetAmt > 0) {
@@ -660,8 +662,7 @@ fun AgentSettlementCard(
                                 bet = fmt(s.tuwtBetAmt),
                                 payout = fmt(s.tuwtPayout),
                                 iconTint = GoldDark,
-                                onClick = onTapTut,
-                                showDetailHint = true
+                                onClick = onTapTut
                             )
                         }
                     }
@@ -669,39 +670,33 @@ fun AgentSettlementCard(
 
                 HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
 
-                // Row 3: Totals & Balance
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text(
-                        "လျော်ငွေ = ${fmt(s.totalPayout)}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    val balLabel = if (s.balance < 0) "ကျန်ငွေ (ပေးရန်)" else "ကျန်ငွေ (ရရန်)"
-                    Text(
-                        "$balLabel = ${fmt(s.balance)}",
-                        color = if (s.balance < 0) ResRed else ResGreen,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-
-                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                    Text(
-                        "ပေးငွေ = ${fmt(s.paidAmount)}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    val remLabel = if (s.remaining < 0) "ကြွေးကျန် (ပေးရန်)" else "ကြွေးကျန် (ရရန်)"
-                    Text(
-                        "$remLabel = ${fmt(s.remaining)}",
-                        color = if (s.remaining < 0) ResRed else ResGreen,
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
+                // Row 3: Totals & Settlement Balance
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("လျော်ငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${fmt(s.totalPayout)} Ks", fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        val balLabel = if (s.balance < 0) "ကျန်ငွေ (ပေးရန်)" else "ကျန်ငွေ (ရရန်)"
+                        Text(balLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (s.balance < 0) ResRed else ResGreen)
+                        Text("${fmt(s.balance)} Ks", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.balance < 0) ResRed else ResGreen)
+                    }
+                    HorizontalDivider(color = CardBorderSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("ပေးငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${fmt(s.paidAmount)} Ks", fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        val remLabel = if (s.remaining < 0) "ကြွေးကျန် (ပေးရန်)" else "ကြွေးကျန် (ရရန်)"
+                        Text(remLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (s.remaining < 0) ResRed else ResGreen)
+                        Text("${fmt(s.remaining)} Ks", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.remaining < 0) ResRed else ResGreen)
+                    }
                 }
 
                 Row(
@@ -719,15 +714,22 @@ fun AgentSettlementCard(
 }
 
 @Composable
-private fun SmallCol(label: String, value: String, valueColor: Color = Color.Unspecified) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+private fun SmallCol(label: String, value: String, valueColor: Color = Color.Unspecified, modifier: Modifier = Modifier) {
+    val fontSize = when {
+        value.length > 12 -> 10.5.sp
+        value.length > 9 -> 11.5.sp
+        else -> 13.sp
+    }
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Spacer(Modifier.height(1.dp))
         Text(
             value,
             color = valueColor,
             fontWeight = FontWeight.ExtraBold,
-            fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace
+            fontSize = fontSize,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 1
         )
     }
 }
@@ -739,8 +741,7 @@ private fun WinRow(
     bet: String,
     payout: String,
     iconTint: Color,
-    onClick: (() -> Unit)? = null,
-    showDetailHint: Boolean = false
+    onClick: (() -> Unit)? = null
 ) {
     val containerModifier = if (onClick != null) {
         Modifier
@@ -765,29 +766,17 @@ private fun WinRow(
             Icon(icon, null, tint = iconTint, modifier = Modifier.size(15.dp))
             Spacer(Modifier.width(6.dp))
             Text(label, color = iconTint, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-            if (showDetailHint) {
-                Spacer(Modifier.width(6.dp))
-                Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = iconTint.copy(alpha = 0.18f)
-                ) {
-                    Text(
-                        "အသေးစိတ်",
-                        color = iconTint,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                    )
-                }
-            }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            val amountText = "$bet Ks  →  $payout Ks"
+            val fontSize = if (amountText.length > 25) 10.5.sp else 12.sp
             Text(
-                "$bet Ks  →  $payout Ks",
+                amountText,
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace
+                fontSize = fontSize,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1
             )
             if (onClick != null) {
                 Spacer(Modifier.width(4.dp))
@@ -819,10 +808,20 @@ private fun SummaryPill(label: String, value: String, valueColor: Color) {
 }
 
 @Composable
-private fun FooterCol(label: String, value: Long, valueColor: Color = Color.White) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = Color.White.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-        Text(fmt(value), color = valueColor, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+private fun RowScope.FooterCol(label: String, value: Long, valueColor: Color = Color.White) {
+    val formatted = fmt(value)
+    val fontSize = when {
+        formatted.length > 12 -> 9.5.sp
+        formatted.length > 9 -> 10.5.sp
+        else -> 12.sp
+    }
+    Column(
+        modifier = Modifier.weight(1f),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(label, color = Color.White.copy(0.85f), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Spacer(Modifier.height(1.dp))
+        Text(formatted, color = valueColor, fontWeight = FontWeight.ExtraBold, fontSize = fontSize, fontFamily = FontFamily.Monospace, maxLines = 1)
     }
 }
 

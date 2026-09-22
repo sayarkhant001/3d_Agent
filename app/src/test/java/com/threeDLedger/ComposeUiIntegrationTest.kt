@@ -208,4 +208,68 @@ class ComposeUiIntegrationTest {
         composeTestRule.onNodeWithText("ဘောင်ချာ (1) စောင် • (6) ဂဏန်း", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("16,000 Ks").assertIsDisplayed()
     }
+
+    @Test
+    fun testTactileKeypadButtonWithSubtitle() {
+        var clicked = false
+        composeTestRule.setContent {
+            com.threeDLedger.ui.TactileKeypadButton(
+                text = "R",
+                subtitle = "ပတ်လည်",
+                bgColor = Color(0xFF059669),
+                onClick = { clicked = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("R").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ပတ်လည်").assertIsDisplayed()
+        composeTestRule.onNodeWithText("R").performClick()
+        assertTrue("Tactile keypad button click triggered", clicked)
+    }
+
+    @Test
+    fun testCustomerCardDisplaysFinancialsAndNavigates() {
+        val customer = Customer(id = 1, name = "ဦးမြင့်ကျော်", commissionRate = 0.23, paidAmount = 0.0)
+        var editClicked = false
+        var betsClicked = false
+        var addBetClicked = false
+
+        composeTestRule.setContent {
+            com.threeDLedger.ui.CustomerCard(
+                customer = customer,
+                totalAmount = 1_535_000,
+                commCut = 353_050,
+                netAmount = 1_181_950,
+                commPct = 23,
+                voucherCount = 13,
+                onEditTap = { editClicked = true },
+                onBetsTap = { betsClicked = true },
+                onAddBetTap = { addBetClicked = true }
+            )
+        }
+
+        // Verify Commissioner Info & Pills
+        composeTestRule.onNodeWithText("ဦးမြင့်ကျော်").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ကော် အိုင်ဒီ: 1").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ကော် 23%").assertIsDisplayed()
+
+        // Verify FinTech Financial 3-Col Metrics
+        composeTestRule.onNodeWithText("စုစုပေါင်း").assertIsDisplayed()
+        composeTestRule.onNodeWithText("1,535,000 Ks").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ကော်မရှင်").assertIsDisplayed()
+        composeTestRule.onNodeWithText("353,050 Ks").assertIsDisplayed()
+        composeTestRule.onNodeWithText("နုတ်ပြီးငွေ").assertIsDisplayed()
+        composeTestRule.onNodeWithText("1,181,950 Ks").assertIsDisplayed()
+
+        // Verify Voucher & Navigation elements
+        composeTestRule.onNodeWithText("ဘောင်ချာ : 13 စောင်").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ဘောင်ချာများ ကြည့်ရန်").assertIsDisplayed()
+
+        // Verify Action Clicks
+        composeTestRule.onNodeWithText("ထိုးမည်").performClick()
+        assertTrue("Quick bet button click triggered", addBetClicked)
+
+        composeTestRule.onNodeWithText("ဘောင်ချာများ ကြည့်ရန်").performClick()
+        assertTrue("Voucher navigation click triggered", betsClicked)
+    }
 }

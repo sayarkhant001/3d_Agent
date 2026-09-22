@@ -1,6 +1,7 @@
 package com.threeDLedger.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -109,10 +110,10 @@ fun CustomersScreen(
 
         else -> {
             Scaffold(
-                containerColor = Color(0xFFF4F6F8),
+                containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     Surface(
-                        color = Color(0xFF2196F3),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -132,25 +133,31 @@ fun CustomersScreen(
                                     Icon(
                                         Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back",
-                                        tint = Color.White,
+                                        tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     "ကော်မရှင်များ",
-                                    color = Color.White,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 19.sp,
                                     modifier = Modifier.weight(1f)
                                 )
-                                Text(
-                                    "အကြိမ် : $currentBatch",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 16.sp,
-                                    modifier = Modifier.padding(end = 16.dp)
-                                )
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.18f),
+                                    modifier = Modifier.padding(end = 14.dp)
+                                ) {
+                                    Text(
+                                        "အကြိမ် : $currentBatch",
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
                             }
 
                             // Embedded White Pill Search Bar
@@ -160,7 +167,7 @@ fun CustomersScreen(
                                     .padding(horizontal = 14.dp, vertical = 2.dp)
                                     .height(44.dp),
                                 shape = RoundedCornerShape(22.dp),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.surface,
                                 shadowElevation = 1.dp
                             ) {
                                 Row(
@@ -172,8 +179,8 @@ fun CustomersScreen(
                                     Icon(
                                         Icons.Default.Search,
                                         contentDescription = "Search",
-                                        tint = Color(0xFF2196F3),
-                                        modifier = Modifier.size(22.dp)
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Box(
@@ -183,7 +190,7 @@ fun CustomersScreen(
                                         if (searchQuery.isEmpty()) {
                                             Text(
                                                 "ကော်မရှင် အမည် ရှာရန်...",
-                                                color = Color(0xFF9E9E9E),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                                                 fontSize = 14.sp
                                             )
                                         }
@@ -192,8 +199,9 @@ fun CustomersScreen(
                                             onValueChange = { searchQuery = it },
                                             singleLine = true,
                                             textStyle = TextStyle(
-                                                color = Color(0xFF212121),
-                                                fontSize = 14.sp
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Medium
                                             ),
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -206,7 +214,7 @@ fun CustomersScreen(
                                             Icon(
                                                 Icons.Default.Clear,
                                                 contentDescription = "Clear",
-                                                tint = Color(0xFF757575),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(18.dp)
                                             )
                                         }
@@ -219,8 +227,8 @@ fun CustomersScreen(
                 floatingActionButton = {
                     FloatingActionButton(
                         onClick = { showAdd = true },
-                        containerColor = Color(0xFFF44336),
-                        contentColor = Color.White,
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
                         shape = CircleShape,
                         modifier = Modifier.size(56.dp)
                     ) {
@@ -236,7 +244,7 @@ fun CustomersScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .background(Color(0xFFF4F6F8))
+                        .background(MaterialTheme.colorScheme.background)
                 ) {
                     val filtered = remember(customers, searchQuery) {
                         customers
@@ -256,7 +264,7 @@ fun CustomersScreen(
                                 Icon(
                                     Icons.Default.PeopleOutline,
                                     null,
-                                    tint = Color(0xFF2196F3).copy(alpha = 0.4f),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
                                     modifier = Modifier.size(56.dp)
                                 )
                                 Spacer(Modifier.height(8.dp))
@@ -272,8 +280,8 @@ fun CustomersScreen(
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(filtered, key = { it.id }) { customer ->
                                 val (total, cut, net) = customerTotals[customer.id]
@@ -305,9 +313,9 @@ fun CustomersScreen(
     }
 }
 
-// ── Two-Tone Distinct Color Customer Card ──────────────────────────────────────────
+// ── Premium App-Harmonized Customer Card ──────────────────────────────────────────
 @Composable
-private fun CustomerCard(
+fun CustomerCard(
     customer     : Customer,
     totalAmount  : Int,
     commCut      : Int,
@@ -319,132 +327,251 @@ private fun CustomerCard(
     onAddBetTap  : () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onBetsTap),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // ── UPPER: Teal (#009788) ────────────────────────────────────────
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // ── TOP HEADER: Avatar + Name + ID/Comm Pills + Action Buttons ──
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF009788))
-                    .clickable(onClick = onEditTap)
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Pale yellow circular avatar with orange person icon
+                // Circular mint avatar with emerald icon
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFEF9CF)),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Person,
                         contentDescription = null,
-                        tint = Color(0xFFFA7505),
-                        modifier = Modifier.size(32.dp)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
 
                 Spacer(Modifier.width(10.dp))
 
-                // Customer ID and Name
+                // Commissioner ID & Name
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "ကော် အိုင်ဒီ : ${customer.id}",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Normal
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "အမည် : ${customer.name}",
-                        color = Color.White,
-                        fontSize = 15.sp,
+                        customer.name,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Spacer(Modifier.height(2.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "ကော် အိုင်ဒီ: ${customer.id}",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        }
+                        if (commPct > 0) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = GoldContainer
+                            ) {
+                                Text(
+                                    "ကော် $commPct%",
+                                    color = GoldDark,
+                                    fontSize = 10.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // Add Bet '+' Icon Button
-                IconButton(
+                // Action 1: "ထိုးမည်" (Quick Bet shortcut)
+                FilledTonalButton(
                     onClick = onAddBetTap,
-                    modifier = Modifier.size(36.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.primary
+                    ),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(2.dp))
+                    Text("ထိုးမည်", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(Modifier.width(4.dp))
+
+                // Action 2: Edit customer
+                IconButton(
+                    onClick = onEditTap,
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        Icons.Default.Add,
-                        contentDescription = "ထိုးမည်",
-                        tint = Color.White,
-                        modifier = Modifier.size(30.dp)
+                        Icons.Default.Edit,
+                        contentDescription = "ပြင်ဆင်မည်",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }
 
-            // ── LOWER: Vibrant Orange (#FE6D00) ──────────────────────────────
-            Column(
+            // ── FINANCIAL METRICS ROW (Structured 3-Col FinTech Grid) ──────────
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFFE6D00))
-                    .clickable(onClick = onBetsTap)
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Row 1: စုပေါင်း, ကော်, နှုတ်ပြီးငွေ
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Column 1: စုစုပေါင်း (Total)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(
-                        "စုပေါင်း = $totalAmount",
-                        color = Color.White,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        "စုစုပေါင်း",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
                     )
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        "ကော် = $commCut",
-                        color = Color.White,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        "နှုတ်ပြီးငွေ = $netAmount",
-                        color = Color.White,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        "%,d Ks".format(totalAmount),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontFamily = FontFamily.Monospace,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Spacer(Modifier.height(6.dp))
-
-                // Row 2: ဘောင်ချာ, ပေးငွေ
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Column 2: ကော်မရှင် (Commission)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        "ဘောင်ချာ = $voucherCount",
-                        color = Color.White,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
+                        "ကော်မရှင်",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "%,d Ks".format(commCut),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = GoldAccent,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                // Column 3: နုတ်ပြီးငွေ (Net Amount)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.End
+                ) {
+                    Text(
+                        "နုတ်ပြီးငွေ",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "%,d Ks".format(netAmount),
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // ── FOOTER ROW: Vouchers & Paid summary + Navigation Cue ───────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left: Voucher count and Paid amount
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Receipt,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        "ပေးငွေ = ${customer.paidAmount.toInt()}",
-                        color = Color.White,
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1
+                        "ဘောင်ချာ : $voucherCount စောင်",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                    if (customer.paidAmount > 0) {
+                        Text("•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outlineVariant)
+                        Text(
+                            "ပေးငွေ : %,d Ks".format(customer.paidAmount.toInt()),
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.secondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                // Right: Clear navigation cue
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        "ဘောင်ချာများ ကြည့်ရန်",
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }

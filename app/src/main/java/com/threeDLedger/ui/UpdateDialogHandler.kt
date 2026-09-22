@@ -212,16 +212,15 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                     ) {
                         Text("📱 Telegram Bot မှ ရယူမည်")
                     }
+                    TextButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { showUpdateDialog = false }
+                    ) {
+                        Text("နောက်မှ")
+                    }
                 }
             },
-            dismissButton = {
-                TextButton(
-                    modifier = Modifier.fillMaxWidth(),
-                    onClick = { showUpdateDialog = false }
-                ) {
-                    Text("နောက်မှ")
-                }
-            }
+            dismissButton = null
         )
     }
 

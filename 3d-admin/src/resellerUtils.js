@@ -107,3 +107,94 @@ export function getTelegramChatUrl(username = '') {
   const clean = formatTelegramUsername(username);
   return clean ? `https://t.me/${clean}` : '';
 }
+
+/**
+ * Computes status counts for a given list of [keyId, keyData] entries.
+ */
+export function computeKeyStats(keysList = []) {
+  const stats = {
+    total: keysList.length,
+    available: 0,
+    claimed: 0,
+    revoked: 0,
+    expired: 0,
+    changeable: 0,
+    locked: 0
+  };
+
+  const now = Date.now();
+  keysList.forEach(([_, k]) => {
+    if (!k) return;
+    const s = String(k.status || '').toLowerCase();
+    if (s === 'revoked' || s === 'banned') {
+      stats.revoked++;
+    } else if (s === 'available') {
+      stats.available++;
+    } else if (s === 'claimed' || s === 'active' || s === 'activated') {
+      stats.claimed++;
+    }
+
+    if (k.expires_at && typeof k.expires_at === 'number' && k.expires_at < now) {
+      stats.expired++;
+    }
+
+    if (k.device_changeable === true) {
+      stats.changeable++;
+    } else {
+      stats.locked++;
+    }
+  });
+
+  return stats;
+}
+
+/**
+ * Partitions key entries into Direct (Admin) keys and per-reseller sections with status breakdown.
+ */
+export function groupKeysByReseller(allResellerList = [], keyEntries = []) {
+  const directKeys = keyEntries.filter(([_, k]) => !k?.generated_by_reseller_id);
+
+  const resellerMap = {};
+  allResellerList.forEach((r) => {
+    const id = String(r.telegram_id);
+    resellerMap[id] = {
+      reseller: r,
+      keys: []
+    };
+  });
+
+  keyEntries.forEach(([keyId, keyData]) => {
+    if (keyData?.generated_by_reseller_id) {
+      const id = String(keyData.generated_by_reseller_id);
+      if (resellerMap[id]) {
+        resellerMap[id].keys.push([keyId, keyData]);
+      } else {
+        resellerMap[id] = {
+          reseller: {
+            telegram_id: id,
+            name: keyData.reseller_name || `Reseller ${id}`,
+            username: keyData.reseller_username || '',
+            total_due: 0,
+            total_commission: 0,
+            total_paid: 0
+          },
+          keys: [[keyId, keyData]]
+        };
+      }
+    }
+  });
+
+  const resellerSections = Object.values(resellerMap).map(({ reseller, keys }) => ({
+    reseller,
+    keys: keys.sort((a, b) => (b[1]?.generated_at || b[1]?.created_at || 0) - (a[1]?.generated_at || a[1]?.created_at || 0)),
+    stats: computeKeyStats(keys)
+  }));
+
+  return {
+    direct: {
+      keys: directKeys.sort((a, b) => (b[1]?.generated_at || b[1]?.created_at || 0) - (a[1]?.generated_at || a[1]?.created_at || 0)),
+      stats: computeKeyStats(directKeys)
+    },
+    resellerSections
+  };
+}

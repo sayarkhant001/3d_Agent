@@ -10,7 +10,9 @@ import {
   computeResellerKeyCounts,
   filterKeysByResellerAndCriteria,
   formatTelegramUsername,
-  getTelegramChatUrl
+  getTelegramChatUrl,
+  computeKeyStats,
+  groupKeysByReseller
 } from './resellerUtils';
 
 const DEFAULT_SALE_PLANS = {
@@ -113,6 +115,14 @@ function App() {
 
   // Reseller separation state: 'all' | 'direct' | telegram_id
   const [selectedResellerId, setSelectedResellerId] = useState('all');
+
+  // View mode for Resellers & Keys: 'sections' (Default: separate sections per reseller) | 'focused' (Single tabbed view)
+  const [resellerViewMode, setResellerViewMode] = useState('sections');
+  // State for collapsed/expanded sections in sections view
+  const [collapsedSections, setCollapsedSections] = useState({});
+  // Per-section filter and search state
+  const [sectionFilters, setSectionFilters] = useState({});
+  const [sectionSearches, setSectionSearches] = useState({});
 
   // Key generation options: Strictly 3 plans (trial_3d, one_year, lifetime), device switching mode on/off for each plan, bulk count
   const [keyType, setKeyType] = useState('one_year');
@@ -726,6 +736,192 @@ function App() {
     });
   }, [keyEntries, keyFilter, keySearch, selectedResellerId, currentSelectedReseller]);
 
+  // Grouped keys and statistics partitioned into distinct reseller sections
+  const groupedResellerData = useMemo(() => {
+    return groupKeysByReseller(allResellerList, keyEntries);
+  }, [allResellerList, keyEntries]);
+
+  const toggleSectionCollapse = (id) => {
+    setCollapsedSections(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const expandAllSections = () => {
+    setCollapsedSections({});
+  };
+
+  const collapseAllSections = () => {
+    const all = { direct: true };
+    allResellerList.forEach(r => { all[String(r.telegram_id)] = true; });
+    setCollapsedSections(all);
+  };
+
+  const setSectionFilter = (sectionId, filter) => {
+    setSectionFilters(prev => ({ ...prev, [sectionId]: filter }));
+  };
+
+  const setSectionSearch = (sectionId, search) => {
+    setSectionSearches(prev => ({ ...prev, [sectionId]: search }));
+  };
+
+  const copyAllAvailableKeys = (keysList, sectionName) => {
+    const avail = keysList.filter(([_, k]) => k?.status === 'available').map(([id]) => id);
+    if (avail.length === 0) {
+      alert(`No available keys found for ${sectionName}`);
+      return;
+    }
+    navigator.clipboard.writeText(avail.join('\n'));
+    alert(`Copied ${avail.length} available keys for ${sectionName} to clipboard!`);
+  };
+
+  const getFilteredSectionKeys = (keysList = [], sectionId) => {
+    const sFilter = sectionFilters[sectionId] || 'all';
+    const sSearch = (sectionSearches[sectionId] || '').toLowerCase().trim();
+
+    return keysList.filter(([keyId, keyData]) => {
+      if (!keyData) return false;
+      if (sFilter === 'available' && keyData.status !== 'available') return false;
+      if (sFilter === 'claimed' && keyData.status !== 'claimed' && keyData.status !== 'active') return false;
+      if (sFilter === 'revoked' && keyData.status !== 'revoked') return false;
+      if (sFilter === 'changeable' && keyData.device_changeable !== true) return false;
+      if (sFilter === 'locked' && keyData.device_changeable === true) return false;
+      if (sFilter === 'expired') {
+        if (!keyData.expires_at || keyData.expires_at >= Date.now()) return false;
+      }
+      if (sFilter === 'trial_3d' && keyData.plan_id !== 'trial_3d' && keyData.duration !== 'trial') return false;
+      if (sFilter === 'one_year' && keyData.plan_id !== 'one_year' && keyData.duration !== 365) return false;
+      if (sFilter === 'lifetime' && keyData.plan_id !== 'lifetime' && keyData.duration !== 'lifetime') return false;
+
+      if (sSearch) {
+        const matchKey = (keyId || '').toLowerCase().includes(sSearch);
+        const matchDevice = (keyData.claimed_by || keyData.device_model || keyData.device_fingerprint || '').toLowerCase().includes(sSearch);
+        const matchPlan = (keyData.plan_id || keyData.duration_label || '').toLowerCase().includes(sSearch);
+        return matchKey || matchDevice || matchPlan;
+      }
+      return true;
+    });
+  };
+
+  const renderKeysTable = (keysList, sectionId, showResellerCol = false) => {
+    if (!keysList || keysList.length === 0) {
+      return (
+        <div className="empty-state" style={{ padding: '24px 16px' }}>
+          <div className="empty-icon">🔐</div>
+          <p>No license keys match the filter criteria in this section.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="table-responsive">
+        <table className="keys-table">
+          <thead>
+            <tr>
+              <th>CD-Key</th>
+              {showResellerCol && <th>Reseller</th>}
+              <th>Plan / Duration</th>
+              <th>Device Mode</th>
+              <th>Status</th>
+              <th>Active Device</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {keysList.map(([keyId, keyData]) => (
+              <tr key={keyId}>
+                <td>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span
+                      className="key-code"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                      title="Click to copy"
+                    >
+                      {keyId}
+                    </span>
+                    <button
+                      type="button"
+                      className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
+                      onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                      title="Copy CD-Key"
+                    >
+                      {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
+                    </button>
+                  </div>
+                </td>
+                {showResellerCol && (
+                  <td>
+                    {keyData.reseller_name || keyData.generated_by_reseller_id ? (
+                      <span
+                        className="status-badge"
+                        style={{
+                          background: 'rgba(99, 102, 241, 0.15)',
+                          color: '#818cf8',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => {
+                          setResellerViewMode('focused');
+                          setSelectedResellerId(String(keyData.generated_by_reseller_id));
+                        }}
+                        title="Filter by this reseller"
+                      >
+                        👤 {keyData.reseller_name || `ID: ${keyData.generated_by_reseller_id}`}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Direct / Admin</span>
+                    )}
+                  </td>
+                )}
+                <td>
+                  <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
+                    {formatDuration(keyData.duration, keyData.plan_id)}
+                  </span>
+                </td>
+                <td>
+                  <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
+                    {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
+                  </span>
+                </td>
+                <td>
+                  <span className={`status-badge ${keyData.status}`}>
+                    {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
+                  </span>
+                </td>
+                <td>
+                  <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
+                    {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
+                    {keyData.previous_device_fingerprint && (
+                      <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
+                        (Migrated)
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {keyData.generated_at || keyData.created_at
+                    ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
+                    : '—'}
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {(keyData.status === 'claimed' || keyData.status === 'active') && (
+                      <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
+                        Revoke
+                      </button>
+                    )}
+                    <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="login-container">
@@ -972,556 +1168,710 @@ function App() {
         {/* ========================================================
             SECTION 1: RESELLERS & KEYS HUB (CORE USER REQUIREMENT)
             ======================================================== */}
+        {/* ========================================================
+            SECTION 1: RESELLERS & KEYS HUB (CORE USER REQUIREMENT)
+            ======================================================== */}
         {activeSection === 'resellers' && (
           <div>
-            {/* Reseller Selector Bar */}
-            <div className="card reseller-picker-container">
-              <div className="card-header reseller-picker-header">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 24 }}>👥</span>
-                  <div>
-                    <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>
-                      Resellers & Key Directory (အရောင်းကိုယ်စားလှယ်နှင့် လိုင်စင်စာရင်း)
-                    </h2>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      Select a reseller to see their specific keys, Telegram username, and due balance
-                    </span>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
-                  <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-                    👤 {allResellerList.length} Resellers
-                  </span>
-                  <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
-                    📌 Total Due: {allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
-                  </span>
-                  <span className="status-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-                    💵 Total Paid: {allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
-                  </span>
-                </div>
+            {/* Top View Mode Bar & Section Controls */}
+            <div className="view-mode-bar">
+              <div className="view-mode-toggles">
+                <button
+                  type="button"
+                  className={`view-mode-btn ${resellerViewMode === 'sections' ? 'active' : ''}`}
+                  onClick={() => setResellerViewMode('sections')}
+                >
+                  <span>📂</span>
+                  <span>Reseller Sections View (ကဏ္ဍခွဲ၍ ကြည့်မည်)</span>
+                </button>
+                <button
+                  type="button"
+                  className={`view-mode-btn ${resellerViewMode === 'focused' ? 'active' : ''}`}
+                  onClick={() => setResellerViewMode('focused')}
+                >
+                  <span>👤</span>
+                  <span>Focus Single Reseller (တစ်ဦးချင်း ရွေးချယ်မည်)</span>
+                </button>
               </div>
 
-              <div className="card-body" style={{ paddingTop: 8 }}>
-                <div className="reseller-picker-tabs">
-                  <button
-                    type="button"
-                    className={`reseller-chip ${selectedResellerId === 'all' ? 'active' : ''}`}
-                    onClick={() => setSelectedResellerId('all')}
-                  >
-                    <span className="reseller-avatar-mini">🌐</span>
-                    <span>All Resellers (Overview)</span>
-                    <span className="tab-badge">{totalKeys}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    className={`reseller-chip ${selectedResellerId === 'direct' ? 'active' : ''}`}
-                    onClick={() => setSelectedResellerId('direct')}
-                  >
-                    <span className="reseller-avatar-mini">🏢</span>
-                    <span>Direct / Admin Keys</span>
-                    <span className="tab-badge">{resellerKeyCounts.direct || 0}</span>
-                  </button>
-
-                  {allResellerList.map((r) => {
-                    const isSel = selectedResellerId === String(r.telegram_id);
-                    const count = resellerKeyCounts[String(r.telegram_id)] || 0;
-                    const due = r.total_due || 0;
-                    return (
-                      <button
-                        key={r.telegram_id}
-                        type="button"
-                        className={`reseller-chip ${isSel ? 'active' : ''}`}
-                        onClick={() => setSelectedResellerId(String(r.telegram_id))}
-                      >
-                        <span className="reseller-avatar-mini">
-                          {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
-                        </span>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
-                          <span style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</span>
-                          {r.username && (
-                            <span style={{ fontSize: 11, color: isSel ? '#7dd3fc' : 'var(--accent-cyan)' }}>
-                              @{r.username.replace('@', '')}
-                            </span>
-                          )}
-                        </div>
-                        <span className="tab-badge">{count}</span>
-                        {due > 0 && (
-                          <span style={{
-                            fontSize: 10,
-                            fontWeight: 700,
-                            background: 'rgba(239, 68, 68, 0.25)',
-                            color: '#f87171',
-                            padding: '2px 6px',
-                            borderRadius: 8,
-                            marginLeft: 2
-                          }}>
-                            {due.toLocaleString()} Ks
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Reseller Details Card (when a specific reseller is selected) */}
-            {currentSelectedReseller && (
-              <div className="reseller-profile-card">
-                <div className="reseller-profile-header">
-                  <div className="reseller-identity">
-                    <div className="reseller-avatar-large">
-                      {currentSelectedReseller.name ? currentSelectedReseller.name.charAt(0).toUpperCase() : '👤'}
-                    </div>
-                    <div>
-                      <div className="reseller-name-row">
-                        <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>
-                          {currentSelectedReseller.name}
-                        </h2>
-                        {currentSelectedReseller.username ? (
-                          <a
-                            href={`https://t.me/${currentSelectedReseller.username.replace('@', '')}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="telegram-user-link"
-                            title="Open chat in Telegram"
-                          >
-                            ✈️ @{currentSelectedReseller.username.replace('@', '')} (Telegram ↗)
-                          </a>
-                        ) : (
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No Telegram @username</span>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap', fontSize: 12 }}>
-                        <span style={{ color: 'var(--text-muted)' }}>Telegram ID:</span>
-                        <code style={{ background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: 6, color: '#818cf8', fontWeight: 700 }}>
-                          {currentSelectedReseller.telegram_id}
-                        </code>
-                        <button
-                          type="button"
-                          className={`copy-btn ${copiedId === `reseller-id-${currentSelectedReseller.telegram_id}` ? 'copied' : ''}`}
-                          onClick={() => copyToClipboard(currentSelectedReseller.telegram_id, `reseller-id-${currentSelectedReseller.telegram_id}`)}
-                          style={{ fontSize: 11 }}
-                        >
-                          {copiedId === `reseller-id-${currentSelectedReseller.telegram_id}` ? '✅ Copied' : '📋 Copy ID'}
-                        </button>
-                        <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
-                        <span style={{ color: 'var(--text-muted)' }}>
-                          📅 Registered: {new Date(currentSelectedReseller.created_at || Date.now()).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8', fontWeight: 700 }}>
+                  👥 {allResellerList.length} Resellers
+                </span>
+                <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', fontWeight: 700 }}>
+                  📌 Due: {allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
+                </span>
+                <span className="status-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontWeight: 700 }}>
+                  💵 Paid: {allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
+                </span>
+                {resellerViewMode === 'sections' && (
+                  <div style={{ display: 'flex', gap: 6, marginLeft: 6 }}>
                     <button
                       type="button"
-                      className="btn btn-warning"
-                      onClick={() => handleOpenSettleModal(currentSelectedReseller)}
-                      style={{ fontWeight: 700, padding: '8px 16px' }}
+                      className="btn btn-outline btn-sm"
+                      onClick={expandAllSections}
+                      style={{ fontSize: 11, padding: '4px 10px' }}
                     >
-                      💳 Clear Due / ရှင်းလင်းမည်
+                      ⏬ Expand All
                     </button>
                     <button
                       type="button"
-                      className="btn btn-outline"
-                      onClick={() => {
-                        setResellerForNewKeys(String(currentSelectedReseller.telegram_id));
-                        setActiveSection('generate');
-                      }}
-                      style={{ padding: '8px 16px' }}
+                      className="btn btn-outline btn-sm"
+                      onClick={collapseAllSections}
+                      style={{ fontSize: 11, padding: '4px 10px' }}
                     >
-                      ➕ Issue Keys for {currentSelectedReseller.name}
+                      ⏫ Collapse All
                     </button>
-                  </div>
-                </div>
-
-                {/* Reseller Performance & Financial Metrics */}
-                <div className="reseller-metrics-grid">
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Total Keys Issued</span>
-                    <span className="reseller-metric-value" style={{ color: '#818cf8' }}>
-                      {currentResellerKeys.length}
-                    </span>
-                  </div>
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Available (မသုံးရသေး)</span>
-                    <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
-                      {currentResellerKeys.filter(([_, k]) => k.status === 'available').length}
-                    </span>
-                  </div>
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Active (သုံးစွဲနေ)</span>
-                    <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
-                      {currentResellerKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
-                    </span>
-                  </div>
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Commission (ရရှိပြီး ကော်)</span>
-                    <span className="reseller-metric-value" style={{ color: '#10b981' }}>
-                      {(currentSelectedReseller.total_commission || 0).toLocaleString()} Ks
-                    </span>
-                  </div>
-                  <div className={`reseller-metric-box ${(currentSelectedReseller.total_due || 0) > 0 ? 'due-alert' : 'clean-settled'}`}>
-                    <span className="reseller-metric-label">Due Balance (ပေးရန်ကျန်ငွေ)</span>
-                    <span className="reseller-metric-value" style={{ color: (currentSelectedReseller.total_due || 0) > 0 ? '#ef4444' : '#10b981' }}>
-                      {(currentSelectedReseller.total_due || 0).toLocaleString()} Ks
-                    </span>
-                  </div>
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Total Paid (ရှင်းပြီးငွေ)</span>
-                    <span className="reseller-metric-value" style={{ color: '#6366f1' }}>
-                      {(currentSelectedReseller.total_paid || 0).toLocaleString()} Ks
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Direct Admin Keys Profile (when 'direct' is selected) */}
-            {selectedResellerId === 'direct' && (
-              <div className="reseller-profile-card">
-                <div className="reseller-profile-header">
-                  <div className="reseller-identity">
-                    <div className="reseller-avatar-large" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)' }}>
-                      🏢
-                    </div>
-                    <div>
-                      <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Direct / System Keys (Admin Generated)</h2>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        Keys created directly by admin with no reseller attribution
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => {
-                      setResellerForNewKeys('');
-                      setActiveSection('generate');
-                    }}
-                  >
-                    ➕ Generate Direct Keys
-                  </button>
-                </div>
-                <div className="reseller-metrics-grid">
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Total Direct Keys</span>
-                    <span className="reseller-metric-value" style={{ color: '#818cf8' }}>{directKeys.length}</span>
-                  </div>
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Available</span>
-                    <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
-                      {directKeys.filter(([_, k]) => k.status === 'available').length}
-                    </span>
-                  </div>
-                  <div className="reseller-metric-box">
-                    <span className="reseller-metric-label">Active / Claimed</span>
-                    <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
-                      {directKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* All Resellers Summary Table (when 'all' is selected) */}
-            {selectedResellerId === 'all' && (
-              <div className="card" style={{ marginBottom: 24, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-                <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
-                  <h2>👥 Resellers Directory (ကိုယ်စားလှယ်များ စာရင်း)</h2>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    Click &quot;View Keys&quot; to inspect only that reseller&apos;s licenses
-                  </span>
-                </div>
-                <div className="card-body" style={{ padding: 0 }}>
-                  {allResellerList.length === 0 ? (
-                    <div className="empty-state">
-                      <div className="empty-icon">👥</div>
-                      <p>No resellers registered yet. Add resellers via Telegram bot or /addreseller command.</p>
-                    </div>
-                  ) : (
-                    <div className="table-responsive">
-                      <table className="keys-table">
-                        <thead>
-                          <tr>
-                            <th>Reseller Name</th>
-                            <th>Telegram Username</th>
-                            <th>Telegram ID</th>
-                            <th>Keys Generated / Active</th>
-                            <th>Commission</th>
-                            <th>Due Balance</th>
-                            <th>Total Paid</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allResellerList.map((r) => {
-                            const due = r.total_due || 0;
-                            const paid = r.total_paid || 0;
-                            const commission = r.total_commission || 0;
-                            const kCount = resellerKeyCounts[String(r.telegram_id)] || 0;
-                            return (
-                              <tr key={r.telegram_id}>
-                                <td>
-                                  <strong>{r.name}</strong>
-                                </td>
-                                <td>
-                                  {r.username ? (
-                                    <a
-                                      href={`https://t.me/${r.username.replace('@', '')}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="telegram-user-link"
-                                    >
-                                      @{r.username.replace('@', '')}
-                                    </a>
-                                  ) : (
-                                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
-                                  )}
-                                </td>
-                                <td>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                    <code>{r.telegram_id}</code>
-                                    <button
-                                      type="button"
-                                      className={`copy-btn ${copiedId === `reseller-${r.telegram_id}` ? 'copied' : ''}`}
-                                      onClick={() => copyToClipboard(r.telegram_id, `reseller-${r.telegram_id}`)}
-                                      title="Copy Telegram ID"
-                                    >
-                                      {copiedId === `reseller-${r.telegram_id}` ? '✅' : '📋'}
-                                    </button>
-                                  </div>
-                                </td>
-                                <td>
-                                  <span style={{ fontSize: 13 }}>
-                                    🔢 {kCount || r.total_generated || 0} ထုတ် / 🟢 {r.total_activated || 0} သုံး
-                                  </span>
-                                </td>
-                                <td>
-                                  <span style={{ color: '#10b981', fontWeight: 600 }}>
-                                    {commission.toLocaleString()} Ks
-                                  </span>
-                                </td>
-                                <td>
-                                  <span
-                                    className="status-badge"
-                                    style={{
-                                      background: due > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
-                                      color: due > 0 ? '#ef4444' : '#10b981',
-                                      fontWeight: 700,
-                                      fontSize: 13
-                                    }}
-                                  >
-                                    {due.toLocaleString()} Ks
-                                  </span>
-                                </td>
-                                <td>
-                                  <span style={{ color: '#6366f1', fontWeight: 600 }}>
-                                    {paid.toLocaleString()} Ks
-                                  </span>
-                                </td>
-                                <td>
-                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-primary"
-                                      onClick={() => setSelectedResellerId(String(r.telegram_id))}
-                                      style={{ padding: '6px 12px', fontSize: 12 }}
-                                    >
-                                      🔍 View Keys ({kCount})
-                                    </button>
-                                    {due > 0 && (
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-warning"
-                                        onClick={() => handleOpenSettleModal(r)}
-                                        style={{ padding: '6px 12px', fontSize: 12 }}
-                                      >
-                                        💳 Settle
-                                      </button>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Keys Table Card */}
-            <div className="card">
-              <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <h2>
-                    🔑 {currentSelectedReseller ? `Keys for ${currentSelectedReseller.name}` : selectedResellerId === 'direct' ? 'Direct Admin Keys' : 'All License Keys'} ({filteredKeys.length} ကုဒ်)
-                  </h2>
-                  <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
-                    <span className="status-badge available">🟢 Available ({filteredKeys.filter(([, v]) => v.status === 'available').length})</span>
-                    <span className="status-badge claimed">🔴 Claimed ({filteredKeys.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length})</span>
-                  </div>
-                </div>
-
-                {/* Filter Tabs & Search */}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    value={keySearch}
-                    onChange={e => setKeySearch(e.target.value)}
-                    placeholder="🔍 Search key or device..."
-                    style={{
-                      padding: '6px 12px',
-                      fontSize: 12,
-                      borderRadius: 6,
-                      border: '1px solid var(--border-color)',
-                      background: 'var(--bg-primary)',
-                      color: 'var(--text-primary)',
-                      width: 180
-                    }}
-                  />
-                  <select
-                    value={keyFilter}
-                    onChange={e => setKeyFilter(e.target.value)}
-                    className="select-input"
-                    style={{ padding: '6px 10px', fontSize: 12, width: 'auto' }}
-                  >
-                    <option value="all">All Keys (အားလုံး)</option>
-                    <option value="available">🟢 Available Only</option>
-                    <option value="claimed">🔴 Claimed/Active Only</option>
-                    <option value="changeable">🔄 Device Changeable Only</option>
-                    <option value="locked">🔒 1-Device Only</option>
-                    <option value="trial_3d">⏱️ 3-Day Trial Only</option>
-                    <option value="one_year">⭐ 1-Year Only</option>
-                    <option value="lifetime">💎 Lifetime Only</option>
-                    <option value="revoked">⚪ Revoked Only</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="card-body" style={{ padding: 0 }}>
-                {filteredKeys.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-icon">🔐</div>
-                    <p>
-                      {currentSelectedReseller
-                        ? `No license keys match for ${currentSelectedReseller.name}.`
-                        : 'No license keys match your filter criteria.'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="table-responsive">
-                    <table className="keys-table">
-                      <thead>
-                        <tr>
-                          <th>CD-Key</th>
-                          {selectedResellerId === 'all' && <th>Reseller</th>}
-                          <th>Plan / Duration</th>
-                          <th>Device Mode</th>
-                          <th>Status</th>
-                          <th>Active Device</th>
-                          <th>Date</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredKeys.map(([keyId, keyData]) => (
-                          <tr key={keyId}>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span
-                                  className="key-code"
-                                  style={{ cursor: 'pointer' }}
-                                  onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
-                                  title="Click to copy"
-                                >
-                                  {keyId}
-                                </span>
-                                <button
-                                  type="button"
-                                  className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
-                                  onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
-                                  title="Copy CD-Key"
-                                >
-                                  {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
-                                </button>
-                              </div>
-                            </td>
-                            {selectedResellerId === 'all' && (
-                              <td>
-                                {keyData.reseller_name || keyData.generated_by_reseller_id ? (
-                                  <span
-                                    className="status-badge"
-                                    style={{
-                                      background: 'rgba(99, 102, 241, 0.15)',
-                                      color: '#818cf8',
-                                      cursor: 'pointer'
-                                    }}
-                                    onClick={() => setSelectedResellerId(String(keyData.generated_by_reseller_id))}
-                                    title="Filter by this reseller"
-                                  >
-                                    👤 {keyData.reseller_name || `ID: ${keyData.generated_by_reseller_id}`}
-                                  </span>
-                                ) : (
-                                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Direct / Admin</span>
-                                )}
-                              </td>
-                            )}
-                            <td>
-                              <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
-                                {formatDuration(keyData.duration, keyData.plan_id)}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
-                                {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`status-badge ${keyData.status}`}>
-                                {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
-                                {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
-                                {keyData.previous_device_fingerprint && (
-                                  <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
-                                    (Migrated)
-                                  </span>
-                                )}
-                              </span>
-                            </td>
-                            <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                              {keyData.generated_at || keyData.created_at
-                                ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
-                                : '—'}
-                            </td>
-                            <td>
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                {(keyData.status === 'claimed' || keyData.status === 'active') && (
-                                  <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
-                                    Revoke
-                                  </button>
-                                )}
-                                <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
                   </div>
                 )}
               </div>
             </div>
+
+            {/* MODE A: DEDICATED PER-RESELLER SECTIONS (PRIMARY VIEW) */}
+            {resellerViewMode === 'sections' && (
+              <div className="reseller-sections-container">
+                {/* 1. Direct Admin Keys Section */}
+                <div className="reseller-section-card">
+                  <div
+                    className="reseller-section-header"
+                    onClick={() => toggleSectionCollapse('direct')}
+                  >
+                    <div className="reseller-section-title-wrap">
+                      <div className="reseller-section-avatar direct">🏢</div>
+                      <div>
+                        <div className="reseller-section-name">
+                          Direct / System Keys (Admin Generated)
+                        </div>
+                        <div className="reseller-section-meta">
+                          <span>Admin တိုက်ရိုက်ထုတ်ထားသော ကုတ်များ (ကိုယ်စားလှယ် မဟုတ်ပါ)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="reseller-section-badges-strip">
+                      <span className="status-chip total">🔢 {groupedResellerData.direct.stats.total} Keys</span>
+                      <span className="status-chip available">🟢 {groupedResellerData.direct.stats.available} Available</span>
+                      <span className="status-chip active">🔴 {groupedResellerData.direct.stats.claimed} Active</span>
+                      {groupedResellerData.direct.stats.expired > 0 && (
+                        <span className="status-chip expired">⏰ {groupedResellerData.direct.stats.expired} Expired</span>
+                      )}
+                      {groupedResellerData.direct.stats.revoked > 0 && (
+                        <span className="status-chip revoked">⚪ {groupedResellerData.direct.stats.revoked} Revoked</span>
+                      )}
+                      <button
+                        type="button"
+                        className="collapse-arrow-btn"
+                        onClick={(e) => { e.stopPropagation(); toggleSectionCollapse('direct'); }}
+                      >
+                        {collapsedSections['direct'] ? '▶' : '▼'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {!collapsedSections['direct'] && (
+                    <div className="reseller-section-body">
+                      {/* Direct Keys Status Metrics Bar */}
+                      <div className="section-metrics-bar">
+                        <div className="reseller-metric-box">
+                          <span className="reseller-metric-label">Total Keys</span>
+                          <span className="reseller-metric-value" style={{ color: '#818cf8' }}>
+                            {groupedResellerData.direct.stats.total}
+                          </span>
+                        </div>
+                        <div className="reseller-metric-box">
+                          <span className="reseller-metric-label">Available (မသုံးရသေး)</span>
+                          <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
+                            {groupedResellerData.direct.stats.available}
+                          </span>
+                        </div>
+                        <div className="reseller-metric-box">
+                          <span className="reseller-metric-label">Active (သုံးစွဲနေ)</span>
+                          <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
+                            {groupedResellerData.direct.stats.claimed}
+                          </span>
+                        </div>
+                        <div className="reseller-metric-box">
+                          <span className="reseller-metric-label">Expired (သက်တမ်းကုန်)</span>
+                          <span className="reseller-metric-value" style={{ color: '#f59e0b' }}>
+                            {groupedResellerData.direct.stats.expired}
+                          </span>
+                        </div>
+                        <div className="reseller-metric-box">
+                          <span className="reseller-metric-label">Revoked (ပိတ်သိမ်း)</span>
+                          <span className="reseller-metric-value" style={{ color: '#94a3b8' }}>
+                            {groupedResellerData.direct.stats.revoked}
+                          </span>
+                        </div>
+                        <div className="reseller-metric-box">
+                          <span className="reseller-metric-label">Device Mode</span>
+                          <span className="reseller-metric-value" style={{ fontSize: 13, color: '#38bdf8' }}>
+                            🔄 {groupedResellerData.direct.stats.changeable} / 🔒 {groupedResellerData.direct.stats.locked}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Direct Controls Row */}
+                      <div className="section-controls-row">
+                        <div className="filter-pills">
+                          {['all', 'available', 'claimed', 'expired', 'revoked'].map((f) => (
+                            <button
+                              key={f}
+                              type="button"
+                              className={`filter-pill-btn ${(sectionFilters['direct'] || 'all') === f ? 'active' : ''}`}
+                              onClick={() => setSectionFilter('direct', f)}
+                            >
+                              {f === 'all' && `All (${groupedResellerData.direct.stats.total})`}
+                              {f === 'available' && `🟢 Available (${groupedResellerData.direct.stats.available})`}
+                              {f === 'claimed' && `🔴 Active (${groupedResellerData.direct.stats.claimed})`}
+                              {f === 'expired' && `⏰ Expired (${groupedResellerData.direct.stats.expired})`}
+                              {f === 'revoked' && `⚪ Revoked (${groupedResellerData.direct.stats.revoked})`}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            placeholder="🔍 Search direct keys..."
+                            value={sectionSearches['direct'] || ''}
+                            onChange={(e) => setSectionSearch('direct', e.target.value)}
+                            style={{
+                              padding: '5px 10px',
+                              fontSize: 12,
+                              borderRadius: 6,
+                              border: '1px solid var(--border-color)',
+                              background: 'var(--bg-primary)',
+                              color: 'var(--text-primary)',
+                              width: 170
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm"
+                            onClick={() => copyAllAvailableKeys(groupedResellerData.direct.keys, 'Direct Keys')}
+                            style={{ fontSize: 11.5 }}
+                          >
+                            📋 Copy Available ({groupedResellerData.direct.stats.available})
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                              setResellerForNewKeys('');
+                              setActiveSection('generate');
+                            }}
+                            style={{ fontSize: 11.5 }}
+                          >
+                            ➕ Generate Direct Keys
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Direct Keys Table */}
+                      <div className="section-table-wrapper">
+                        {renderKeysTable(getFilteredSectionKeys(groupedResellerData.direct.keys, 'direct'), 'direct', false)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Reseller Sections (One Independent Section Per Reseller) */}
+                {groupedResellerData.resellerSections.map(({ reseller, keys, stats }) => {
+                  const rId = String(reseller.telegram_id);
+                  const isCollapsed = Boolean(collapsedSections[rId]);
+                  const due = reseller.total_due || 0;
+                  const paid = reseller.total_paid || 0;
+                  const commission = reseller.total_commission || 0;
+
+                  return (
+                    <div key={rId} className="reseller-section-card">
+                      <div
+                        className="reseller-section-header"
+                        onClick={() => toggleSectionCollapse(rId)}
+                      >
+                        <div className="reseller-section-title-wrap">
+                          <div className="reseller-section-avatar">
+                            {reseller.name ? reseller.name.charAt(0).toUpperCase() : 'R'}
+                          </div>
+                          <div>
+                            <div className="reseller-name-row">
+                              <span className="reseller-section-name">{reseller.name}</span>
+                              {reseller.username ? (
+                                <a
+                                  href={`https://t.me/${reseller.username.replace('@', '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="telegram-user-link"
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="Open chat in Telegram"
+                                >
+                                  ✈️ @{reseller.username.replace('@', '')} (Telegram ↗)
+                                </a>
+                              ) : (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No Telegram username</span>
+                              )}
+                            </div>
+                            <div className="reseller-section-meta">
+                              <span>Telegram ID:</span>
+                              <code style={{ background: 'var(--bg-primary)', padding: '1px 6px', borderRadius: 4, color: '#818cf8', fontWeight: 700 }}>
+                                {rId}
+                              </code>
+                              <button
+                                type="button"
+                                className={`copy-btn ${copiedId === `rid-${rId}` ? 'copied' : ''}`}
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(rId, `rid-${rId}`); }}
+                                style={{ fontSize: 10, padding: '1px 5px' }}
+                              >
+                                {copiedId === `rid-${rId}` ? '✅' : '📋'}
+                              </button>
+                              <span>&bull;</span>
+                              <span>📅 Joined: {new Date(reseller.created_at || Date.now()).toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="reseller-section-badges-strip">
+                          {/* Financial Badges */}
+                          {due > 0 ? (
+                            <span className="status-chip due">
+                              📌 Due: {due.toLocaleString()} Ks
+                            </span>
+                          ) : (
+                            <span className="status-chip paid">
+                              ✅ Settled (Clean)
+                            </span>
+                          )}
+                          <span className="status-chip total">🔢 {stats.total} Keys</span>
+                          <span className="status-chip available">🟢 {stats.available} Available</span>
+                          <span className="status-chip active">🔴 {stats.claimed} Active</span>
+                          {stats.expired > 0 && (
+                            <span className="status-chip expired">⏰ {stats.expired} Expired</span>
+                          )}
+                          {stats.revoked > 0 && (
+                            <span className="status-chip revoked">⚪ {stats.revoked} Revoked</span>
+                          )}
+
+                          {due > 0 && (
+                            <button
+                              type="button"
+                              className="btn btn-warning btn-sm"
+                              onClick={(e) => { e.stopPropagation(); handleOpenSettleModal(reseller); }}
+                              style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700 }}
+                            >
+                              💳 Clear Due
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className="collapse-arrow-btn"
+                            onClick={(e) => { e.stopPropagation(); toggleSectionCollapse(rId); }}
+                          >
+                            {isCollapsed ? '▶' : '▼'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {!isCollapsed && (
+                        <div className="reseller-section-body">
+                          {/* Status & Financial Metrics Grid */}
+                          <div className="section-metrics-bar">
+                            <div className="reseller-metric-box">
+                              <span className="reseller-metric-label">Total Issued</span>
+                              <span className="reseller-metric-value" style={{ color: '#818cf8' }}>{stats.total}</span>
+                            </div>
+                            <div className="reseller-metric-box">
+                              <span className="reseller-metric-label">Available (မသုံးရသေး)</span>
+                              <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>{stats.available}</span>
+                            </div>
+                            <div className="reseller-metric-box">
+                              <span className="reseller-metric-label">Active (သုံးစွဲနေ)</span>
+                              <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>{stats.claimed}</span>
+                            </div>
+                            <div className="reseller-metric-box">
+                              <span className="reseller-metric-label">Commission (ရရှိပြီး)</span>
+                              <span className="reseller-metric-value" style={{ color: '#10b981' }}>{commission.toLocaleString()} Ks</span>
+                            </div>
+                            <div className={`reseller-metric-box ${due > 0 ? 'due-alert' : 'clean-settled'}`}>
+                              <span className="reseller-metric-label">Due (ပေးရန်ကျန်ငွေ)</span>
+                              <span className="reseller-metric-value" style={{ color: due > 0 ? '#ef4444' : '#10b981' }}>
+                                {due.toLocaleString()} Ks
+                              </span>
+                            </div>
+                            <div className="reseller-metric-box">
+                              <span className="reseller-metric-label">Paid (ရှင်းပြီးငွေ)</span>
+                              <span className="reseller-metric-value" style={{ color: '#6366f1' }}>{paid.toLocaleString()} Ks</span>
+                            </div>
+                          </div>
+
+                          {/* Controls Row */}
+                          <div className="section-controls-row">
+                            <div className="filter-pills">
+                              {['all', 'available', 'claimed', 'expired', 'revoked'].map((f) => (
+                                <button
+                                  key={f}
+                                  type="button"
+                                  className={`filter-pill-btn ${(sectionFilters[rId] || 'all') === f ? 'active' : ''}`}
+                                  onClick={() => setSectionFilter(rId, f)}
+                                >
+                                  {f === 'all' && `All (${stats.total})`}
+                                  {f === 'available' && `🟢 Available (${stats.available})`}
+                                  {f === 'claimed' && `🔴 Active (${stats.claimed})`}
+                                  {f === 'expired' && `⏰ Expired (${stats.expired})`}
+                                  {f === 'revoked' && `⚪ Revoked (${stats.revoked})`}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <input
+                                type="text"
+                                placeholder={`🔍 Search ${reseller.name} keys...`}
+                                value={sectionSearches[rId] || ''}
+                                onChange={(e) => setSectionSearch(rId, e.target.value)}
+                                style={{
+                                  padding: '5px 10px',
+                                  fontSize: 12,
+                                  borderRadius: 6,
+                                  border: '1px solid var(--border-color)',
+                                  background: 'var(--bg-primary)',
+                                  color: 'var(--text-primary)',
+                                  width: 170
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="btn btn-outline btn-sm"
+                                onClick={() => copyAllAvailableKeys(keys, reseller.name)}
+                                style={{ fontSize: 11.5 }}
+                              >
+                                📋 Copy Available ({stats.available})
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                onClick={() => {
+                                  setResellerForNewKeys(rId);
+                                  setActiveSection('generate');
+                                }}
+                                style={{ fontSize: 11.5 }}
+                              >
+                                ➕ Issue Keys for {reseller.name}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Dedicated Keys Table */}
+                          <div className="section-table-wrapper">
+                            {renderKeysTable(getFilteredSectionKeys(keys, rId), rId, false)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* MODE B: FOCUS SINGLE RESELLER (TABBED VIEW) */}
+            {resellerViewMode === 'focused' && (
+              <div>
+                {/* Reseller Selector Bar */}
+                <div className="card reseller-picker-container" style={{ marginBottom: 20 }}>
+                  <div className="card-header reseller-picker-header">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 24 }}>👥</span>
+                      <div>
+                        <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>
+                          Select Reseller to Focus (တစ်ဦးချင်း ရွေးချယ် စစ်ဆေးရန်)
+                        </h2>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          Click a reseller tab below to view only their specific dashboard and keys
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card-body" style={{ paddingTop: 8 }}>
+                    <div className="reseller-picker-tabs">
+                      <button
+                        type="button"
+                        className={`reseller-chip ${selectedResellerId === 'all' ? 'active' : ''}`}
+                        onClick={() => setSelectedResellerId('all')}
+                      >
+                        <span className="reseller-avatar-mini">🌐</span>
+                        <span>All Resellers (Overview)</span>
+                        <span className="tab-badge">{totalKeys}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        className={`reseller-chip ${selectedResellerId === 'direct' ? 'active' : ''}`}
+                        onClick={() => setSelectedResellerId('direct')}
+                      >
+                        <span className="reseller-avatar-mini">🏢</span>
+                        <span>Direct / Admin Keys</span>
+                        <span className="tab-badge">{resellerKeyCounts.direct || 0}</span>
+                      </button>
+
+                      {allResellerList.map((r) => {
+                        const isSel = selectedResellerId === String(r.telegram_id);
+                        const count = resellerKeyCounts[String(r.telegram_id)] || 0;
+                        const due = r.total_due || 0;
+                        return (
+                          <button
+                            key={r.telegram_id}
+                            type="button"
+                            className={`reseller-chip ${isSel ? 'active' : ''}`}
+                            onClick={() => setSelectedResellerId(String(r.telegram_id))}
+                          >
+                            <span className="reseller-avatar-mini">
+                              {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
+                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+                              <span style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</span>
+                              {r.username && (
+                                <span style={{ fontSize: 11, color: isSel ? '#7dd3fc' : 'var(--accent-cyan)' }}>
+                                  @{r.username.replace('@', '')}
+                                </span>
+                              )}
+                            </div>
+                            <span className="tab-badge">{count}</span>
+                            {due > 0 && (
+                              <span style={{
+                                fontSize: 10,
+                                fontWeight: 700,
+                                background: 'rgba(239, 68, 68, 0.25)',
+                                color: '#f87171',
+                                padding: '2px 6px',
+                                borderRadius: 8,
+                                marginLeft: 2
+                              }}>
+                                {due.toLocaleString()} Ks
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reseller Details Card (when a specific reseller is selected) */}
+                {currentSelectedReseller && (
+                  <div className="reseller-profile-card">
+                    <div className="reseller-profile-header">
+                      <div className="reseller-identity">
+                        <div className="reseller-avatar-large">
+                          {currentSelectedReseller.name ? currentSelectedReseller.name.charAt(0).toUpperCase() : '👤'}
+                        </div>
+                        <div>
+                          <div className="reseller-name-row">
+                            <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>
+                              {currentSelectedReseller.name}
+                            </h2>
+                            {currentSelectedReseller.username ? (
+                              <a
+                                href={`https://t.me/${currentSelectedReseller.username.replace('@', '')}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="telegram-user-link"
+                                title="Open chat in Telegram"
+                              >
+                                ✈️ @{currentSelectedReseller.username.replace('@', '')} (Telegram ↗)
+                              </a>
+                            ) : (
+                              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No Telegram @username</span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap', fontSize: 12 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>Telegram ID:</span>
+                            <code style={{ background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: 6, color: '#818cf8', fontWeight: 700 }}>
+                              {currentSelectedReseller.telegram_id}
+                            </code>
+                            <button
+                              type="button"
+                              className={`copy-btn ${copiedId === `reseller-id-${currentSelectedReseller.telegram_id}` ? 'copied' : ''}`}
+                              onClick={() => copyToClipboard(currentSelectedReseller.telegram_id, `reseller-id-${currentSelectedReseller.telegram_id}`)}
+                              style={{ fontSize: 11 }}
+                            >
+                              {copiedId === `reseller-id-${currentSelectedReseller.telegram_id}` ? '✅ Copied' : '📋 Copy ID'}
+                            </button>
+                            <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
+                            <span style={{ color: 'var(--text-muted)' }}>
+                              📅 Registered: {new Date(currentSelectedReseller.created_at || Date.now()).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn btn-warning"
+                          onClick={() => handleOpenSettleModal(currentSelectedReseller)}
+                          style={{ fontWeight: 700, padding: '8px 16px' }}
+                        >
+                          💳 Clear Due / ရှင်းလင်းမည်
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={() => {
+                            setResellerForNewKeys(String(currentSelectedReseller.telegram_id));
+                            setActiveSection('generate');
+                          }}
+                          style={{ padding: '8px 16px' }}
+                        >
+                          ➕ Issue Keys for {currentSelectedReseller.name}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Reseller Performance & Financial Metrics */}
+                    <div className="reseller-metrics-grid">
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Total Keys Issued</span>
+                        <span className="reseller-metric-value" style={{ color: '#818cf8' }}>
+                          {currentResellerKeys.length}
+                        </span>
+                      </div>
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Available (မသုံးရသေး)</span>
+                        <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
+                          {currentResellerKeys.filter(([_, k]) => k.status === 'available').length}
+                        </span>
+                      </div>
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Active (သုံးစွဲနေ)</span>
+                        <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
+                          {currentResellerKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
+                        </span>
+                      </div>
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Commission (ရရှိပြီး ကော်)</span>
+                        <span className="reseller-metric-value" style={{ color: '#10b981' }}>
+                          {(currentSelectedReseller.total_commission || 0).toLocaleString()} Ks
+                        </span>
+                      </div>
+                      <div className={`reseller-metric-box ${(currentSelectedReseller.total_due || 0) > 0 ? 'due-alert' : 'clean-settled'}`}>
+                        <span className="reseller-metric-label">Due Balance (ပေးရန်ကျန်ငွေ)</span>
+                        <span className="reseller-metric-value" style={{ color: (currentSelectedReseller.total_due || 0) > 0 ? '#ef4444' : '#10b981' }}>
+                          {(currentSelectedReseller.total_due || 0).toLocaleString()} Ks
+                        </span>
+                      </div>
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Total Paid (ရှင်းပြီးငွေ)</span>
+                        <span className="reseller-metric-value" style={{ color: '#6366f1' }}>
+                          {(currentSelectedReseller.total_paid || 0).toLocaleString()} Ks
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Direct Admin Keys Profile (when 'direct' is selected) */}
+                {selectedResellerId === 'direct' && (
+                  <div className="reseller-profile-card">
+                    <div className="reseller-profile-header">
+                      <div className="reseller-identity">
+                        <div className="reseller-avatar-large" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)' }}>
+                          🏢
+                        </div>
+                        <div>
+                          <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Direct / System Keys (Admin Generated)</h2>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            Keys created directly by admin with no reseller attribution
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          setResellerForNewKeys('');
+                          setActiveSection('generate');
+                        }}
+                      >
+                        ➕ Generate Direct Keys
+                      </button>
+                    </div>
+                    <div className="reseller-metrics-grid">
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Total Direct Keys</span>
+                        <span className="reseller-metric-value" style={{ color: '#818cf8' }}>{directKeys.length}</span>
+                      </div>
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Available</span>
+                        <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
+                          {directKeys.filter(([_, k]) => k.status === 'available').length}
+                        </span>
+                      </div>
+                      <div className="reseller-metric-box">
+                        <span className="reseller-metric-label">Active / Claimed</span>
+                        <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
+                          {directKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Focused Keys Table Card */}
+                <div className="card">
+                  <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <h2>
+                        🔑 {currentSelectedReseller ? `Keys for ${currentSelectedReseller.name}` : selectedResellerId === 'direct' ? 'Direct Admin Keys' : 'All License Keys'} ({filteredKeys.length} ကုဒ်)
+                      </h2>
+                      <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                        <span className="status-badge available">🟢 Available ({filteredKeys.filter(([, v]) => v.status === 'available').length})</span>
+                        <span className="status-badge claimed">🔴 Claimed ({filteredKeys.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length})</span>
+                      </div>
+                    </div>
+
+                    {/* Filter Tabs & Search */}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        value={keySearch}
+                        onChange={e => setKeySearch(e.target.value)}
+                        placeholder="🔍 Search key or device..."
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: 12,
+                          borderRadius: 6,
+                          border: '1px solid var(--border-color)',
+                          background: 'var(--bg-primary)',
+                          color: 'var(--text-primary)',
+                          width: 180
+                        }}
+                      />
+                      <select
+                        value={keyFilter}
+                        onChange={e => setKeyFilter(e.target.value)}
+                        className="select-input"
+                        style={{ padding: '6px 10px', fontSize: 12, width: 'auto' }}
+                      >
+                        <option value="all">All Keys (အားလုံး)</option>
+                        <option value="available">🟢 Available Only</option>
+                        <option value="claimed">🔴 Claimed/Active Only</option>
+                        <option value="changeable">🔄 Device Changeable Only</option>
+                        <option value="locked">🔒 1-Device Only</option>
+                        <option value="trial_3d">⏱️ 3-Day Trial Only</option>
+                        <option value="one_year">⭐ 1-Year Only</option>
+                        <option value="lifetime">💎 Lifetime Only</option>
+                        <option value="revoked">⚪ Revoked Only</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="card-body" style={{ padding: 0 }}>
+                    {renderKeysTable(filteredKeys, 'focused', selectedResellerId === 'all')}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

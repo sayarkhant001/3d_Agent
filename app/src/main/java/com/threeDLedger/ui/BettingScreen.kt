@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.ElectricBolt
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -1615,6 +1616,7 @@ fun BettingScreen(
             shadowElevation = 2.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
         ) {
+            val actionBarHeight = if (rDimens.isCompact) 42.dp else 46.dp
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1626,7 +1628,7 @@ fun BettingScreen(
                 Surface(
                     modifier = Modifier
                         .weight(1f, fill = false)
-                        .height(36.dp),
+                        .height(actionBarHeight),
                     shape = RoundedCornerShape(9.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
@@ -1641,7 +1643,8 @@ fun BettingScreen(
                         Text(
                             "${pendingBets.size} ကွက်",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 11.sp,
+                            fontSize = if (rDimens.isCompact) 11.sp else 11.5.sp,
+                            lineHeight = 13.sp,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             softWrap = false
@@ -1656,6 +1659,7 @@ fun BettingScreen(
                             "= %,d Ks".format(totalAmount),
                             fontWeight = FontWeight.Black,
                             fontSize = amountFontSize,
+                            lineHeight = 15.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontFamily = FontFamily.Monospace,
                             maxLines = 1,
@@ -1666,7 +1670,7 @@ fun BettingScreen(
 
                 Spacer(Modifier.width(5.dp))
 
-                // Right: Quick Bet (အမြန်ထိုး), Keypad Toggle (⌨️), & ထိုးမည်
+                // Right: Quick Bet (အမြန်ထိုး), Keypad Toggle (ကီးပက်/ဝှက်), & ထိုးမည်
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1683,7 +1687,7 @@ fun BettingScreen(
                             horizontal = if (rDimens.isCompact) 7.dp else 9.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(36.dp)
+                        modifier = Modifier.height(actionBarHeight)
                     ) {
                         Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(2.dp))
@@ -1711,10 +1715,16 @@ fun BettingScreen(
                             containerColor = if (showManualKeypad) primaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = if (showManualKeypad) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant
                         ),
-                        modifier = Modifier.height(36.dp)
+                        modifier = Modifier.height(actionBarHeight)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Keyboard,
+                            contentDescription = null,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(Modifier.width(3.dp))
                         Text(
-                            if (showManualKeypad) "⌨️ ဝှက်" else "⌨️ ကီးပက်",
+                            if (showManualKeypad) "ဝှက်" else "ကီးပက်",
                             fontSize = if (rDimens.isCompact) 10.5.sp else 11.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -1737,7 +1747,7 @@ fun BettingScreen(
                             horizontal = if (rDimens.isCompact) 9.dp else 12.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(36.dp)
+                        modifier = Modifier.height(actionBarHeight)
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(3.dp))
@@ -2070,6 +2080,7 @@ fun BettingScreen(
                         ) { submit() }
                     }
                 }
+                Spacer(modifier = Modifier.height(4.dp))
             }
         } else {
             Spacer(modifier = Modifier.height(4.dp).navigationBarsPadding())
@@ -2095,11 +2106,12 @@ fun TactileKeypadButton(
 
     val offsetY = if (isPressed) 1.5.dp else 0.dp
     val elevation = if (isPressed) 1.dp else 2.dp
+    val rDimens = rememberResponsiveDimens()
+    val buttonHeight = if (rDimens.isCompact) 42.dp else 46.dp
 
     Box(
         modifier = modifier
-            .defaultMinSize(minHeight = 32.dp)
-            .fillMaxHeight()
+            .height(buttonHeight)
             .padding(horizontal = 1.dp, vertical = 0.5.dp)
             .offset(y = offsetY)
             .shadow(elevation, RoundedCornerShape(8.dp))

@@ -5,7 +5,7 @@ import {
 	SELF,
 } from "cloudflare:test";
 import { describe, it, expect } from "vitest";
-import worker, { calculateNextThaiDrawDate } from "../src/index";
+import worker, { calculateNextThaiDrawDate, getLocalDrawDateInfo } from "../src/index";
 import {
 	calculateTutNumbers,
 	generateCdKey,
@@ -997,6 +997,14 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 		expect(res2.status).toBe(200);
 		const data2 = await res2.json() as any;
 		expect(data2.status).toBe("none");
+	});
+
+	it("verifies getLocalDrawDateInfo computes valid MMT date and draw day flags", () => {
+		const info = getLocalDrawDateInfo();
+		expect(info.dateStr).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(info.day).toBeGreaterThanOrEqual(1);
+		expect(info.day).toBeLessThanOrEqual(31);
+		expect(info.isStandardDrawDay).toBe(info.day === 1 || info.day === 16);
 	});
 });
 

@@ -5,7 +5,9 @@ import {
   computeResellerKeyCounts,
   filterKeysByResellerAndCriteria,
   formatTelegramUsername,
-  getTelegramChatUrl
+  getTelegramChatUrl,
+  computeKeyStats,
+  groupKeysByReseller
 } from '../src/resellerUtils.js';
 
 describe('Reseller Separation & License Key Filtering', () => {
@@ -138,5 +140,35 @@ describe('Reseller Separation & License Key Filtering', () => {
     assert.equal(getTelegramChatUrl('@koaung3d'), 'https://t.me/koaung3d');
     assert.equal(getTelegramChatUrl('dawmya_agent'), 'https://t.me/dawmya_agent');
     assert.equal(getTelegramChatUrl(''), '');
+  });
+
+  test('computeKeyStats accurately breaks down key statuses', () => {
+    const stats = computeKeyStats(mockKeys);
+    assert.equal(stats.total, 4);
+    assert.equal(stats.available, 3);
+    assert.equal(stats.claimed, 1);
+    assert.equal(stats.revoked, 0);
+  });
+
+  test('groupKeysByReseller separates direct keys and individual reseller sections', () => {
+    const resellerList = buildResellerList(mockResellers, mockKeys);
+    const grouped = groupKeysByReseller(resellerList, mockKeys);
+
+    assert.equal(grouped.direct.keys.length, 1);
+    assert.equal(grouped.direct.keys[0][0], 'KEY-ADMIN-01');
+    assert.equal(grouped.direct.stats.available, 1);
+
+    assert.equal(grouped.resellerSections.length, 2);
+    const aungSection = grouped.resellerSections.find(s => s.reseller.telegram_id === '11111');
+    assert.ok(aungSection);
+    assert.equal(aungSection.keys.length, 2);
+    assert.equal(aungSection.stats.total, 2);
+    assert.equal(aungSection.stats.available, 1);
+    assert.equal(aungSection.stats.claimed, 1);
+
+    const myaSection = grouped.resellerSections.find(s => s.reseller.telegram_id === '22222');
+    assert.ok(myaSection);
+    assert.equal(myaSection.keys.length, 1);
+    assert.equal(myaSection.stats.available, 1);
   });
 });

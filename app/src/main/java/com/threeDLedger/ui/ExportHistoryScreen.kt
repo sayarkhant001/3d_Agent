@@ -1,5 +1,7 @@
 package com.threeDLedger.ui
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -12,27 +14,32 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Print
-import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.ExportRecordWithNumbers
+import com.threeDLedger.logic.NumberGenerator
+import com.threeDLedger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -47,9 +54,17 @@ fun ExportHistoryScreen(
     BackHandler(onBack = onNavigateBack)
 
     val exportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
+    val allCustomers by viewModel.customers.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+
+    val meCustomer = remember(allCustomers) {
+        allCustomers.firstOrNull {
+            it.name.contains("မိမိ") || it.name.contains("ကိုယ်တိုင်") || it.name.equals("me", ignoreCase = true)
+        } ?: allCustomers.firstOrNull()
+    }
+    val defaultCommRate = meCustomer?.commissionRate ?: 0.15
 
     val batches = remember(exportRecords) {
         exportRecords.map { it.record.batchNumber }.distinct().sortedDescending()
@@ -67,6 +82,13 @@ fun ExportHistoryScreen(
     val totalNumbers = remember(displayedRecords) {
         displayedRecords.sumOf { it.numbers.size }
     }
+
+    val activeBatch = selectedBatchFilter ?: batches.firstOrNull() ?: viewModel.currentBatch.value
+    val activeBatchWinningNumber = remember(activeBatch, viewModel) {
+        viewModel.getWinningNumberForBatch(activeBatch)
+    }
+    val isWinningDeclared = activeBatchWinningNumber.length == 3
+    var showUpperSettlementDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -86,7 +108,20 @@ fun ExportHistoryScreen(
                     totalAmount = totalAmount,
                     totalVouchers = totalVouchers,
                     totalNumbers = totalNumbers,
-                    selectedBatch = selectedBatchFilter
+                    selectedBatch = selectedBatchFilter,
+                    isWinningDeclared = isWinningDeclared,
+                    onTapTotal = {
+                        val currentWin = viewModel.getWinningNumberForBatch(activeBatch)
+                        if (currentWin.length != 3) {
+                            Toast.makeText(
+                                context,
+                                "ပေါက်ဂဏန်း မကြေညာရသေးပါ (ရှင်းတမ်း ကြည့်၍ မရသေးပါ)",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            showUpperSettlementDialog = true
+                        }
+                    }
                 )
             }
         }
@@ -169,6 +204,23 @@ fun ExportHistoryScreen(
             }
         }
     }
+
+    if (showUpperSettlementDialog && activeBatchWinningNumber.length == 3) {
+        val activeBatchRecords = remember(exportRecords, activeBatch) {
+            exportRecords.filter { it.record.batchNumber == activeBatch }
+        }
+        val multipliers = remember(activeBatch) {
+            viewModel.getMultipliersForBatch(activeBatch)
+        }
+        UpperAgentSettlementDialog(
+            batchNumber = activeBatch,
+            winningNumber = activeBatchWinningNumber,
+            exportRecords = activeBatchRecords,
+            multipliers = multipliers,
+            defaultCommissionRate = defaultCommRate,
+            onDismiss = { showUpperSettlementDialog = false }
+        )
+    }
 }
 
 @Composable
@@ -177,6 +229,8 @@ fun ExportHistoryBottomBar(
     totalVouchers: Int,
     totalNumbers: Int,
     selectedBatch: Int? = null,
+    isWinningDeclared: Boolean = false,
+    onTapTotal: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -190,7 +244,8 @@ fun ExportHistoryBottomBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .then(if (onTapTotal != null) Modifier.clickable(onClick = onTapTotal) else Modifier)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -207,21 +262,48 @@ fun ExportHistoryBottomBar(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (isWinningDeclared) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "နှိပ်၍ အထက်ဒိုင် ရှင်းတမ်း ကြည့်ရန် ▶",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = EmeraldPrimary
+                    )
+                }
             }
 
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.error,
-                shadowElevation = 2.dp
+                shadowElevation = 2.dp,
+                modifier = if (onTapTotal != null) {
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onTapTotal)
+                } else Modifier
             ) {
-                Text(
-                    text = "%,d Ks".format(totalAmount),
-                    color = MaterialTheme.colorScheme.onError,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Black,
-                    fontFamily = FontFamily.Monospace,
+                Column(
+                    horizontalAlignment = Alignment.End,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                )
+                ) {
+                    Text(
+                        text = "%,d Ks".format(totalAmount),
+                        color = MaterialTheme.colorScheme.onError,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Black,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1
+                    )
+                    if (isWinningDeclared) {
+                        Text(
+                            text = "ရှင်းတမ်း ▶",
+                            color = MaterialTheme.colorScheme.onError.copy(alpha = 0.9f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
@@ -478,4 +560,398 @@ private fun ExportRecordCard(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun UpperAgentSettlementDialog(
+    batchNumber: Int,
+    winningNumber: String,
+    exportRecords: List<ExportRecordWithNumbers>,
+    multipliers: Triple<Double, Double, Double>,
+    defaultCommissionRate: Double,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val (exactMult, permMult, _) = multipliers
+
+    val initialPercentStr = remember(defaultCommissionRate) {
+        if (defaultCommissionRate > 0.0) {
+            val p = defaultCommissionRate * 100
+            if (p % 1.0 == 0.0) p.toInt().toString() else "%.1f".format(p)
+        } else "15"
+    }
+    var commPercentText by remember { mutableStateOf(initialPercentStr) }
+
+    val allSentBets = remember(exportRecords) { exportRecords.flatMap { it.numbers } }
+    val totalSentBet = remember(exportRecords) { exportRecords.sumOf { it.record.totalAmount.toLong() } }
+
+    val commRate = (commPercentText.toDoubleOrNull() ?: 0.0) / 100.0
+    val commDeduction = (totalSentBet * commRate).toLong()
+    val netSentBet = totalSentBet - commDeduction
+
+    // Winning calculations
+    val allPerms = remember(winningNumber) { NumberGenerator.permutations(winningNumber).toSet() }
+    val permsOnly = remember(winningNumber, allPerms) { allPerms - setOf(winningNumber) }
+
+    val exactHits = remember(allSentBets, winningNumber) {
+        allSentBets.filter { it.number == winningNumber }
+    }
+    val exactBetAmt = remember(exactHits) { exactHits.sumOf { it.amount.toLong() } }
+    val exactPayout = remember(exactBetAmt, exactMult) { (exactBetAmt * exactMult).toLong() }
+
+    val tutHits = remember(allSentBets, permsOnly) {
+        allSentBets.filter { it.number in permsOnly }
+    }
+    val tutBetAmt = remember(tutHits) { tutHits.sumOf { it.amount.toLong() } }
+    val tutPayout = remember(tutBetAmt, permMult) { (tutBetAmt * permMult).toLong() }
+
+    val tutBreakdown = remember(tutHits) {
+        tutHits.groupBy { it.number }.mapValues { entry -> entry.value.sumOf { it.amount.toLong() } }
+    }
+
+    val totalUpperPayout = exactPayout + tutPayout
+    val netBalance = totalUpperPayout - netSentBet
+
+    fun buildSlip(): String = buildString {
+        appendLine("========================")
+        appendLine("   အထက်ဒိုင် ရှင်းတမ်း")
+        appendLine("========================")
+        appendLine("အကြိမ် = $batchNumber ( $winningNumber )")
+        appendLine("------------------------")
+        appendLine("တင်ငွေ စုစုပေါင်း = %,d Ks".format(totalSentBet))
+        appendLine("ကော်မရှင် ($commPercentText%) = -%,d Ks".format(commDeduction))
+        appendLine("နုတ်ပြီး တင်ငွေ = %,d Ks".format(netSentBet))
+        appendLine("------------------------")
+        if (exactBetAmt > 0) {
+            appendLine("ဒဲ့ပေါက် ($winningNumber) = %,d Ks (x${exactMult.toInt()}) → %,d Ks".format(exactBetAmt, exactPayout))
+        }
+        if (tutBetAmt > 0) {
+            appendLine("တွတ်ပေါက် = %,d Ks (x${permMult.toInt()}) → %,d Ks".format(tutBetAmt, tutPayout))
+            tutBreakdown.forEach { (num, amt) ->
+                appendLine("  • $num: %,d Ks → %,d Ks".format(amt, (amt * permMult).toLong()))
+            }
+        }
+        if (totalUpperPayout == 0L) {
+            appendLine("ပေါက်ကြေး = 0 Ks (ပေါက်ဂဏန်း မပါပါ)")
+        } else {
+            appendLine("စုစုပေါင်း ပေါက်ငွေ = %,d Ks".format(totalUpperPayout))
+        }
+        appendLine("------------------------")
+        if (netBalance > 0) {
+            appendLine("ရလဒ် = အထက်ဒိုင်မှ ရရန် (+%,d Ks)".format(netBalance))
+        } else if (netBalance < 0) {
+            appendLine("ရလဒ် = အထက်ဒိုင်သို့ ပေးရန် (-%,d Ks)".format(-netBalance))
+        } else {
+            appendLine("ရလဒ် = ကျေအေး (0 Ks)")
+        }
+        appendLine("========================")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(38.dp).clip(CircleShape).background(EmeraldPrimary),
+                        Alignment.Center
+                    ) {
+                        Icon(Icons.Default.AccountBalance, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("အထက်ဒိုင် ရှင်းတမ်း", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("အကြိမ် $batchNumber", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = WinExactRed
+                ) {
+                    Text(
+                        "ထွက်: $winningNumber",
+                        color = Color.White,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Section 1: Sent Bets & Commission
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .border(0.6.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("တင်ငွေ & ကော်မရှင် တွက်ချက်မှု", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("တင်ငွေ စုစုပေါင်း", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("%,d Ks".format(totalSentBet), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                    }
+
+                    // Editable commission % row
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("ကော်မရှင်", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(6.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    .border(1.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                BasicTextField(
+                                    value = commPercentText,
+                                    onValueChange = { input ->
+                                        if (input.all { it.isDigit() || it == '.' } && input.length <= 4) {
+                                            commPercentText = input
+                                        }
+                                    },
+                                    modifier = Modifier.width(34.dp),
+                                    textStyle = LocalTextStyle.current.copy(
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        textAlign = TextAlign.Center
+                                    ),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                                )
+                                Text("%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                            }
+                        }
+                        Text(
+                            "-%,d Ks".format(commDeduction),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = GoldAccent
+                        )
+                    }
+
+                    HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("နုတ်ပြီး တင်ငွေ", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "%,d Ks".format(netSentBet),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace,
+                            color = EmeraldPrimary
+                        )
+                    }
+                }
+
+                // Section 2: Winning Payouts from Upper
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (totalUpperPayout > 0) WinExactBg.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .border(
+                            0.6.dp,
+                            if (totalUpperPayout > 0) WinExactRed.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "အထက်ဒိုင် ပေါက်ကြေး (လျော်ငွေ)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        color = if (totalUpperPayout > 0) WinExactRed else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    if (exactBetAmt > 0) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Star, null, tint = WinExactRed, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("ဒဲ့ ($winningNumber)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WinExactRed)
+                            }
+                            Text(
+                                "%,d Ks (x${exactMult.toInt()}) → %,d Ks".format(exactBetAmt, exactPayout),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
+                    if (tutBetAmt > 0) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CheckCircle, null, tint = GoldDark, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("တွတ် (${tutBreakdown.size} ကွက်)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GoldDark)
+                            }
+                            Text(
+                                "%,d Ks (x${permMult.toInt()}) → %,d Ks".format(tutBetAmt, tutPayout),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        // Show tut won details
+                        tutBreakdown.forEach { (num, amt) ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(start = 20.dp),
+                                Arrangement.SpaceBetween,
+                                Alignment.CenterVertically
+                            ) {
+                                Text("• $num", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("%,d Ks → %,d Ks".format(amt, (amt * permMult).toLong()), fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+
+                    if (totalUpperPayout == 0L) {
+                        Text(
+                            "ပေါက်ဂဏန်း မပါပါ (ပေါက်ငွေ 0 Ks)",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        )
+                    }
+
+                    HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("စုစုပေါင်း ပေါက်ငွေ", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text(
+                            "%,d Ks".format(totalUpperPayout),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace,
+                            color = if (totalUpperPayout > 0) WinExactRed else MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+
+                // Section 3: Final Net Settlement Card
+                val isToReceive = netBalance > 0
+                val isToPay = netBalance < 0
+                val resultBg = when {
+                    isToReceive -> EmeraldLight
+                    isToPay -> WinExactBg
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                }
+                val resultBorder = when {
+                    isToReceive -> EmeraldPrimary
+                    isToPay -> WinExactRed
+                    else -> Color.Gray
+                }
+                val resultColor = when {
+                    isToReceive -> EmeraldDark
+                    isToPay -> WinExactRed
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(resultBg)
+                        .border(1.dp, resultBorder, RoundedCornerShape(12.dp))
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = when {
+                            isToReceive -> "အထက်ဒိုင်မှ ရရန်"
+                            isToPay -> "အထက်ဒိုင်သို့ ပေးရန်"
+                            else -> "ကျေအေး (ရှင်းပြီး)"
+                        },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = resultColor
+                    )
+                    Text(
+                        text = when {
+                            isToReceive -> "+%,d Ks".format(netBalance)
+                            isToPay -> "-%,d Ks".format(-netBalance)
+                            else -> "0 Ks"
+                        },
+                        fontWeight = FontWeight.Black,
+                        fontSize = 20.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = resultColor
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = {
+                        val slip = buildSlip()
+                        val sendIntent = Intent().apply {
+                            action = Intent.ACTION_SEND
+                            putExtra(Intent.EXTRA_TEXT, slip)
+                            type = "text/plain"
+                        }
+                        val shareIntent = Intent.createChooser(sendIntent, "အထက်ဒိုင် ရှင်းတမ်း မျှဝေမည်")
+                        context.startActivity(shareIntent)
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("မျှဝေမည်", fontSize = 12.sp)
+                }
+
+                Button(
+                    onClick = {
+                        val slip = buildSlip()
+                        val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("Upper Settlement", slip))
+                        Toast.makeText(context, "ရှင်းတမ်း ကူးယူပြီးပါပြီ", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                ) {
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("ကော်ပီ", fontSize = 12.sp)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("ပိတ်မည်")
+            }
+        }
+    )
 }
