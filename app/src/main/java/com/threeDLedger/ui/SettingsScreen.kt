@@ -199,31 +199,65 @@ fun SettingsScreen(
             onDismissRequest = { showManualUpdateDialog = false },
             icon = { Icon(Icons.Default.SystemUpdate, null, tint = primaryColor) },
             title = { Text("Update ${info.version} ရှိနေပါသည်", fontWeight = FontWeight.Bold) },
-            text  = { Text("ယခု Download လုပ်ပြီး Install လုပ်မည်လား?") },
+            text  = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("ယခု Download လုပ်ပြီး Install လုပ်မည်လား?")
+                    if (info.releaseNotes.isNotBlank()) {
+                        Text(info.releaseNotes.take(150), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            },
             confirmButton = {
-                Button(onClick = {
-                    showManualUpdateDialog = false
-                    if (!GitHubUpdater.canInstallUnknownApps(context)) {
-                        GitHubUpdater.openInstallUnknownAppsSettings(context)
-                    } else {
-                        showDownloadDialog = true; downloadProgress = 0; downloadError = null; isInstalling = false
-                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-                            val apk = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) { progress ->
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { downloadProgress = progress }
-                            }
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                if (apk != null) { downloadProgress = 100; kotlinx.coroutines.delay(400); isInstalling = true }
-                                else { downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။" }
-                            }
-                            if (apk != null) {
-                                kotlinx.coroutines.delay(200)
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { GitHubUpdater.installApkFromCache(context, apk) }
-                                kotlinx.coroutines.delay(1500)
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { isInstalling = false; showDownloadDialog = false }
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            showManualUpdateDialog = false
+                            showDownloadDialog = true; downloadProgress = 0; downloadError = null; isInstalling = false
+                            coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                try {
+                                    val apk = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) { progress ->
+                                        coroutineScope.launch(kotlinx.coroutines.Dispatchers.Main) { downloadProgress = progress }
+                                    }
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        if (apk != null) { downloadProgress = 100; kotlinx.coroutines.delay(300); isInstalling = true }
+                                        else { downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။" }
+                                    }
+                                    if (apk != null) {
+                                        kotlinx.coroutines.delay(200)
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            val ok = GitHubUpdater.installApkFromCache(context, apk)
+                                            if (!ok && !GitHubUpdater.canInstallUnknownApps(context)) {
+                                                GitHubUpdater.openInstallUnknownAppsSettings(context)
+                                            }
+                                        }
+                                        kotlinx.coroutines.delay(1200)
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { isInstalling = false; showDownloadDialog = false }
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        downloadError = "Error: ${e.localizedMessage ?: "မအောင်မြင်ပါ"}"
+                                    }
+                                }
                             }
                         }
-                    }
-                }) { Text("Install လုပ်မည်") }
+                    ) { Text("Install လုပ်မည်") }
+
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.downloadUrl)).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                android.widget.Toast.makeText(context, "Browser ဖွင့်မရပါ", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) { Text("🌐 Browser မှ တိုက်ရိုက်ဒေါင်းမည်") }
+                }
             },
             dismissButton = { TextButton(onClick = { showManualUpdateDialog = false }) { Text("နောက်မှ") } }
         )

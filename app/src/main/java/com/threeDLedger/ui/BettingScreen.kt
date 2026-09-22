@@ -53,9 +53,9 @@ fun String.myanmarToEnglish(): String {
     }.joinToString("")
 }
 
-private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_])\s*""")
+private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_+])\s*""")
 private val ROUND_MARKERS_REGEX    = Regex("""\s*[Rr/]\s*""")
-private val TAIL_AMOUNT_REGEX       = Regex("""[=:\-.,_]?(\d+)(?:R(\d+))?$""")
+private val TAIL_AMOUNT_REGEX       = Regex("""[=:\-.,_+ ]?(\d+)(?:R(\d+))?$""")
 private val NUM_PATTERN_REGEX       = Regex("""(?<!\d)(\d{2,3})(R?)(?!\d)""")
 private val CURRENCY_SUFFIX_REGEX   = Regex("""(?i)\s*(?:ks|ကျပ်)\s*$""")
 
@@ -108,11 +108,14 @@ fun parsePastedLine(raw: String): List<Pair<String, Int>> {
     if (line.isBlank()) return emptyList()
 
     // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
-    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*""", RegexOption.IGNORE_CASE), "").trim()
+    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-]?\s*""", RegexOption.IGNORE_CASE), "").trim()
 
     // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
-    // Must distinguish between list indices and real 3D/2D betting numbers (e.g. "723-", "245-")!
-    line = line.replace(Regex("""^\s*(?:\(?\d{1,3}\)?\s*[\.\)\]\:\၊။]\s*|\d{1}\s*[-,\/]\s+)"""), "").trim()
+    // CRITICAL: Must NEVER strip 3D betting numbers (like 123 in "123.345.678=1000" or 723 in "723-372=2000")!
+    // Format A: Explicit brackets / parens e.g. "(1)", "[1]", "1)"
+    line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()
+    // Format B: 1-2 digit serial number followed by dot/colon/dash/Burmese punctuation AND whitespace (\s+) AND followed by a 2-3 digit bet
+    line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d{2,3})"""), "").trim()
     if (line.isBlank()) return emptyList()
 
     // Direct single bet format check e.g. "108 = 50", "108=50", "108-50"
@@ -405,13 +408,14 @@ fun BettingScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.primaryContainer)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("အကြိမ် : $currentBatch", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
             IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(32.dp))
+                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
             }
         }
 
@@ -889,45 +893,51 @@ fun BettingScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Summary Badge
+                // Left: Summary Badge (Scales cleanly for all number places)
                 Surface(
+                    modifier = Modifier.weight(1f, fill = false),
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier.padding(
-                            horizontal = if (rDimens.isCompact) 6.dp else 10.dp,
-                            vertical = if (rDimens.isCompact) 4.dp else 6.dp
+                            horizontal = if (rDimens.isCompact) 7.dp else 10.dp,
+                            vertical = if (rDimens.isCompact) 3.dp else 4.dp
                         ),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.Center
                     ) {
                         Text(
                             "${pendingBets.size} ကွက်",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = if (rDimens.isCompact) 11.5.sp else 13.sp,
-                            color = MaterialTheme.colorScheme.primary
+                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            softWrap = false
                         )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            "|",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                        )
-                        Spacer(Modifier.width(4.dp))
+                        val amountFontSize = when {
+                            totalAmount >= 100_000_000 -> if (rDimens.isCompact) 10.5.sp else 11.5.sp
+                            totalAmount >= 10_000_000  -> if (rDimens.isCompact) 11.sp   else 12.sp
+                            totalAmount >= 1_000_000   -> if (rDimens.isCompact) 12.sp   else 13.sp
+                            else                       -> if (rDimens.isCompact) 13.sp   else 14.5.sp
+                        }
                         Text(
                             "= %,d Ks".format(totalAmount),
                             fontWeight = FontWeight.Black,
-                            fontSize = if (rDimens.isCompact) 13.sp else 15.sp,
+                            fontSize = amountFontSize,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontFamily = FontFamily.Monospace
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
 
-                // Right: Quick Bet (အမြန်ထိုး) & ထိုးမည်
+                Spacer(Modifier.width(6.dp))
+
+                // Right: Quick Bet (အမြန်ထိုး) & ထိုးမည် (Single-line guaranteed)
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(if (rDimens.isCompact) 4.dp else 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (rDimens.isCompact) 5.dp else 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledTonalButton(
@@ -938,14 +948,20 @@ fun BettingScreen(
                         },
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 7.dp else 10.dp,
+                            horizontal = if (rDimens.isCompact) 8.dp else 11.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 38.dp)
+                        modifier = Modifier.height(if (rDimens.isCompact) 36.dp else 39.dp)
                     ) {
                         Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(3.dp))
-                        Text("အမြန်ထိုး", fontSize = if (rDimens.isCompact) 11.sp else 12.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "အမြန်ထိုး",
+                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
 
                     Button(
@@ -960,14 +976,20 @@ fun BettingScreen(
                         shape = RoundedCornerShape(10.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = if (pendingBets.isNotEmpty()) 3.dp else 0.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 9.dp else 12.dp,
+                            horizontal = if (rDimens.isCompact) 10.dp else 14.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 38.dp)
+                        modifier = Modifier.height(if (rDimens.isCompact) 36.dp else 39.dp)
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(3.dp))
-                        Text("ထိုးမည်", fontSize = if (rDimens.isCompact) 13.sp else 14.sp, fontWeight = FontWeight.Black)
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "ထိုးမည်",
+                            fontSize = if (rDimens.isCompact) 13.sp else 14.sp,
+                            fontWeight = FontWeight.Black,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }
@@ -1271,7 +1293,7 @@ fun BettingScreen(
                 ) { submit() }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(4.dp).navigationBarsPadding())
     }
 }
 

@@ -143,4 +143,46 @@ class BetParserTest {
         val resMm = parsePastedLine("၁။ ၄၄၆=၁၀၀၀")
         assertEquals(listOf("446" to 1000), resMm)
     }
+
+    @Test
+    fun testDotSeparatedNumbersMustNotSkipFirstNumber() {
+        // User reported: 123.345.678=1000 was skipping 123
+        val res = parsePastedLine("123.345.678=1000")
+        assertEquals(3, res.size)
+        assertEquals("123" to 1000, res[0])
+        assertEquals("345" to 1000, res[1])
+        assertEquals("678" to 1000, res[2])
+
+        // Dot-separated with spaces: 123. 345. 678 = 1000
+        val resSpaces = parsePastedLine("123. 345. 678 = 1000")
+        assertEquals(3, resSpaces.size)
+        assertEquals("123" to 1000, resSpaces[0])
+        assertEquals("345" to 1000, resSpaces[1])
+        assertEquals("678" to 1000, resSpaces[2])
+
+        // Dot-separated with 4 numbers: 723.372.245.309 = 2000
+        val res4 = parsePastedLine("723.372.245.309 = 2000")
+        assertEquals(4, res4.size)
+        assertEquals("723" to 2000, res4[0])
+        assertEquals("372" to 2000, res4[1])
+        assertEquals("245" to 2000, res4[2])
+        assertEquals("309" to 2000, res4[3])
+    }
+
+    @Test
+    fun testDirectAndPermutationDualAmounts() {
+        // User reported: 862=5000/8000
+        val res = parsePastedLine("862=5000/8000")
+        assertEquals(6, res.size)
+        assertEquals("862" to 5000, res[0])
+        val perms = res.drop(1).map { it.first }.toSet()
+        assertEquals(setOf("826", "682", "628", "286", "268"), perms)
+        assertTrue(res.drop(1).all { it.second == 8000 })
+
+        // With spaces: 862 = 5000 / 8000
+        val resSpaced = parsePastedLine("862 = 5000 / 8000")
+        assertEquals(6, resSpaced.size)
+        assertEquals("862" to 5000, resSpaced[0])
+        assertTrue(resSpaced.drop(1).all { it.second == 8000 })
+    }
 }

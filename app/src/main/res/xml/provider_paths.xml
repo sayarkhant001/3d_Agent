@@ -2,6 +2,9 @@
 <paths>
     <!-- Internal app cache — used for APK auto-update downloads (no storage permission needed) -->
     <cache-path name="apk_cache" path="." />
+    <cache-path name="cache" path="." />
+    <external-cache-path name="external_cache" path="." />
+    <files-path name="files" path="." />
     <!-- External Downloads — kept for any legacy download usage -->
     <external-public-path name="downloads" path="Download/" />
     <external-public-path name="downloads_alt" path="Downloads/" />

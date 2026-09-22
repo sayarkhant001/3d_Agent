@@ -84,24 +84,46 @@ object GitHubUpdater {
 
     // ── Check if we can install unknown apps ────────────────────────────────
     fun canInstallUnknownApps(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true // Below Android 8 no per-app permission needed
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.packageManager.canRequestPackageInstalls()
+            } else {
+                true // Below Android 8 no per-app permission needed
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 
     // ── Open the "Install unknown apps" settings for this app ───────────────
     fun openInstallUnknownAppsSettings(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                data = Uri.parse("package:${context.packageName}")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
             try {
+                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
                 context.startActivity(intent)
-            } catch (e: Exception) {
-                Toast.makeText(context, "ဆက်တင်ကိုဖွင့်မရပါ", Toast.LENGTH_SHORT).show()
+            } catch (e1: Exception) {
+                try {
+                    // Fallback 1: Open unknown app sources list without package filter
+                    val fallbackIntent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(fallbackIntent)
+                } catch (e2: Exception) {
+                    try {
+                        // Fallback 2: Open application details settings
+                        val appDetailsIntent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.parse("package:${context.packageName}")
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(appDetailsIntent)
+                    } catch (e3: Exception) {
+                        Toast.makeText(context, "ဆက်တင်ကိုဖွင့်မရပါ", Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
         }
     }
@@ -174,31 +196,42 @@ object GitHubUpdater {
 
     /**
      * Launch the system APK installer for a file in the app's cache dir.
-     * Requires canInstallUnknownApps() == true before calling.
+     * Safely handles FileProvider Uri, ClipData grants, and Android 8-16 permissions.
      */
-    fun installApkFromCache(context: Context, apkFile: File) {
-        if (!apkFile.exists()) {
-            Toast.makeText(context, "APK ဖိုင် မတွေ့ပါ", Toast.LENGTH_SHORT).show()
-            return
+    fun installApkFromCache(context: Context, apkFile: File): Boolean {
+        if (!apkFile.exists() || apkFile.length() == 0L) {
+            Toast.makeText(context, "APK ဖိုင် မတွေ့ပါ သို့မဟုတ် ပျက်စီးနေပါသည်", Toast.LENGTH_SHORT).show()
+            return false
         }
 
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.provider",
-            apkFile
-        )
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                apkFile
+            )
 
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                clipData = android.content.ClipData.newRawUri("update", uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
 
-        try {
+            // Explicitly grant URI read permission to resolving package
+            val resInfoList = context.packageManager.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+            for (resolveInfo in resInfoList) {
+                val packageName = resolveInfo.activityInfo.packageName
+                context.grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
             context.startActivity(intent)
+            true
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(context, "Installer ဖွင့်မရပါ: ${e.message}", Toast.LENGTH_LONG).show()
+            false
         }
     }
 }

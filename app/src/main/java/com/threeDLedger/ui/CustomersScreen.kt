@@ -332,7 +332,7 @@ private fun CustomerCard(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(3.dp))
-                        Text("ထိုးမည်", fontSize = if (rDimens.isCompact) 11.sp else 12.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("ထိုးမည်", fontSize = if (rDimens.isCompact) 11.sp else 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
                     }
                 }
             }

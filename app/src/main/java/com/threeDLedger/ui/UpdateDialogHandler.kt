@@ -111,37 +111,44 @@ fun UpdateDialogHandler(owner: String, repo: String) {
         isInstalling = false
 
         coroutineScope.launch(Dispatchers.IO) {
-            val apkFile = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) { progress ->
-                // onProgress is called on the IO thread — switch to Main to update state
-                withContext(Dispatchers.Main) {
-                    downloadProgress = progress
+            try {
+                val apkFile = GitHubUpdater.downloadApkToCache(context, info.downloadUrl) { progress ->
+                    // onProgress is called on the IO thread — switch to Main to update state
+                    coroutineScope.launch(Dispatchers.Main) {
+                        downloadProgress = progress
+                    }
                 }
-            }
 
-            withContext(Dispatchers.Main) {
+                withContext(Dispatchers.Main) {
+                    if (apkFile != null) {
+                        downloadProgress = 100
+                        delay(300)
+                        isInstalling = true
+                    }
+                }
+
                 if (apkFile != null) {
-                    // Brief pause so user sees 100%, then trigger installer
-                    downloadProgress = 100
-                    delay(400)
-                    isInstalling = true
+                    delay(200)
+                    withContext(Dispatchers.Main) {
+                        val ok = GitHubUpdater.installApkFromCache(context, apkFile)
+                        if (!ok && !GitHubUpdater.canInstallUnknownApps(context)) {
+                            showPermissionDialog = true
+                        }
+                    }
+                    delay(1200)
+                    withContext(Dispatchers.Main) {
+                        isInstalling = false
+                        showProgressDialog = false
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။"
+                    }
                 }
-            }
-
-            if (apkFile != null) {
-                delay(200)
-                // installApkFromCache needs Context only — safe to call from any thread
+            } catch (e: Exception) {
+                e.printStackTrace()
                 withContext(Dispatchers.Main) {
-                    GitHubUpdater.installApkFromCache(context, apkFile)
-                }
-                // Keep dialog open briefly so the system installer has time to appear
-                delay(1500)
-                withContext(Dispatchers.Main) {
-                    isInstalling = false
-                    showProgressDialog = false
-                }
-            } else {
-                withContext(Dispatchers.Main) {
-                    downloadError = "Download မအောင်မြင်ပါ။ Internet စစ်ဆေးပါ။"
+                    downloadError = "Error: ${e.localizedMessage ?: "မအောင်မြင်ပါ"}"
                 }
             }
         }
@@ -170,7 +177,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Telegram Bot မှလည်း APK အား လွယ်ကူ လျင်မြန်စွာ ဒေါင်းလုဒ် ရယူနိုင်ပါသည်။",
+                        "တိုက်ရိုက်ဒေါင်းလုဒ် မရရှိပါက Browser သို့မဟုတ် Telegram Bot မှလည်း ဒေါင်းလုဒ် ရယူနိုင်ပါသည်။",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -184,15 +191,25 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                     Button(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
-                            if (GitHubUpdater.canInstallUnknownApps(context)) {
-                                startDownloadAndInstall(info)
-                            } else {
-                                showUpdateDialog = false
-                                showPermissionDialog = true
-                            }
+                            startDownloadAndInstall(info)
                         }
                     ) {
                         Text("တိုက်ရိုက် Update လုပ်မည်")
+                    }
+                    OutlinedButton(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            try {
+                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.downloadUrl)).apply {
+                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                            } catch (_: Exception) {
+                                android.widget.Toast.makeText(context, "Browser ဖွင့်မရပါ", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Text("🌐 Browser မှ တိုက်ရိုက်ဒေါင်းမည်")
                     }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),

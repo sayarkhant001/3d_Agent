@@ -820,21 +820,24 @@ private fun DeclaredHeroCard(
                 // Prominent remove/undeclare winning number button
                 Button(
                     onClick = onUndeclareClick,
-                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFFFEF2F2),
                         contentColor = Color(0xFFDC2626)
                     ),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                     border = BorderStroke(1.5.dp, Color(0xFFFCA5A5))
                 ) {
                     Icon(Icons.Default.DeleteForever, null, modifier = Modifier.size(18.dp), tint = Color(0xFFDC2626))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        "❌ ပေါက်သီး ကြေညာချက် ပယ်ဖျက်မည် (Remove)",
+                        "ပေါက်သီး ကြေညာချက် ပယ်ဖျက်မည်",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = Color(0xFFDC2626)
+                        fontSize = 13.5.sp,
+                        color = Color(0xFFDC2626),
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
             }
