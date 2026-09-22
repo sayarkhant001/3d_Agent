@@ -1,6 +1,7 @@
 package com.threeDLedger
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -106,5 +107,89 @@ class ComposeUiIntegrationTest {
         composeTestRule.onNodeWithText("ဒေါ်လှ").assertIsDisplayed()
         composeTestRule.onNodeWithText("ကျန်ငွေ (ပေးရန်)", substring = true).assertIsDisplayed()
         composeTestRule.onNodeWithText("ကြွေးကျန် (ပေးရန်)", substring = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun testAgentSettlementCardTutAndExactClick() {
+        val customer = Customer(id = 3, name = "KZT", commissionRate = 0.25)
+        val tutSettlement = AgentSettlement(
+            customer = customer,
+            totalBet = 191_000L,
+            commission = 47_750L,
+            netAfterComm = 143_250L,
+            exactBetAmt = 1_000L,
+            exactPayout = 600_000L,
+            tuwtBetAmt = 15_000L,
+            tuwtPayout = 150_000L,
+            totalPayout = 750_000L,
+            balance = -606_750L,
+            paidAmount = 0L,
+            remaining = -606_750L,
+            tuwtDetails = listOf(
+                com.threeDLedger.ui.TutWinDetail("641", 3000L, 30_000L),
+                com.threeDLedger.ui.TutWinDetail("604", 1000L, 10_000L)
+            ),
+            exactDetails = listOf(
+                com.threeDLedger.ui.TutWinDetail("123", 1000L, 600_000L)
+            )
+        )
+
+        var tutClicked = false
+        var exactClicked = false
+
+        composeTestRule.setContent {
+            AgentSettlementCard(
+                settlement = tutSettlement,
+                onTapDetail = {},
+                onEditPaid = {},
+                onTapTut = { tutClicked = true },
+                onTapExact = { exactClicked = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("တွတ် (လျော်)", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("တွတ် (လျော်)", substring = true).performClick()
+        assertTrue("onTapTut should be triggered", tutClicked)
+
+        composeTestRule.onNodeWithText("ဒဲ့ (ပေါက်)", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("ဒဲ့ (ပေါက်)", substring = true).performClick()
+        assertTrue("onTapExact should be triggered", exactClicked)
+    }
+
+    @Test
+    fun testWinBreakdownDialogDisplaysItems() {
+        val details = listOf(
+            com.threeDLedger.ui.TutWinDetail("641", 3000L, 30_000L),
+            com.threeDLedger.ui.TutWinDetail("604", 1000L, 10_000L)
+        )
+        val dummyIcon = androidx.compose.ui.graphics.vector.ImageVector.Builder(
+            name = "dummy",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f
+        ).build()
+        var dismissed = false
+        composeTestRule.setContent {
+            com.threeDLedger.ui.WinBreakdownDialog(
+                title = "တွတ် (လျော်) အသေးစိတ် - KZT",
+                icon = dummyIcon,
+                iconTint = Color(0xFFD97706),
+                agentName = "KZT",
+                batchNumber = 17,
+                winningNumber = "640",
+                multiplier = 10.0,
+                details = details,
+                totalBet = 4000L,
+                totalPayout = 40_000L,
+                onDismiss = { dismissed = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("တွတ် (လျော်) အသေးစိတ် - KZT").assertIsDisplayed()
+        composeTestRule.onNodeWithText("641").assertIsDisplayed()
+        composeTestRule.onNodeWithText("604").assertIsDisplayed()
+        composeTestRule.onNodeWithText("ကောင်းပြီ").performClick()
+        assertTrue(dismissed)
     }
 }

@@ -25,9 +25,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.text.SimpleDateFormat
 import java.util.Date
 import android.content.Intent
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import com.threeDLedger.ui.theme.rememberResponsiveDimens
@@ -39,6 +42,8 @@ fun VouchersScreen(
     initialCustomerId: Int? = null,
     onNavigateBack: () -> Unit
 ) {
+    BackHandler(onBack = onNavigateBack)
+
     val dimens = rememberResponsiveDimens()
     val vouchers by viewModel.vouchersWithCustomer.collectAsStateWithLifecycle()
     val allVouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
@@ -90,77 +95,114 @@ fun VouchersScreen(
                         
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        // === BET BOX — visually distinct, responsive typography ===
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    width = 1.5.dp,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                                )
-                                .background(
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
-                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
-                                )
-                                .padding(horizontal = dimens.responsiveDp(8.dp, 10.dp, 12.dp), vertical = dimens.responsiveDp(6.dp, 8.dp, 10.dp)),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        // === BET TABLE — Numbers page format with alternating color lines & robust layout ===
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.5.dp, Color(0xFF059669)),
+                            shadowElevation = 1.dp
                         ) {
-                            voucherWithBets.bets.forEachIndexed { idx, bet ->
-                                Row(
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                // Table Header (identical to Numbers page)
+                                Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    color = Color(0xFFDCFCE7)
                                 ) {
-                                    // Row number
-                                    Text(
-                                        "${idx + 1}.",
-                                        fontSize = dimens.responsiveSp(9.sp, 10.sp, 11.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.width(dimens.responsiveDp(18.dp, 22.dp, 24.dp)),
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                    )
-                                    // Number
-                                    Text(
-                                        bet.number,
-                                        fontSize = dimens.responsiveSp(16.sp, 18.sp, 20.sp),
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        letterSpacing = 1.sp,
-                                        modifier = Modifier.width(dimens.responsiveDp(42.dp, 48.dp, 54.dp))
-                                    )
-                                    // Separator
-                                    Text(
-                                        "=",
-                                        fontSize = dimens.responsiveSp(14.sp, 16.sp, 18.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        modifier = Modifier.padding(horizontal = dimens.responsiveDp(2.dp, 4.dp, 6.dp))
-                                    )
-                                    // Amount right-aligned, with breathing room from right
-                                    Text(
-                                        "%,d".format(bet.amount),
-                                        fontSize = dimens.responsiveSp(15.sp, 18.sp, 20.sp),
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.weight(1f).padding(end = 4.dp)
-                                    )
-                                    // Ks label
-                                    Text(
-                                        "Ks",
-                                        fontSize = dimens.responsiveSp(10.sp, 11.sp, 12.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                        modifier = Modifier.width(dimens.responsiveDp(22.dp, 26.dp, 30.dp))
-                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "စဉ်   ဂဏန်း:",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF065F46)
+                                        )
+                                        Text(
+                                            "ထိုးငွေ ပမာဏ",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp,
+                                            color = Color(0xFF065F46)
+                                        )
+                                    }
                                 }
-                                if (idx < voucherWithBets.bets.size - 1)
-                                    HorizontalDivider(
-                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                        thickness = 0.5.dp
-                                    )
+
+                                HorizontalDivider(color = Color(0xFF6EE7B7), thickness = 1.dp)
+
+                                // Alternating rows (color lines)
+                                voucherWithBets.bets.forEachIndexed { idx, bet ->
+                                    val isEven = idx % 2 == 0
+                                    val rowBg = if (isEven) Color.White else Color(0xFFF0FDF4)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(rowBg)
+                                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Left: Index & Number (never wraps even on large display sizes)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        ) {
+                                            Text(
+                                                "${idx + 1}.",
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF64748B),
+                                                fontFamily = FontFamily.Monospace,
+                                                modifier = Modifier.widthIn(min = 28.dp),
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                bet.number,
+                                                color = Color(0xFF047857),
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 18.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                letterSpacing = 1.5.sp,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+
+                                        // Right: Amount & Ks (never wraps)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                "%,d".format(bet.amount),
+                                                color = Color(0xFF0F172A),
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.5.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "Ks",
+                                                color = Color(0xFF64748B),
+                                                fontSize = 12.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        }
+                                    }
+
+                                    if (idx < voucherWithBets.bets.size - 1) {
+                                        HorizontalDivider(
+                                            color = Color(0xFFE2E8F0),
+                                            thickness = 0.5.dp
+                                        )
+                                    }
+                                }
                             }
                         }
 

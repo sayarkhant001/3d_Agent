@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -28,10 +29,18 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.logic.NumberGenerator
+import com.threeDLedger.ui.theme.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+data class BrakedWinRow(
+    val number: String,
+    val isExact: Boolean,
+    val amount: Int
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,8 +53,30 @@ fun OverflowScreen(
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     val brakeLimit by viewModel.brakeLimit.collectAsStateWithLifecycle()
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+    val winningNumber by viewModel.winningNumber.collectAsStateWithLifecycle()
+    val allCustomers by viewModel.customers.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    val batchWinningNumber = remember(currentBatch, winningNumber) { 
+        viewModel.getWinningNumberForBatch(currentBatch) 
+    }
+    val isWonDeclared = batchWinningNumber.length == 3
+    val (exactMult, permMult, nearMult) = remember(currentBatch) { 
+        viewModel.getMultipliersForBatch(currentBatch) 
+    }
+
+    val meCustomer = remember(allCustomers) {
+        allCustomers.firstOrNull { 
+            it.name.contains("မိမိ") || it.name.contains("ကိုယ်တိုင်") || it.name.equals("me", ignoreCase = true) 
+        } ?: allCustomers.firstOrNull()
+    }
+    val meCommRate = meCustomer?.commissionRate ?: 0.0
+
+    val exposureMap = remember(ledgerExposures) { ledgerExposures.associateBy { it.number } }
+
+    fun keptAmount(totalBetAmount: Int): Int =
+        if (brakeLimit > 0) minOf(totalBetAmount, brakeLimit) else totalBetAmount
 
     // Sort exposures — ascending by number string (000 → 999)
     val overflowExposures = ledgerExposures.filter { it.overflowAmount > 0 }.sortedBy { it.number.toIntOrNull() ?: 0 }
@@ -57,10 +88,43 @@ fun OverflowScreen(
         .filter { it.totalBetAmount > 0 }
         .sortedBy { it.number.toIntOrNull() ?: 0 }
 
-    fun keptAmount(totalBetAmount: Int): Int =
-        if (brakeLimit > 0) minOf(totalBetAmount, brakeLimit) else totalBetAmount
+    // When winning number is declared: show winning exact number and tut numbers only
+    val brakedWinRows = remember(batchWinningNumber, exposureMap, brakeLimit) {
+        if (batchWinningNumber.length != 3) return@remember emptyList<BrakedWinRow>()
+        val allPerms = NumberGenerator.permutations(batchWinningNumber).toSet()
+        val permsOnly = (allPerms - setOf(batchWinningNumber)).sorted()
+        val winInt = batchWinningNumber.toIntOrNull() ?: 0
+        val numMinus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
+        val numPlus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
+        val lastDigit = batchWinningNumber[2].digitToIntOrNull() ?: 0
+        val lastMinus1 = "${batchWinningNumber.substring(0, 2)}${(lastDigit + 9) % 10}"
+        val lastPlus1  = "${batchWinningNumber.substring(0, 2)}${(lastDigit + 1) % 10}"
+        val nearOnly = (setOf(numMinus1, numPlus1, lastMinus1, lastPlus1) - setOf(batchWinningNumber) - allPerms).sorted()
+        val tuwtNumbers = permsOnly + nearOnly
+
+        val exactAmt = if (brakeLimit > 0) minOf(exposureMap[batchWinningNumber]?.totalBetAmount ?: 0, brakeLimit) else (exposureMap[batchWinningNumber]?.totalBetAmount ?: 0)
+        listOf(BrakedWinRow(batchWinningNumber, isExact = true, amount = exactAmt)) +
+            tuwtNumbers.map { num ->
+                val amt = if (brakeLimit > 0) minOf(exposureMap[num]?.totalBetAmount ?: 0, brakeLimit) else (exposureMap[num]?.totalBetAmount ?: 0)
+                BrakedWinRow(num, isExact = false, amount = amt)
+            }
+    }
 
     val totalBraked = brakedExposures.sumOf { keptAmount(it.totalBetAmount) }
+    val commAmount = (totalBraked * meCommRate).toLong()
+    val netAfterComm = totalBraked - commAmount
+
+    val exactKeptAmt = if (isWonDeclared) keptAmount(exposureMap[batchWinningNumber]?.totalBetAmount ?: 0) else 0
+    val exactPayout = (exactKeptAmt * exactMult).toLong()
+
+    val tuwtKeptAmt = if (isWonDeclared) {
+        brakedWinRows.filter { !it.isExact }.sumOf { it.amount }
+    } else 0
+    val tuwtPayout = (tuwtKeptAmt * permMult).toLong()
+
+    val totalPayout = exactPayout + tuwtPayout
+    val brakedProfit = netAfterComm - totalPayout
+
     val totalOverflow = overflowExposures.sumOf { it.overflowAmount }
 
     val orangeColor = MaterialTheme.colorScheme.primary
@@ -376,16 +440,40 @@ fun OverflowScreen(
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().background(blueColor).padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(blueColor)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("အကြိမ် : $currentBatch", color = MaterialTheme.colorScheme.onPrimary, fontSize = 16.sp)
-                Spacer(modifier = Modifier.width(32.dp))
+                Text(
+                    "အကြိမ် : $currentBatch",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (isWonDeclared) {
+                    Surface(
+                        color = WinExactRed,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = batchWinningNumber,
+                            color = Color.White,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
+                    }
+                }
                 Text(
                     "ဘရိတ် : $brakeLimit",
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clickable { showBrakeDialog = true }
                         .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.15f), MaterialTheme.shapes.small)
@@ -395,47 +483,94 @@ fun OverflowScreen(
 
             // Tables
             Row(modifier = Modifier.fillMaxSize().padding(4.dp)) {
-                // Left Table — Bets within brake limit (≤ brakeLimit, > 0)
+                // Left Table — Bets within brake limit (≤ brakeLimit, > 0) or Win/Tut breakdown
                 Column(modifier = Modifier.weight(1f).border(1.dp, orangeColor).padding(2.dp)) {
                     Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(vertical = 6.dp, horizontal = 4.dp)) {
                         Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        Text("ဘရိတ်အတွင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text(if (isWonDeclared) "ပမာဏ" else "ဘရိတ်အတွင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
-                        if (brakedExposures.isEmpty()) {
-                            item {
-                                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                                    Text("ထိုးမှု မရှိသောပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        if (isWonDeclared) {
+                            items(brakedWinRows) { row ->
+                                val rowBg = if (row.isExact) WinExactRed else Color.Transparent
+                                val textColor = if (row.isExact) Color.White else MaterialTheme.colorScheme.onSurface
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(rowBg)
+                                        .padding(vertical = 5.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = row.number,
+                                        modifier = Modifier.weight(1f),
+                                        textAlign = TextAlign.Center,
+                                        color = textColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                    Text(
+                                        text = "%,d".format(row.amount),
+                                        modifier = Modifier.weight(1f),
+                                        textAlign = TextAlign.End,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        color = textColor,
+                                        fontWeight = if (row.isExact || row.amount > 0) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+                        } else {
+                            if (brakedExposures.isEmpty()) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                                    }
                                 }
                             }
-                        }
-                        items(brakedExposures) { exposure ->
-                            val kept = keptAmount(exposure.totalBetAmount)
-                            val isOverflowing = brakeLimit > 0 && exposure.totalBetAmount > brakeLimit
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp, horizontal = 2.dp)) {
-                                Text(
-                                    exposure.number,
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.Center,
-                                    color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
-                                Text(
-                                    "%,d".format(kept),
-                                    modifier = Modifier.weight(1f),
-                                    textAlign = TextAlign.End,
-                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                    color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 14.sp
-                                )
+                            items(brakedExposures) { exposure ->
+                                val kept = keptAmount(exposure.totalBetAmount)
+                                val isOverflowing = brakeLimit > 0 && exposure.totalBetAmount > brakeLimit
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp, horizontal = 4.dp)) {
+                                    Text(
+                                        exposure.number,
+                                        modifier = Modifier.weight(1f),
+                                        textAlign = TextAlign.Center,
+                                        color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                    Text(
+                                        "%,d".format(kept),
+                                        modifier = Modifier.weight(1f),
+                                        textAlign = TextAlign.End,
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                        color = if (isOverflowing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
                         }
                     }
-                    Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(vertical = 6.dp, horizontal = 4.dp)) {
-                        Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        Text("%,d".format(totalBraked), color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                    if (isWonDeclared) {
+                        Column(modifier = Modifier.fillMaxWidth().background(orangeColor)) {
+                            BrakeSummaryRow("စုစုပေါင်း", "%,d".format(totalBraked))
+                            val commLabel = if (meCommRate > 0) "ကော် (${(meCommRate * 100).toInt()}%)" else "ကော်"
+                            BrakeSummaryRow(commLabel, "%,d".format(commAmount))
+                            BrakeSummaryRow("နုတ်ပြီး", "%,d".format(netAfterComm))
+                            BrakeSummaryRow("ပေါက်သီး", "%,d".format(exactPayout))
+                            BrakeSummaryRow("တွတ်", "%,d".format(tuwtPayout))
+                            BrakeSummaryRow("အမြတ်ငွေ", "%,d".format(brakedProfit), isProfit = true)
+                        }
+                    } else {
+                        Row(modifier = Modifier.fillMaxWidth().background(orangeColor).padding(vertical = 6.dp, horizontal = 4.dp)) {
+                            Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            Text("%,d".format(totalBraked), color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.width(4.dp))
@@ -443,7 +578,7 @@ fun OverflowScreen(
                 Column(modifier = Modifier.weight(1f).border(1.dp, MaterialTheme.colorScheme.error).padding(2.dp)) {
                     Row(modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.error).padding(vertical = 6.dp, horizontal = 4.dp)) {
                         Text("ဂဏန်းများ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                        Text("ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text(if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ", color = MaterialTheme.colorScheme.onError, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (overflowExposures.isEmpty()) {
@@ -491,4 +626,45 @@ fun OverflowScreen(
             }
         }
     }
+}
+
+@Composable
+private fun BrakeSummaryRow(
+    label: String,
+    value: String,
+    isProfit: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp
+        )
+        Box(
+            modifier = Modifier
+                .height(16.dp)
+                .width(0.5.dp)
+                .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f))
+        )
+        Text(
+            text = value,
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 4.dp),
+            textAlign = TextAlign.End,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f), thickness = 0.5.dp)
 }

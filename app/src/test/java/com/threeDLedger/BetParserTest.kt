@@ -1,6 +1,9 @@
 package com.threeDLedger
 
+import com.threeDLedger.ui.LineParseResult
 import com.threeDLedger.ui.parsePastedLine
+import com.threeDLedger.ui.validateAndParseLine
+import com.threeDLedger.ui.validatePastedText
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -184,5 +187,122 @@ class BetParserTest {
         assertEquals(6, resSpaced.size)
         assertEquals("862" to 5000, resSpaced[0])
         assertTrue(resSpaced.drop(1).all { it.second == 8000 })
+    }
+
+    @Test
+    fun testDeclineLessThan3DigitNumbers() {
+        // Direct bet with 2 digits: 25=1000
+        val r1 = validateAndParseLine("25=1000", 1)
+        assertTrue(r1 is LineParseResult.Error)
+        assertEquals("ဂဏန်း ၃ လုံး မပြည့်ပါ", (r1 as LineParseResult.Error).error.reason)
+        assertEquals(listOf("25"), r1.error.invalidTokens)
+
+        // Single digit: 7=500
+        val r2 = validateAndParseLine("7=500", 2)
+        assertTrue(r2 is LineParseResult.Error)
+        assertEquals("ဂဏန်း ၃ လုံး မပြည့်ပါ", (r2 as LineParseResult.Error).error.reason)
+        assertEquals(listOf("7"), r2.error.invalidTokens)
+
+        // Hyphen-separated with one 2-digit number: 123-45=1000
+        val r3 = validateAndParseLine("123-45=1000", 3)
+        assertTrue(r3 is LineParseResult.Error)
+        assertEquals("ဂဏန်း ၃ လုံး မပြည့်ပါ", (r3 as LineParseResult.Error).error.reason)
+        assertEquals(listOf("45"), r3.error.invalidTokens)
+
+        // Dot-separated with one 2-digit number: 123.45.678=1000
+        val r4 = validateAndParseLine("123.45.678=1000", 4)
+        assertTrue(r4 is LineParseResult.Error)
+        assertEquals(listOf("45"), (r4 as LineParseResult.Error).error.invalidTokens)
+
+        // With list number prefix: 1. 25=1000
+        val r5 = validateAndParseLine("1. 25=1000", 5)
+        assertTrue(r5 is LineParseResult.Error)
+        assertEquals(listOf("25"), (r5 as LineParseResult.Error).error.invalidTokens)
+
+        // With R / round: 25R=1000 or 25/5000
+        val r6 = validateAndParseLine("25R=1000", 6)
+        assertTrue(r6 is LineParseResult.Error)
+        assertEquals(listOf("25"), (r6 as LineParseResult.Error).error.invalidTokens)
+
+        val r7 = validateAndParseLine("25/5000", 7)
+        assertTrue(r7 is LineParseResult.Error)
+        assertEquals(listOf("25"), (r7 as LineParseResult.Error).error.invalidTokens)
+    }
+
+    @Test
+    fun testDeclineMoreThan3DigitNumbers() {
+        val r1 = validateAndParseLine("1234=1000", 1)
+        assertTrue(r1 is LineParseResult.Error)
+        assertEquals("ဂဏန်း ၃ လုံးထက် ပိုနေပါသည်", (r1 as LineParseResult.Error).error.reason)
+        assertEquals(listOf("1234"), r1.error.invalidTokens)
+
+        val r2 = validateAndParseLine("123-4567=1000", 2)
+        assertTrue(r2 is LineParseResult.Error)
+        assertEquals(listOf("4567"), (r2 as LineParseResult.Error).error.invalidTokens)
+    }
+
+    @Test
+    fun testDeclineWrongFormatLines() {
+        // Missing amount
+        val r1 = validateAndParseLine("123=", 1)
+        assertTrue(r1 is LineParseResult.Error)
+
+        val r2 = validateAndParseLine("123", 2)
+        assertTrue(r2 is LineParseResult.Error)
+
+        // Missing betting number
+        val r3 = validateAndParseLine("=1000", 3)
+        assertTrue(r3 is LineParseResult.Error)
+
+        // Non-digits in bet numbers
+        val r4 = validateAndParseLine("abc=1000", 4)
+        assertTrue(r4 is LineParseResult.Error)
+        assertEquals("ပုံစံမမှန်ပါ", (r4 as LineParseResult.Error).error.reason)
+
+        // Zero amount
+        val r5 = validateAndParseLine("123=0", 5)
+        assertTrue(r5 is LineParseResult.Error)
+    }
+
+    @Test
+    fun testDeclineWholePasteIfAnyLineHasError() {
+        val pastedText = """
+            1. 723-372-245-309 = 2000
+            2. 446=1000
+            3. 25=3000
+            4. 907=4000
+            5. 110=5000
+        """.trimIndent()
+
+        val result = validatePastedText(pastedText)
+        assertFalse("Entire paste must be declined when line 3 has less than 3 digits", result.isValid)
+        assertTrue("Valid bets must be empty when declined", result.validBets.isEmpty())
+        assertEquals(1, result.errors.size)
+        assertEquals(3, result.errors[0].lineNumber)
+        assertEquals("ဂဏန်း ၃ လုံး မပြည့်ပါ", result.errors[0].reason)
+        assertEquals(listOf("25"), result.errors[0].invalidTokens)
+    }
+
+    @Test
+    fun testAcceptValidPasteWithMetadataLines() {
+        val pastedText = """
+            ----------------
+            3D VOUCHER
+            Date: 22/09/2026
+            Time: 14:30:00
+            ----------------
+            123 = 1000
+            456 = 2000
+            ----------------
+            Total = 3000
+            ----------------
+        """.trimIndent()
+
+        val result = validatePastedText(pastedText)
+        assertTrue(result.isValid)
+        assertEquals(0, result.errors.size)
+        assertEquals(2, result.validBets.size)
+        assertEquals("123" to 1000, result.validBets[0])
+        assertEquals("456" to 2000, result.validBets[1])
     }
 }

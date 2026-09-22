@@ -5,6 +5,13 @@ import { auth, db } from './firebase';
 import './index.css';
 
 import { calculateTutNumbers } from './tutLogic';
+import {
+  buildResellerList,
+  computeResellerKeyCounts,
+  filterKeysByResellerAndCriteria,
+  formatTelegramUsername,
+  getTelegramChatUrl
+} from './resellerUtils';
 
 const DEFAULT_SALE_PLANS = {
   trial_3d: {
@@ -101,10 +108,17 @@ function App() {
   const [settleNotes, setSettleNotes] = useState('');
   const [settlingDue, setSettlingDue] = useState(false);
 
+  // Section navigation state ('resellers', 'generate', 'lottery', 'release', 'plans', 'calculator')
+  const [activeSection, setActiveSection] = useState('resellers');
+
+  // Reseller separation state: 'all' | 'direct' | telegram_id
+  const [selectedResellerId, setSelectedResellerId] = useState('all');
+
   // Key generation options: Strictly 3 plans (trial_3d, one_year, lifetime), device switching mode on/off for each plan, bulk count
   const [keyType, setKeyType] = useState('one_year');
   const [deviceChangeable, setDeviceChangeable] = useState(true);
   const [bulkCount, setBulkCount] = useState(1);
+  const [resellerForNewKeys, setResellerForNewKeys] = useState('');
 
   // Auto-fetch Official Thai GLO results on mount and poll periodically
   useEffect(() => {
@@ -444,10 +458,13 @@ function App() {
     const updates = {};
     const newlyGenerated = [];
     const now = Date.now();
+    const assignedReseller = resellerForNewKeys
+      ? Object.values(resellers).find(r => String(r.telegram_id) === String(resellerForNewKeys))
+      : null;
 
     for (let i = 0; i < count; i++) {
       const key = generateCdKeyString();
-      updates[`3d_licenses/keys/${key}`] = {
+      const keyRecord = {
         cd_key: key,
         status: 'available',
         plan_id: planId,
@@ -458,13 +475,29 @@ function App() {
         created_at: now,
         generated_at: now
       };
+
+      if (assignedReseller) {
+        keyRecord.generated_by_reseller_id = String(assignedReseller.telegram_id);
+        keyRecord.reseller_name = assignedReseller.name;
+        if (assignedReseller.username) {
+          keyRecord.reseller_username = assignedReseller.username;
+        }
+      }
+
+      updates[`3d_licenses/keys/${key}`] = keyRecord;
       newlyGenerated.push(key);
+    }
+
+    if (assignedReseller) {
+      updates[`3d_licenses/resellers/${assignedReseller.telegram_id}/total_generated`] = (assignedReseller.total_generated || 0) + count;
     }
 
     await update(ref(db), updates);
     setGeneratedKey(newlyGenerated[0]);
     setBulkGeneratedKeys(newlyGenerated);
-    showToast(count === 1 ? 'New CD-Key generated successfully!' : `Successfully generated ${count} CD-Keys!`);
+    showToast(assignedReseller
+      ? `Successfully generated ${count} CD-Key(s) for ${assignedReseller.name}!`
+      : (count === 1 ? 'New CD-Key generated successfully!' : `Successfully generated ${count} CD-Keys!`));
   };
 
   const generateKey = generateKeysBatch;
@@ -652,35 +685,46 @@ function App() {
   const playgroundTut = useMemo(() => calculateTutNumbers(calcTestNumber), [calcTestNumber]);
 
   // Stats & Key filtering
-  const keyEntries = Object.entries(keys);
+  const keyEntries = useMemo(() => Object.entries(keys), [keys]);
   const totalKeys = keyEntries.length;
   const availableKeys = keyEntries.filter(([, v]) => v.status === 'available').length;
   const claimedKeys = keyEntries.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length;
   const revokedKeys = keyEntries.filter(([, v]) => v.status === 'revoked').length;
 
-  const filteredKeys = useMemo(() => {
-    return keyEntries
-      .filter(([keyId, keyData]) => {
-        if (keyFilter === 'available' && keyData.status !== 'available') return false;
-        if (keyFilter === 'claimed' && keyData.status !== 'claimed' && keyData.status !== 'active') return false;
-        if (keyFilter === 'revoked' && keyData.status !== 'revoked') return false;
-        if (keyFilter === 'changeable' && keyData.device_changeable !== true) return false;
-        if (keyFilter === 'locked' && keyData.device_changeable === true) return false;
-        if (keyFilter === 'trial_3d' && keyData.plan_id !== 'trial_3d' && keyData.duration !== 'trial') return false;
-        if (keyFilter === 'one_year' && keyData.plan_id !== 'one_year' && keyData.duration !== 365) return false;
-        if (keyFilter === 'lifetime' && keyData.plan_id !== 'lifetime' && keyData.duration !== 'lifetime') return false;
+  // Complete List of Resellers (from database + any discovered in keys)
+  const allResellerList = useMemo(() => {
+    return buildResellerList(resellers, keyEntries);
+  }, [resellers, keyEntries]);
 
-        if (keySearch.trim()) {
-          const q = keySearch.toLowerCase().trim();
-          const matchKey = keyId.toLowerCase().includes(q);
-          const matchDevice = (keyData.claimed_by || keyData.device_model || keyData.device_fingerprint || '').toLowerCase().includes(q);
-          const matchPlan = (keyData.plan_id || keyData.duration_label || '').toLowerCase().includes(q);
-          return matchKey || matchDevice || matchPlan;
-        }
-        return true;
-      })
-      .sort((a, b) => (b[1].generated_at || b[1].created_at || 0) - (a[1].generated_at || a[1].created_at || 0));
-  }, [keyEntries, keyFilter, keySearch]);
+  // Key counts breakdown per reseller
+  const resellerKeyCounts = useMemo(() => {
+    return computeResellerKeyCounts(keyEntries);
+  }, [keyEntries]);
+
+  // Currently selected reseller object (or null if all/direct)
+  const currentSelectedReseller = useMemo(() => {
+    if (selectedResellerId === 'all' || selectedResellerId === 'direct') return null;
+    return allResellerList.find(r => String(r.telegram_id) === String(selectedResellerId)) || null;
+  }, [allResellerList, selectedResellerId]);
+
+  // Keys strictly belonging to the currently selected reseller
+  const currentResellerKeys = useMemo(() => {
+    if (!currentSelectedReseller) return [];
+    return keyEntries.filter(([_, k]) => {
+      return String(k.generated_by_reseller_id) === String(currentSelectedReseller.telegram_id) ||
+        (k.reseller_name && k.reseller_name === currentSelectedReseller.name);
+    });
+  }, [keyEntries, currentSelectedReseller]);
+
+  // Filtered keys taking selectedResellerId into account
+  const filteredKeys = useMemo(() => {
+    return filterKeysByResellerAndCriteria(keyEntries, {
+      selectedResellerId,
+      currentSelectedReseller,
+      keyFilter,
+      keySearch
+    });
+  }, [keyEntries, keyFilter, keySearch, selectedResellerId, currentSelectedReseller]);
 
   if (loading) {
     return (
@@ -814,681 +858,694 @@ function App() {
         </div>
       </header>
 
+      {/* Top Section Navigation Bar */}
+      <div className="section-nav-wrapper">
+        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 16px' }}>
+          <nav className="section-nav">
+            <button
+              type="button"
+              className={`section-tab ${activeSection === 'resellers' ? 'active' : ''}`}
+              onClick={() => setActiveSection('resellers')}
+            >
+              <span className="tab-icon">👥</span>
+              <span className="tab-title">Resellers & Keys (ကိုယ်စားလှယ်များနှင့် ကုဒ်များ)</span>
+              <span className="tab-badge">{allResellerList.length}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`section-tab ${activeSection === 'generate' ? 'active' : ''}`}
+              onClick={() => setActiveSection('generate')}
+            >
+              <span className="tab-icon">🔑</span>
+              <span className="tab-title">Generate Keys (ကုဒ်အသစ် ထုတ်ရန်)</span>
+            </button>
+
+            <button
+              type="button"
+              className={`section-tab ${activeSection === 'lottery' ? 'active' : ''}`}
+              onClick={() => setActiveSection('lottery')}
+            >
+              <span className="tab-icon">🎯</span>
+              <span className="tab-title">3D Lottery & Results (ထိုင်း 3D နှင့် ရလဒ်)</span>
+              {liveResults.winning_number && (
+                <span className="tab-badge win-badge">3D: {liveResults.winning_number}</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              className={`section-tab ${activeSection === 'release' ? 'active' : ''}`}
+              onClick={() => setActiveSection('release')}
+            >
+              <span className="tab-icon">📲</span>
+              <span className="tab-title">App Release (အက်ပ်ဗားရှင်း ဖြန့်ချိရေး)</span>
+              <span className="tab-badge">{appRelease?.version_name ? `v${appRelease.version_name}` : 'Live'}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`section-tab ${activeSection === 'plans' ? 'active' : ''}`}
+              onClick={() => setActiveSection('plans')}
+            >
+              <span className="tab-icon">💰</span>
+              <span className="tab-title">Sale Plans (အစီအစဉ်နှင့် စျေးနှုန်း)</span>
+            </button>
+
+            <button
+              type="button"
+              className={`section-tab ${activeSection === 'calculator' ? 'active' : ''}`}
+              onClick={() => setActiveSection('calculator')}
+            >
+              <span className="tab-icon">🧮</span>
+              <span className="tab-title">Tut Calculator (တွတ်စစ်ဆေးရန်)</span>
+            </button>
+          </nav>
+        </div>
+      </div>
+
       <main className="dashboard-content">
-        {/* Stats Row */}
+        {/* Interactive Stats Overview Row */}
         <div className="stats-row">
-          <div className="stat-card purple">
+          <div
+            className="stat-card purple"
+            onClick={() => { setActiveSection('resellers'); setSelectedResellerId('all'); setKeyFilter('all'); }}
+            style={{ cursor: 'pointer' }}
+            title="View All License Keys"
+          >
             <div className="stat-icon">🔑</div>
             <div className="stat-value">{totalKeys}</div>
             <div className="stat-label">Total Keys (လိုင်စင်ကုဒ်များ)</div>
           </div>
-          <div className="stat-card green">
+          <div
+            className="stat-card green"
+            onClick={() => { setActiveSection('resellers'); setKeyFilter('available'); }}
+            style={{ cursor: 'pointer' }}
+            title="View Available Keys"
+          >
             <div className="stat-icon">✅</div>
             <div className="stat-value">{availableKeys}</div>
             <div className="stat-label">Available (သုံးနိုင်သော)</div>
           </div>
-          <div className="stat-card red">
+          <div
+            className="stat-card red"
+            onClick={() => { setActiveSection('resellers'); setKeyFilter('claimed'); }}
+            style={{ cursor: 'pointer' }}
+            title="View Claimed / Active Keys"
+          >
             <div className="stat-icon">📱</div>
             <div className="stat-value">{claimedKeys}</div>
             <div className="stat-label">Claimed (အသုံးပြုထားသော)</div>
           </div>
-          <div className="stat-card orange">
+          <div
+            className="stat-card orange"
+            onClick={() => { setActiveSection('lottery'); }}
+            style={{ cursor: 'pointer' }}
+            title="View 3D Live Draw & Results"
+          >
             <div className="stat-icon">🎯</div>
             <div className="stat-value">{liveResults.winning_number || '---'}</div>
             <div className="stat-label">3D ပေါက်ဂဏန်း (Winning 3D)</div>
           </div>
         </div>
 
-        {/* Batch & System Config Bar */}
-        <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 'clamp(13px, 2vw, 15px)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                အကြိမ် (Batch):
-              </span>
-              <input
-                type="number"
-                value={batchInput}
-                onChange={e => setBatchInput(e.target.value)}
-                style={{
-                  width: 80,
-                  textAlign: 'center',
-                  fontSize: 16,
-                  fontWeight: 700,
-                  background: 'var(--bg-primary)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--accent-primary)',
-                  padding: '6px 8px',
-                  borderRadius: 8
-                }}
-              />
-              <button className="btn btn-primary btn-sm" onClick={saveBatch}>
-                💾 Save
-              </button>
-              <div className="batch-draw-date-badge">
-                <span>📅 <b>ထွက်ရက်စွဲ:</b> {liveResults.result_date || gloResult?.drawDate || '16-09-2026'}</span>
-                <span>&bull;</span>
-                <span>⏭️ <b>နောက်ထွက်မည့်ရက်:</b> {liveResults.target_draw_date || '01-10-2026'}</span>
-                <span style={{ fontSize: 11, opacity: 0.75 }}>(အက်ပ်များတွင် အကြိမ်ကို သီးခြားစီမံသည်)</span>
+        {/* ========================================================
+            SECTION 1: RESELLERS & KEYS HUB (CORE USER REQUIREMENT)
+            ======================================================== */}
+        {activeSection === 'resellers' && (
+          <div>
+            {/* Reseller Selector Bar */}
+            <div className="card reseller-picker-container">
+              <div className="card-header reseller-picker-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 24 }}>👥</span>
+                  <div>
+                    <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>
+                      Resellers & Key Directory (အရောင်းကိုယ်စားလှယ်နှင့် လိုင်စင်စာရင်း)
+                    </h2>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Select a reseller to see their specific keys, Telegram username, and due balance
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
+                  <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
+                    👤 {allResellerList.length} Resellers
+                  </span>
+                  <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
+                    📌 Total Due: {allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
+                  </span>
+                  <span className="status-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
+                    💵 Total Paid: {allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
+                  </span>
+                </div>
+              </div>
+
+              <div className="card-body" style={{ paddingTop: 8 }}>
+                <div className="reseller-picker-tabs">
+                  <button
+                    type="button"
+                    className={`reseller-chip ${selectedResellerId === 'all' ? 'active' : ''}`}
+                    onClick={() => setSelectedResellerId('all')}
+                  >
+                    <span className="reseller-avatar-mini">🌐</span>
+                    <span>All Resellers (Overview)</span>
+                    <span className="tab-badge">{totalKeys}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`reseller-chip ${selectedResellerId === 'direct' ? 'active' : ''}`}
+                    onClick={() => setSelectedResellerId('direct')}
+                  >
+                    <span className="reseller-avatar-mini">🏢</span>
+                    <span>Direct / Admin Keys</span>
+                    <span className="tab-badge">{resellerKeyCounts.direct || 0}</span>
+                  </button>
+
+                  {allResellerList.map((r) => {
+                    const isSel = selectedResellerId === String(r.telegram_id);
+                    const count = resellerKeyCounts[String(r.telegram_id)] || 0;
+                    const due = r.total_due || 0;
+                    return (
+                      <button
+                        key={r.telegram_id}
+                        type="button"
+                        className={`reseller-chip ${isSel ? 'active' : ''}`}
+                        onClick={() => setSelectedResellerId(String(r.telegram_id))}
+                      >
+                        <span className="reseller-avatar-mini">
+                          {r.name ? r.name.charAt(0).toUpperCase() : 'R'}
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', textAlign: 'left' }}>
+                          <span style={{ fontWeight: 700, fontSize: 13 }}>{r.name}</span>
+                          {r.username && (
+                            <span style={{ fontSize: 11, color: isSel ? '#7dd3fc' : 'var(--accent-cyan)' }}>
+                              @{r.username.replace('@', '')}
+                            </span>
+                          )}
+                        </div>
+                        <span className="tab-badge">{count}</span>
+                        {due > 0 && (
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            background: 'rgba(239, 68, 68, 0.25)',
+                            color: '#f87171',
+                            padding: '2px 6px',
+                            borderRadius: 8,
+                            marginLeft: 2
+                          }}>
+                            {due.toLocaleString()} Ks
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Scraper Mode:</span>
-              <select
-                className="select-input"
-                value={mode}
-                onChange={(e) => toggleMode(e.target.value)}
-                style={{
-                  background: mode === 'auto' ? 'rgba(0, 200, 151, 0.15)' : 'rgba(255, 179, 71, 0.15)',
-                  color: mode === 'auto' ? 'var(--accent-success)' : 'var(--accent-warning)',
-                  fontWeight: 700
-                }}
-              >
-                <option value="auto">🤖 AUTO (Official GLO Thailand Scraper)</option>
-                <option value="manual">✋ MANUAL (Admin Override)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Real-Time Thai 3D / GLO Official Lottery Live Scraper Card */}
-        <div className="card glo-live-banner" style={{ marginBottom: 20 }}>
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 24 }}>⚡</span>
-              <div>
-                <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>Real-Time Thai 3D / GLO Live Feed (ထိုင်း 3D တိုက်ရိုက် ရလဒ် စနစ်)</h2>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Fast Live: Sanook Realtime (~3:15 PM MMT အမြန်ဆုံး) &bull; Archive: Official GLO (~3:30 PM MMT)
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {gloResult?.threeD && (
-                <span className={`sync-status-indicator ${gloResult.threeD === liveResults.winning_number ? 'synced' : 'out-of-sync'}`}>
-                  {gloResult.threeD === liveResults.winning_number
-                    ? `🟢 IN SYNC: Live App has ${gloResult.threeD}`
-                    : `ℹ️ Feed: ${gloResult.threeD} (Live App: ${liveResults.winning_number || 'Undeclared / Waiting'})`}
-                </span>
-              )}
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={fetchOfficialGlo}
-                disabled={fetchingGlo}
-              >
-                {fetchingGlo ? '⏳ Fetching Live 3D...' : '🔄 Refresh Live 3D'}
-              </button>
-            </div>
-          </div>
-          <div className="card-body">
-            {gloError && (
-              <div style={{ color: 'var(--accent-secondary)', fontSize: 13, marginBottom: 12 }}>
-                ⚠️ {gloError}
-              </div>
-            )}
-            {gloResult ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div className="glo-stat-grid">
-                  <div className="glo-stat-box">
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>1st Prize (รางวัลที่ 1)</div>
-                    <div style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
-                      {gloResult.firstPrize || '—'}
+            {/* Reseller Details Card (when a specific reseller is selected) */}
+            {currentSelectedReseller && (
+              <div className="reseller-profile-card">
+                <div className="reseller-profile-header">
+                  <div className="reseller-identity">
+                    <div className="reseller-avatar-large">
+                      {currentSelectedReseller.name ? currentSelectedReseller.name.charAt(0).toUpperCase() : '👤'}
                     </div>
-                  </div>
-                  <div className="glo-stat-box" style={{ borderColor: 'rgba(0, 200, 151, 0.4)', background: 'rgba(0, 200, 151, 0.08)' }}>
-                    <div style={{ fontSize: 11, color: 'var(--accent-success)', fontWeight: 800, textTransform: 'uppercase' }}>
-                      3D Winning (နောက် ၃ လုံး)
-                    </div>
-                    <div style={{ fontSize: 'clamp(22px, 3.5vw, 30px)', fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-success)', letterSpacing: 2, marginTop: 2 }}>
-                      {gloResult.threeD || '—'}
-                    </div>
-                  </div>
-                  {gloResult.twoD && (
-                    <div className="glo-stat-box">
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>2D (အောက် ၂ လုံး)</div>
-                      <div style={{ fontSize: 'clamp(16px, 2.2vw, 20px)', fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
-                        {gloResult.twoD}
+                    <div>
+                      <div className="reseller-name-row">
+                        <h2 style={{ fontSize: 22, fontWeight: 900, margin: 0, color: 'var(--text-primary)' }}>
+                          {currentSelectedReseller.name}
+                        </h2>
+                        {currentSelectedReseller.username ? (
+                          <a
+                            href={`https://t.me/${currentSelectedReseller.username.replace('@', '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="telegram-user-link"
+                            title="Open chat in Telegram"
+                          >
+                            ✈️ @{currentSelectedReseller.username.replace('@', '')} (Telegram ↗)
+                          </a>
+                        ) : (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>No Telegram @username</span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6, flexWrap: 'wrap', fontSize: 12 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Telegram ID:</span>
+                        <code style={{ background: 'var(--bg-primary)', padding: '2px 8px', borderRadius: 6, color: '#818cf8', fontWeight: 700 }}>
+                          {currentSelectedReseller.telegram_id}
+                        </code>
+                        <button
+                          type="button"
+                          className={`copy-btn ${copiedId === `reseller-id-${currentSelectedReseller.telegram_id}` ? 'copied' : ''}`}
+                          onClick={() => copyToClipboard(currentSelectedReseller.telegram_id, `reseller-id-${currentSelectedReseller.telegram_id}`)}
+                          style={{ fontSize: 11 }}
+                        >
+                          {copiedId === `reseller-id-${currentSelectedReseller.telegram_id}` ? '✅ Copied' : '📋 Copy ID'}
+                        </button>
+                        <span style={{ color: 'var(--text-muted)' }}>&bull;</span>
+                        <span style={{ color: 'var(--text-muted)' }}>
+                          📅 Registered: {new Date(currentSelectedReseller.created_at || Date.now()).toLocaleDateString()}
+                        </span>
                       </div>
                     </div>
-                  )}
-                  {gloResult.date && (
-                    <div className="glo-stat-box">
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Draw Date (ရက်စွဲ)</div>
-                      <div style={{ fontSize: 'clamp(12px, 1.6vw, 14px)', fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
-                        {gloResult.date}
-                      </div>
-                    </div>
-                  )}
-                  <div className="glo-stat-box" style={{ borderColor: 'rgba(99, 102, 241, 0.35)', background: 'rgba(99, 102, 241, 0.08)' }}>
-                    <div style={{ fontSize: 11, color: '#818cf8', textTransform: 'uppercase', fontWeight: 700 }}>
-                      Feed Source (ရင်းမြစ်)
-                    </div>
-                    <div style={{ fontSize: 'clamp(11px, 1.5vw, 12px)', fontWeight: 800, color: 'var(--text-primary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span>{gloResult.source?.includes('Sanook') ? '⚡' : '🏛️'}</span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gloResult.source || gloResult.session || 'Live Fast Feed'}</span>
-                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-warning"
+                      onClick={() => handleOpenSettleModal(currentSelectedReseller)}
+                      style={{ fontWeight: 700, padding: '8px 16px' }}
+                    >
+                      💳 Clear Due / ရှင်းလင်းမည်
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => {
+                        setResellerForNewKeys(String(currentSelectedReseller.telegram_id));
+                        setActiveSection('generate');
+                      }}
+                      style={{ padding: '8px 16px' }}
+                    >
+                      ➕ Issue Keys for {currentSelectedReseller.name}
+                    </button>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <button
-                    className="btn btn-warning"
-                    style={{ fontWeight: 800, padding: '10px 18px' }}
-                    onClick={applyGloDirectlyToFirebase}
-                  >
-                    ⚡ Apply 3D Result to Live App & Telegram
-                  </button>
-                  <button
-                    className="btn btn-outline btn-sm"
-                    onClick={applyGloToManual}
-                    title="Fill the manual form fields below with this 3D number"
-                  >
-                    📋 Fill Manual Form
-                  </button>
+                {/* Reseller Performance & Financial Metrics */}
+                <div className="reseller-metrics-grid">
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Total Keys Issued</span>
+                    <span className="reseller-metric-value" style={{ color: '#818cf8' }}>
+                      {currentResellerKeys.length}
+                    </span>
+                  </div>
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Available (မသုံးရသေး)</span>
+                    <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
+                      {currentResellerKeys.filter(([_, k]) => k.status === 'available').length}
+                    </span>
+                  </div>
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Active (သုံးစွဲနေ)</span>
+                    <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
+                      {currentResellerKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
+                    </span>
+                  </div>
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Commission (ရရှိပြီး ကော်)</span>
+                    <span className="reseller-metric-value" style={{ color: '#10b981' }}>
+                      {(currentSelectedReseller.total_commission || 0).toLocaleString()} Ks
+                    </span>
+                  </div>
+                  <div className={`reseller-metric-box ${(currentSelectedReseller.total_due || 0) > 0 ? 'due-alert' : 'clean-settled'}`}>
+                    <span className="reseller-metric-label">Due Balance (ပေးရန်ကျန်ငွေ)</span>
+                    <span className="reseller-metric-value" style={{ color: (currentSelectedReseller.total_due || 0) > 0 ? '#ef4444' : '#10b981' }}>
+                      {(currentSelectedReseller.total_due || 0).toLocaleString()} Ks
+                    </span>
+                  </div>
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Total Paid (ရှင်းပြီးငွေ)</span>
+                    <span className="reseller-metric-value" style={{ color: '#6366f1' }}>
+                      {(currentSelectedReseller.total_paid || 0).toLocaleString()} Ks
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                {fetchingGlo ? '⏳ Fetching real-time Thai 3D / GLO lottery result...' : 'Auto-checking real-time 3D live result (~3:15 PM MMT). You can also click "Refresh Live 3D" to pull latest draw.'}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* App Distribution & Telegram Release Pipeline Card */}
-        <div className="card" style={{ marginBottom: 20, border: '1px solid rgba(99, 102, 241, 0.3)', background: 'linear-gradient(180deg, rgba(99, 102, 241, 0.04) 0%, var(--bg-card) 100%)' }}>
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 26 }}>📲</span>
-              <div>
-                <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>
-                  App Distribution & Telegram Release Manager (အက်ပ်ဗားရှင်း ဖြန့်ချိရေး စနစ်)
-                </h2>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                  Zero-server APK hosting directly via Telegram Bot &bull; Real-time automatic updates
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{
-                fontSize: 12,
-                fontWeight: 700,
-                padding: '4px 10px',
-                borderRadius: 20,
-                background: appRelease?.file_id ? 'rgba(0, 200, 151, 0.15)' : 'rgba(255, 179, 71, 0.15)',
-                color: appRelease?.file_id ? 'var(--accent-success)' : 'var(--accent-warning)',
-                border: `1px solid ${appRelease?.file_id ? 'rgba(0, 200, 151, 0.3)' : 'rgba(255, 179, 71, 0.3)'}`
-              }}>
-                {appRelease?.file_id ? '🟢 Telegram Release Live' : '⏳ Awaiting Initial APK'}
-              </span>
-            </div>
-          </div>
-          <div className="card-body">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 16 }}>
-              {/* Release Metadata Card */}
-              <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 10 }}>
-                  📦 Active APK in Telegram Bot
-                </div>
-                {appRelease ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>File Name:</span>
-                      <code style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-primary)' }}>{appRelease.file_name || '3D_Ledger.apk'}</code>
+            {/* Direct Admin Keys Profile (when 'direct' is selected) */}
+            {selectedResellerId === 'direct' && (
+              <div className="reseller-profile-card">
+                <div className="reseller-profile-header">
+                  <div className="reseller-identity">
+                    <div className="reseller-avatar-large" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #4338ca 100%)' }}>
+                      🏢
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Version:</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{appRelease.version_name || 'v1.0.0'}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>File Size:</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {appRelease.file_size ? `${(appRelease.file_size / (1024 * 1024)).toFixed(2)} MB` : '—'}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Uploaded At:</span>
+                    <div>
+                      <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0 }}>Direct / System Keys (Admin Generated)</h2>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                        {appRelease.uploaded_at ? new Date(appRelease.uploaded_at).toLocaleString() : '—'}
+                        Keys created directly by admin with no reseller attribution
                       </span>
                     </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      setResellerForNewKeys('');
+                      setActiveSection('generate');
+                    }}
+                  >
+                    ➕ Generate Direct Keys
+                  </button>
+                </div>
+                <div className="reseller-metrics-grid">
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Total Direct Keys</span>
+                    <span className="reseller-metric-value" style={{ color: '#818cf8' }}>{directKeys.length}</span>
+                  </div>
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Available</span>
+                    <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
+                      {directKeys.filter(([_, k]) => k.status === 'available').length}
+                    </span>
+                  </div>
+                  <div className="reseller-metric-box">
+                    <span className="reseller-metric-label">Active / Claimed</span>
+                    <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
+                      {directKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* All Resellers Summary Table (when 'all' is selected) */}
+            {selectedResellerId === 'all' && (
+              <div className="card" style={{ marginBottom: 24, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+                <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
+                  <h2>👥 Resellers Directory (ကိုယ်စားလှယ်များ စာရင်း)</h2>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    Click &quot;View Keys&quot; to inspect only that reseller&apos;s licenses
+                  </span>
+                </div>
+                <div className="card-body" style={{ padding: 0 }}>
+                  {allResellerList.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">👥</div>
+                      <p>No resellers registered yet. Add resellers via Telegram bot or /addreseller command.</p>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="keys-table">
+                        <thead>
+                          <tr>
+                            <th>Reseller Name</th>
+                            <th>Telegram Username</th>
+                            <th>Telegram ID</th>
+                            <th>Keys Generated / Active</th>
+                            <th>Commission</th>
+                            <th>Due Balance</th>
+                            <th>Total Paid</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allResellerList.map((r) => {
+                            const due = r.total_due || 0;
+                            const paid = r.total_paid || 0;
+                            const commission = r.total_commission || 0;
+                            const kCount = resellerKeyCounts[String(r.telegram_id)] || 0;
+                            return (
+                              <tr key={r.telegram_id}>
+                                <td>
+                                  <strong>{r.name}</strong>
+                                </td>
+                                <td>
+                                  {r.username ? (
+                                    <a
+                                      href={`https://t.me/${r.username.replace('@', '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="telegram-user-link"
+                                    >
+                                      @{r.username.replace('@', '')}
+                                    </a>
+                                  ) : (
+                                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <code>{r.telegram_id}</code>
+                                    <button
+                                      type="button"
+                                      className={`copy-btn ${copiedId === `reseller-${r.telegram_id}` ? 'copied' : ''}`}
+                                      onClick={() => copyToClipboard(r.telegram_id, `reseller-${r.telegram_id}`)}
+                                      title="Copy Telegram ID"
+                                    >
+                                      {copiedId === `reseller-${r.telegram_id}` ? '✅' : '📋'}
+                                    </button>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span style={{ fontSize: 13 }}>
+                                    🔢 {kCount || r.total_generated || 0} ထုတ် / 🟢 {r.total_activated || 0} သုံး
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ color: '#10b981', fontWeight: 600 }}>
+                                    {commission.toLocaleString()} Ks
+                                  </span>
+                                </td>
+                                <td>
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      background: due > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
+                                      color: due > 0 ? '#ef4444' : '#10b981',
+                                      fontWeight: 700,
+                                      fontSize: 13
+                                    }}
+                                  >
+                                    {due.toLocaleString()} Ks
+                                  </span>
+                                </td>
+                                <td>
+                                  <span style={{ color: '#6366f1', fontWeight: 600 }}>
+                                    {paid.toLocaleString()} Ks
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-primary"
+                                      onClick={() => setSelectedResellerId(String(r.telegram_id))}
+                                      style={{ padding: '6px 12px', fontSize: 12 }}
+                                    >
+                                      🔍 View Keys ({kCount})
+                                    </button>
+                                    {due > 0 && (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-warning"
+                                        onClick={() => handleOpenSettleModal(r)}
+                                        style={{ padding: '6px 12px', fontSize: 12 }}
+                                      >
+                                        💳 Settle
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Keys Table Card */}
+            <div className="card">
+              <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <h2>
+                    🔑 {currentSelectedReseller ? `Keys for ${currentSelectedReseller.name}` : selectedResellerId === 'direct' ? 'Direct Admin Keys' : 'All License Keys'} ({filteredKeys.length} ကုဒ်)
+                  </h2>
+                  <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                    <span className="status-badge available">🟢 Available ({filteredKeys.filter(([, v]) => v.status === 'available').length})</span>
+                    <span className="status-badge claimed">🔴 Claimed ({filteredKeys.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length})</span>
+                  </div>
+                </div>
+
+                {/* Filter Tabs & Search */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    value={keySearch}
+                    onChange={e => setKeySearch(e.target.value)}
+                    placeholder="🔍 Search key or device..."
+                    style={{
+                      padding: '6px 12px',
+                      fontSize: 12,
+                      borderRadius: 6,
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-primary)',
+                      color: 'var(--text-primary)',
+                      width: 180
+                    }}
+                  />
+                  <select
+                    value={keyFilter}
+                    onChange={e => setKeyFilter(e.target.value)}
+                    className="select-input"
+                    style={{ padding: '6px 10px', fontSize: 12, width: 'auto' }}
+                  >
+                    <option value="all">All Keys (အားလုံး)</option>
+                    <option value="available">🟢 Available Only</option>
+                    <option value="claimed">🔴 Claimed/Active Only</option>
+                    <option value="changeable">🔄 Device Changeable Only</option>
+                    <option value="locked">🔒 1-Device Only</option>
+                    <option value="trial_3d">⏱️ 3-Day Trial Only</option>
+                    <option value="one_year">⭐ 1-Year Only</option>
+                    <option value="lifetime">💎 Lifetime Only</option>
+                    <option value="revoked">⚪ Revoked Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="card-body" style={{ padding: 0 }}>
+                {filteredKeys.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon">🔐</div>
+                    <p>
+                      {currentSelectedReseller
+                        ? `No license keys match for ${currentSelectedReseller.name}.`
+                        : 'No license keys match your filter criteria.'}
+                    </p>
                   </div>
                 ) : (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '10px 0' }}>
-                    Admin မှ Telegram Bot သို့ APK ဖိုင် ပို့ထားခြင်း မရှိသေးပါ။ Telegram Bot ထံသို့ <code>.apk</code> ဖိုင် တိုက်ရိုက် ပေးပို့လိုက်ပါက ဤနေရာတွင် အလိုအလျောက် ပေါ်လာပါမည်။
+                  <div className="table-responsive">
+                    <table className="keys-table">
+                      <thead>
+                        <tr>
+                          <th>CD-Key</th>
+                          {selectedResellerId === 'all' && <th>Reseller</th>}
+                          <th>Plan / Duration</th>
+                          <th>Device Mode</th>
+                          <th>Status</th>
+                          <th>Active Device</th>
+                          <th>Date</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredKeys.map(([keyId, keyData]) => (
+                          <tr key={keyId}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span
+                                  className="key-code"
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                                  title="Click to copy"
+                                >
+                                  {keyId}
+                                </span>
+                                <button
+                                  type="button"
+                                  className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
+                                  onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
+                                  title="Copy CD-Key"
+                                >
+                                  {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
+                                </button>
+                              </div>
+                            </td>
+                            {selectedResellerId === 'all' && (
+                              <td>
+                                {keyData.reseller_name || keyData.generated_by_reseller_id ? (
+                                  <span
+                                    className="status-badge"
+                                    style={{
+                                      background: 'rgba(99, 102, 241, 0.15)',
+                                      color: '#818cf8',
+                                      cursor: 'pointer'
+                                    }}
+                                    onClick={() => setSelectedResellerId(String(keyData.generated_by_reseller_id))}
+                                    title="Filter by this reseller"
+                                  >
+                                    👤 {keyData.reseller_name || `ID: ${keyData.generated_by_reseller_id}`}
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Direct / Admin</span>
+                                )}
+                              </td>
+                            )}
+                            <td>
+                              <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
+                                {formatDuration(keyData.duration, keyData.plan_id)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
+                                {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`status-badge ${keyData.status}`}>
+                                {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
+                                {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
+                                {keyData.previous_device_fingerprint && (
+                                  <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
+                                    (Migrated)
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                              {keyData.generated_at || keyData.created_at
+                                ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
+                                : '—'}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                {(keyData.status === 'claimed' || keyData.status === 'active') && (
+                                  <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
+                                    Revoke
+                                  </button>
+                                )}
+                                <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
-
-              {/* Security & Anti-Reverse Engineering Status */}
-              <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 12, border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: 12, color: 'var(--accent-success)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>🛡️</span> Security & Anti-Reverse Engineering
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
-                    <span>✅</span> <b>Anti-Tamper & Anti-Resigning:</b> SHA-256 Certificate Lock (Blocks MT Manager / Lucky Patcher)
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
-                    <span>✅</span> <b>Anti-Frida & Hooking:</b> Scans /proc/self/maps & port 27042
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
-                    <span>✅</span> <b>Anti-Debug Protection:</b> TracerPid & JDWP attachment block
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
-                    <span>✅</span> <b>R8 Aggressive Obfuscation:</b> Repackaged to <code>com.threeDLedger.obf</code>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Admin Instructions Banner */}
-            <div style={{
-              background: 'rgba(99, 102, 241, 0.08)',
-              border: '1px solid rgba(99, 102, 241, 0.2)',
-              borderRadius: 10,
-              padding: '12px 16px',
-              fontSize: 13,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: 10
-            }}>
-              <div>
-                <b>💡 အက်ပ်ဗားရှင်း အသစ်တင်လိုပါက:</b> Admin Account ဖြင့် Telegram Bot ထံသို့ နောက်ဆုံးထွက် <b>.apk</b> ဖိုင်ကို တိုက်ရိုက် Send File (Document) အဖြစ် ပို့လိုက်ရုံဖြင့် Bot ရှိ <b>[📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်]</b> ခလုတ်တွင် ချက်ချင်း အလိုအလျောက် Update ဖြစ်သွားပါမည်။
-              </div>
-              <a
-                href="https://t.me/threed_ledger_bot"
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-outline btn-sm"
-                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <span>🤖 Open Telegram Bot</span>
-              </a>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Two Column Grid */}
-        <div className="two-col-grid">
-
-          {/* Lottery Control Panel */}
-          <div className="card">
-            <div className="card-header">
-              <h2>🎱 3D Result & Status (ရလဒ် ထိန်းချုပ်မှု)</h2>
-              <span className={`mode-badge ${mode}`}>
-                {mode === 'auto' ? '🤖 AUTO' : '✋ MANUAL'}
-              </span>
-            </div>
-            <div className="card-body">
-              {/* Distinct Declared vs Waiting Screen State Banner */}
-              {liveResults.winning_number ? (
-                <div style={{
-                  background: 'linear-gradient(135deg, rgba(0, 200, 151, 0.15) 0%, rgba(4, 120, 87, 0.25) 100%)',
-                  border: '1.5px solid rgba(0, 200, 151, 0.5)',
-                  borderRadius: 12,
-                  padding: '16px 18px',
-                  marginBottom: 16,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 12
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{
-                      fontSize: 32,
-                      background: 'rgba(0, 200, 151, 0.2)',
-                      width: 54,
-                      height: 54,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      border: '1px solid rgba(0, 200, 151, 0.4)'
-                    }}>
-                      🏆
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent-success)', textTransform: 'uppercase', letterSpacing: 1 }}>
-                        ပေါက်သီး အတည်ပြု ကြေညာပြီး (OFFICIALLY DECLARED)
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: 26, fontWeight: 900, fontFamily: 'monospace', color: '#fff', letterSpacing: 4 }}>
-                          [ {liveResults.winning_number} ]
-                        </span>
-                        {liveResults.target_draw_date && (
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            • Draw: {liveResults.target_draw_date}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    className="btn btn-danger"
-                    style={{
-                      background: 'rgba(239, 68, 68, 0.18)',
-                      color: '#f87171',
-                      border: '1.5px solid rgba(239, 68, 68, 0.45)',
-                      fontWeight: 800,
-                      padding: '10px 16px',
-                      borderRadius: 8,
-                      cursor: 'pointer'
-                    }}
-                    onClick={clearWinningResult}
-                    title="ပေါက်သီး ထွက်ဂဏန်းကို ပြန်လည် ဖျက်သိမ်းပြီး Waiting အခြေအနေသို့ ပြောင်းမည်"
-                  >
-                    ❌ ပေါက်သီး ပြန်ဖျက်မည် (Remove Result)
-                  </button>
-                </div>
-              ) : (
-                <div style={{
-                  background: 'rgba(99, 102, 241, 0.08)',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
-                  borderRadius: 10,
-                  padding: '12px 16px',
-                  marginBottom: 16,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 10
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 20 }}>⏳</span>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        အကြိမ် #{currentBatch} ပေါက်သီး မကြေညာရသေးပါ (Waiting / Open)
-                      </span>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        ထိုးကြေးများ ဆက်လက်လက်ခံနိုင်သော အခြေအနေ ဖြစ်ပါသည်။
-                      </div>
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    background: 'rgba(255, 179, 71, 0.15)',
-                    color: 'var(--accent-warning)',
-                    border: '1px solid rgba(255, 179, 71, 0.3)'
-                  }}>
-                    WAITING
-                  </span>
-                </div>
-              )}
-
-              {gloResult?.threeD && gloResult.threeD !== liveResults.winning_number && (
-                <div style={{ background: 'rgba(255, 179, 71, 0.12)', border: '1px solid rgba(255, 179, 71, 0.3)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-warning)' }}>
-                      🇹🇭 Official Thai GLO 3D: <strong>{gloResult.threeD}</strong>
-                    </span>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      Live App has "{liveResults.winning_number || 'Undeclared'}". (မှတ်ချက် - ယခင်အကြိမ် ထွက်ဂဏန်းဖြစ်နိုင်ပါသည်):
-                    </div>
-                  </div>
-                  <button className="btn btn-warning btn-sm" style={{ fontWeight: 700 }} onClick={applyGloDirectlyToFirebase}>
-                    ⚡ Sync Live App ({gloResult.threeD})
-                  </button>
-                </div>
-              )}
-
-              <div className="manual-override-panel">
-                <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-warning)', marginBottom: 12 }}>
-                  {mode === 'manual' ? '✋ Manual Override Panel' : '📋 Quick Manual Push'}
-                </h3>
-
-                <div className="form-group">
-                  <label>3D Winning Number (ပေါက်ဂဏန်း ၃ လုံး)</label>
-                  <input
-                    type="text"
-                    maxLength={3}
-                    value={manualNumber}
-                    onChange={e => setManualNumber(e.target.value.replace(/\D/g, ''))}
-                    placeholder="000"
-                    style={{ textAlign: 'center', fontSize: 24, letterSpacing: 8, fontWeight: 800, color: 'var(--accent-primary)' }}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Draw Date (ရက်စွဲ)</label>
-                  <input
-                    type="text"
-                    value={manualDate}
-                    onChange={e => setManualDate(e.target.value)}
-                    placeholder="e.g. 1 September 2026"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Display Status (အခြေအနေ)</label>
-                  <select
-                    className="select-input"
-                    value={manualStatus}
-                    onChange={e => setManualStatus(e.target.value)}
-                  >
-                    <option value="waiting">⏳ Waiting (စောင့်ဆိုင်းဆဲ)</option>
-                    <option value="pending">🔄 Pending (ထွက်ခါနီး)</option>
-                    <option value="declared">✅ Declared (အတည်ပြု ပေါက်သီးထွက်ပြီ)</option>
-                    <option value="delayed">🔴 Delayed (ရွှေ့ဆိုင်းဆဲ)</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                  <input
-                    type="checkbox"
-                    id="updateBatchCheck"
-                    checked={updateBatchWithResult}
-                    onChange={e => setUpdateBatchWithResult(e.target.checked)}
-                    style={{ width: 'auto', cursor: 'pointer' }}
-                  />
-                  <label htmlFor="updateBatchCheck" style={{ margin: 0, fontSize: 12, cursor: 'pointer', textTransform: 'none' }}>
-                    Sync Batch #{batchInput} with this result
-                  </label>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button className="btn btn-warning" style={{ flex: 1, minWidth: 200, padding: '12px 16px', fontWeight: 800 }} onClick={pushManualResult}>
-                    📤 Push Live Result to App (ပေါက်သီး လွှင့်တင်မည်)
-                  </button>
-                  {liveResults.winning_number && (
-                    <button
-                      className="btn btn-danger"
-                      style={{
-                        background: 'rgba(239, 68, 68, 0.15)',
-                        color: '#f87171',
-                        border: '1px solid rgba(239, 68, 68, 0.4)',
-                        fontWeight: 700,
-                        padding: '12px 16px'
-                      }}
-                      onClick={clearWinningResult}
-                    >
-                      ❌ ပေါက်သီး ပြန်ဖျက်မည်
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* ── တွတ် (Tut) Live Breakdown Preview ───────────────────────── */}
-              {activeNumber.length === 3 && (
-                <div style={{ marginTop: 20, padding: 14, background: 'rgba(108, 99, 255, 0.08)', borderRadius: 10, border: '1px solid rgba(108, 99, 255, 0.2)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-primary)' }}>
-                      🔄 တွတ် ({tutInfo.allTut.length} ဂဏန်း) — {activeNumber} အတွက်
-                    </span>
-                    <button
-                      type="button"
-                      className={`copy-btn ${copiedId === 'tut-all' ? 'copied' : ''}`}
-                      onClick={() => copyToClipboard(tutInfo.allTut.join(', '), 'tut-all')}
-                    >
-                      {copiedId === 'tut-all' ? '✅ Copied All' : '📋 Copy All Tut'}
-                    </button>
-                  </div>
-
-                  {/* Direct / Winning */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-secondary)' }}>🎯 ဒဲ့:</span>
-                    <span style={{
-                      background: 'rgba(233, 69, 96, 0.2)',
-                      color: 'var(--accent-secondary)',
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      fontFamily: 'monospace',
-                      fontSize: 13,
-                      fontWeight: 800
-                    }}>
-                      {activeNumber}
-                    </span>
-                  </div>
-
-                  {/* Permutations */}
-                  <div style={{ marginBottom: 8 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        🔄 အပြန် ({tutInfo.permutations.length}):
-                      </span>
-                      {tutInfo.permutations.length > 0 && (
-                        <span
-                          className="copy-link"
-                          onClick={() => copyToClipboard(tutInfo.permutations.join(', '), 'tut-perm')}
-                        >
-                          {copiedId === 'tut-perm' ? '✅ Copied' : 'Copy အပြန်'}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {tutInfo.permutations.map(n => (
-                        <span
-                          key={n}
-                          style={{
-                            background: 'rgba(108, 99, 255, 0.2)',
-                            color: '#fff',
-                            padding: '2px 7px',
-                            borderRadius: 5,
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            fontWeight: 700
-                          }}
-                        >
-                          {n}
-                        </span>
-                      ))}
-                      {tutInfo.permutations.length === 0 && (
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                          အပြန်မရှိပါ (သုံးလုံးတူ)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Near Misses */}
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        ⚡ ကပ်သီး (+1, -1) ({tutInfo.nearMisses.length}):
-                      </span>
-                      {tutInfo.nearMisses.length > 0 && (
-                        <span
-                          className="copy-link"
-                          onClick={() => copyToClipboard(tutInfo.nearMisses.join(', '), 'tut-near')}
-                        >
-                          {copiedId === 'tut-near' ? '✅ Copied' : 'Copy ကပ်သီး'}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {tutInfo.nearMisses.map(n => (
-                        <span
-                          key={n}
-                          style={{
-                            background: 'rgba(255, 179, 71, 0.2)',
-                            color: 'var(--accent-warning)',
-                            padding: '2px 7px',
-                            borderRadius: 5,
-                            fontFamily: 'monospace',
-                            fontSize: 12,
-                            fontWeight: 700
-                          }}
-                        >
-                          {n}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Right Column: Synced Sale Plans + Key Generation + Tut Playground */}
-          <div>
-            {/* Telegram & Cloudflare Synced Sale Plans */}
-            <div className="card" style={{ marginBottom: 20 }}>
-              <div className="card-header">
-                <h2>🏷️ Synced Sale Plans (အရောင်း အစီအစဉ်များ)</h2>
-              </div>
-              <div className="card-body">
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Telegram Bot နှင့် တိုက်ရိုက်ချိတ်ဆက်ထားသော စီမံချက် ၃ ခု (ဈေးနှုန်း ပြင်ဆင်နိုင်သည်):
-                </p>
-
-                {SYNCED_PLAN_IDS.map(planId => {
-                  const plan = salePlans[planId] || DEFAULT_SALE_PLANS[planId];
-                  if (!plan) return null;
-                  const isChangeable = plan.device_changeable;
-                  const currentPrice = editingPlanPrice[planId] !== undefined ? editingPlanPrice[planId] : plan.price;
-                  return (
-                    <div key={planId} className="plan-sync-card">
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{plan.name}</strong>
-                          <span className={`device-badge ${isChangeable ? 'changeable' : 'locked'}`}>
-                            {isChangeable ? '🔄 စက်ပြောင်းနိုင်' : '🔒 စက်ပြောင်းမရ'}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                          {plan.duration_label} • {plan.description}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <input
-                          type="number"
-                          value={currentPrice}
-                          onChange={e => setEditingPlanPrice(prev => ({ ...prev, [planId]: e.target.value }))}
-                          style={{ width: 95, padding: '4px 8px', fontSize: 12, textAlign: 'right' }}
-                        />
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Ks</span>
-                        {editingPlanPrice[planId] !== undefined && (
-                          <button
-                            className="btn btn-primary btn-sm"
-                            style={{ padding: '4px 8px', fontSize: 11 }}
-                            onClick={() => savePlanPrice(planId)}
-                          >
-                            Save
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Key Generation Panel */}
+        {/* ========================================================
+            SECTION 2: GENERATE CD-KEYS
+            ======================================================== */}
+        {activeSection === 'generate' && (
+          <div style={{ maxWidth: 760, margin: '0 auto' }}>
             <div className="card">
-              <div className="card-header">
-                <h2>✨ Generate CD-Key (လိုင်စင်ကုဒ် ထုတ်ရန်)</h2>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 24 }}>✨</span>
+                  <h2 style={{ margin: 0 }}>Generate CD-Keys (လိုင်စင်ကုဒ် ထုတ်ယူခြင်း)</h2>
+                </div>
+                {resellerForNewKeys && (
+                  <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8', fontWeight: 700 }}>
+                    Assigned: {allResellerList.find(r => String(r.telegram_id) === String(resellerForNewKeys))?.name || resellerForNewKeys}
+                  </span>
+                )}
               </div>
               <div className="card-body">
+                {/* Plan Selection */}
                 <div className="form-group">
-                  <label>Sale Plan / Key Type (အစီအစဉ် ရွေးချယ်ပါ - စီမံချက် ၃ ခု သီးသန့်)</label>
+                  <label>Sale Plan / Key Type (အစီအစဉ် ရွေးချယ်ပါ)</label>
                   <select
                     className="select-input"
                     value={keyType}
@@ -1506,7 +1563,7 @@ function App() {
                   </select>
                 </div>
 
-                {/* Device Switching Mode (ON / OFF for each plan) */}
+                {/* Device Switching Mode */}
                 <div className="device-switch-toggle-card">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                     <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
@@ -1541,7 +1598,29 @@ function App() {
                   </div>
                 </div>
 
-                {/* Bulk Generation Option */}
+                {/* Reseller Assignment Selector */}
+                <div className="form-group" style={{ marginTop: 14 }}>
+                  <label>Assign to Reseller (အရောင်းကိုယ်စားလှယ် သတ်မှတ်ရန် - Optional)</label>
+                  <select
+                    className="select-input"
+                    value={resellerForNewKeys}
+                    onChange={e => setResellerForNewKeys(e.target.value)}
+                  >
+                    <option value="">🏢 Direct / Admin Key (ကိုယ်စားလှယ် မသတ်မှတ်ပါ)</option>
+                    {allResellerList.map(r => (
+                      <option key={r.telegram_id} value={r.telegram_id}>
+                        👤 {r.name} {r.username ? `(@${r.username.replace('@', '')})` : ''} [ID: {r.telegram_id}]
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                    {resellerForNewKeys
+                      ? `Newly generated keys will be credited directly to ${allResellerList.find(r => String(r.telegram_id) === String(resellerForNewKeys))?.name || 'this reseller'}.`
+                      : 'Keys will be marked as direct system keys.'}
+                  </span>
+                </div>
+
+                {/* Bulk Quantity */}
                 <div className="form-group" style={{ marginTop: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <label>Quantity (ထုတ်မည့် အရေအတွက် - Bulk Keys)</label>
@@ -1571,74 +1650,502 @@ function App() {
                 </div>
 
                 <button
+                  type="button"
                   className="btn btn-primary btn-full"
                   onClick={generateKeysBatch}
                   style={{ marginTop: 16, padding: '12px 16px', fontSize: 14, fontWeight: 700 }}
                 >
                   ✨ Generate {parseInt(bulkCount, 10) > 1 ? `${bulkCount} Keys` : 'Key'} ({deviceChangeable ? '🔄 Device Changeable' : '🔒 1-Device Only'})
                 </button>
+              </div>
+            </div>
 
-                <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
-                  {keyType === 'trial_3d' && '⏱️ ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (၇၂ နာရီတိတိ သက်တမ်း • ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် 🔒)'}
-                  {keyType === 'one_year' && '⭐ ၁ နှစ် သက်တမ်း (၃၆၅ ရက် • ဖုန်းအသစ်သို့ စက်ပြောင်းလဲ အသုံးပြုနိုင်ပါသည် ✅)'}
-                  {keyType === 'lifetime' && '💎 တစ်သက်တာ သက်တမ်း (မကန့်သတ် • ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်သည် - စက်ပြောင်းမရပါ 🔒)'}
+            {/* Generated Keys Display Box */}
+            {bulkGeneratedKeys.length > 0 && (
+              <div className="card" style={{ marginTop: 20, border: '1px solid rgba(0, 200, 151, 0.4)' }}>
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, fontSize: 15, color: 'var(--accent-success)' }}>
+                    🎉 {bulkGeneratedKeys.length} CD-Keys Ready!
+                  </h3>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => copyToClipboard(bulkGeneratedKeys.join('\n'), 'sec-bulk')}
+                    >
+                      {copiedId === 'sec-bulk' ? '✅ Copied All' : '📋 Copy All'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => downloadKeysAsText(bulkGeneratedKeys, keyType, deviceChangeable)}
+                    >
+                      💾 Download .TXT
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <textarea
+                    readOnly
+                    value={bulkGeneratedKeys.join('\n')}
+                    style={{
+                      width: '100%',
+                      height: 140,
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      padding: 10,
+                      borderRadius: 8,
+                      background: 'var(--bg-primary)',
+                      color: 'var(--accent-primary)',
+                      border: '1px solid var(--border-color)',
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================================
+            SECTION 3: 3D LOTTERY & LIVE RESULTS
+            ======================================================== */}
+        {activeSection === 'lottery' && (
+          <div>
+            {/* Batch & System Config Bar */}
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 'clamp(13px, 2vw, 15px)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    အကြိမ် (Batch):
+                  </span>
+                  <input
+                    type="number"
+                    value={batchInput}
+                    onChange={e => setBatchInput(e.target.value)}
+                    style={{
+                      width: 80,
+                      textAlign: 'center',
+                      fontSize: 16,
+                      fontWeight: 700,
+                      background: 'var(--bg-primary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--accent-primary)',
+                      padding: '6px 8px',
+                      borderRadius: 8
+                    }}
+                  />
+                  <button type="button" className="btn btn-primary btn-sm" onClick={saveBatch}>
+                    💾 Save Batch
+                  </button>
+                  <div className="batch-draw-date-badge">
+                    <span>📅 <b>ထွက်ရက်စွဲ:</b> {liveResults.result_date || gloResult?.drawDate || '16-09-2026'}</span>
+                    <span>&bull;</span>
+                    <span>⏭️ <b>နောက်ထွက်မည့်ရက်:</b> {liveResults.target_draw_date || '01-10-2026'}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 600 }}>Scraper Mode:</span>
+                  <select
+                    className="select-input"
+                    value={mode}
+                    onChange={(e) => toggleMode(e.target.value)}
+                    style={{
+                      background: mode === 'auto' ? 'rgba(0, 200, 151, 0.15)' : 'rgba(255, 179, 71, 0.15)',
+                      color: mode === 'auto' ? 'var(--accent-success)' : 'var(--accent-warning)',
+                      fontWeight: 700
+                    }}
+                  >
+                    <option value="auto">🤖 AUTO (Official GLO Thailand Scraper)</option>
+                    <option value="manual">✋ MANUAL (Admin Override)</option>
+                  </select>
                 </div>
               </div>
             </div>
 
-            {/* တွတ် (Tut) Interactive Simulator / Tester */}
-            <div className="card" style={{ marginTop: 20 }}>
+            {/* Real-Time Thai 3D / GLO Live Scraper Card */}
+            <div className="card glo-live-banner" style={{ marginBottom: 20 }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 24 }}>⚡</span>
+                  <div>
+                    <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>Real-Time Thai 3D / GLO Live Feed (ထိုင်း 3D တိုက်ရိုက် ရလဒ် စနစ်)</h2>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Fast Live: Sanook Realtime (~3:15 PM MMT အမြန်ဆုံး) &bull; Archive: Official GLO (~3:30 PM MMT)
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  {gloResult?.threeD && (
+                    <span className={`sync-status-indicator ${gloResult.threeD === liveResults.winning_number ? 'synced' : 'out-of-sync'}`}>
+                      {gloResult.threeD === liveResults.winning_number
+                        ? `🟢 IN SYNC: Live App has ${gloResult.threeD}`
+                        : `ℹ️ Feed: ${gloResult.threeD} (Live App: ${liveResults.winning_number || 'Undeclared / Waiting'})`}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={fetchOfficialGlo}
+                    disabled={fetchingGlo}
+                  >
+                    {fetchingGlo ? '⏳ Fetching Live 3D...' : '🔄 Refresh Live 3D'}
+                  </button>
+                </div>
+              </div>
+              <div className="card-body">
+                {gloError && (
+                  <div style={{ color: 'var(--accent-secondary)', fontSize: 13, marginBottom: 12 }}>
+                    ⚠️ {gloError}
+                  </div>
+                )}
+                {gloResult ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div className="glo-stat-grid">
+                      <div className="glo-stat-box">
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>1st Prize (รางวัลที่ 1)</div>
+                        <div style={{ fontSize: 'clamp(18px, 2.5vw, 22px)', fontWeight: 800, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
+                          {gloResult.firstPrize || '—'}
+                        </div>
+                      </div>
+                      <div className="glo-stat-box" style={{ borderColor: 'rgba(0, 200, 151, 0.4)', background: 'rgba(0, 200, 151, 0.08)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--accent-success)', fontWeight: 800, textTransform: 'uppercase' }}>
+                          3D Winning (နောက် ၃ လုံး)
+                        </div>
+                        <div style={{ fontSize: 'clamp(22px, 3.5vw, 30px)', fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-success)', letterSpacing: 2, marginTop: 2 }}>
+                          {gloResult.threeD || '—'}
+                        </div>
+                      </div>
+                      {gloResult.twoD && (
+                        <div className="glo-stat-box">
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>2D (အောက် ၂ လုံး)</div>
+                          <div style={{ fontSize: 'clamp(16px, 2.2vw, 20px)', fontWeight: 700, fontFamily: 'monospace', color: 'var(--text-primary)', marginTop: 4 }}>
+                            {gloResult.twoD}
+                          </div>
+                        </div>
+                      )}
+                      {gloResult.date && (
+                        <div className="glo-stat-box">
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Draw Date (ရက်စွဲ)</div>
+                          <div style={{ fontSize: 'clamp(12px, 1.6vw, 14px)', fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
+                            {gloResult.date}
+                          </div>
+                        </div>
+                      )}
+                      <div className="glo-stat-box" style={{ borderColor: 'rgba(99, 102, 241, 0.35)', background: 'rgba(99, 102, 241, 0.08)' }}>
+                        <div style={{ fontSize: 11, color: '#818cf8', textTransform: 'uppercase', fontWeight: 700 }}>
+                          Feed Source (ရင်းမြစ်)
+                        </div>
+                        <div style={{ fontSize: 'clamp(11px, 1.5vw, 12px)', fontWeight: 800, color: 'var(--text-primary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>{gloResult.source?.includes('Sanook') ? '⚡' : '🏛️'}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{gloResult.source || gloResult.session || 'Live Fast Feed'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="btn btn-warning"
+                        style={{ fontWeight: 800, padding: '10px 18px' }}
+                        onClick={applyGloDirectlyToFirebase}
+                      >
+                        ⚡ Apply 3D Result to Live App & Telegram
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={applyGloToManual}
+                        title="Fill the manual form fields below with this 3D number"
+                      >
+                        📋 Fill Manual Form
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {fetchingGlo ? '⏳ Fetching real-time Thai 3D / GLO lottery result...' : 'Auto-checking real-time 3D live result (~3:15 PM MMT). You can also click "Refresh Live 3D" to pull latest draw.'}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Manual Lottery Result Setting Card */}
+            <div className="card">
               <div className="card-header">
-                <h2>🧪 Tut Simulator (တွတ် စမ်းသပ်တွက်စက်)</h2>
+                <h2>🎯 Manual 3D Result Declaration (လက်စွဲ ရလဒ် ကြေညာချက်)</h2>
+              </div>
+              <div className="card-body">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div className="form-group">
+                    <label>3D Winning Number (ပေါက်ဂဏန်း ၃ လုံး)</label>
+                    <input
+                      type="text"
+                      maxLength={3}
+                      value={manualNumber}
+                      onChange={e => setManualNumber(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g. 640"
+                      style={{ textAlign: 'center', fontSize: 24, fontWeight: 900, letterSpacing: 6 }}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Draw Date (ထွက်သည့် ရက်စွဲ)</label>
+                    <input
+                      type="text"
+                      value={manualDate}
+                      onChange={e => setManualDate(e.target.value)}
+                      placeholder="e.g. 16-09-2026"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>State (အခြေအနေ)</label>
+                    <select
+                      className="select-input"
+                      value={manualStatus}
+                      onChange={e => setManualStatus(e.target.value)}
+                    >
+                      <option value="waiting">⏳ Waiting for Draw (စောင့်ဆိုင်းဆဲ)</option>
+                      <option value="finished">✅ Result Declared (ထွက်ပြီး)</option>
+                    </select>
+                  </div>
+
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input
+                      type="checkbox"
+                      checked={updateBatchWithResult}
+                      onChange={e => setUpdateBatchWithResult(e.target.checked)}
+                    />
+                    <span>Auto-advance batch number after declaration (အကြိမ် နံပါတ် အလိုအလျောက် တိုးမည်)</span>
+                  </label>
+
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={applyManualResult}
+                    style={{ padding: '12px', fontWeight: 700 }}
+                  >
+                    🚀 Publish 3D Result (ရလဒ် ထုတ်ပြန်မည်)
+                  </button>
+
+                  {/* Active Tut Breakdown Preview */}
+                  {activeNumber.length === 3 && (
+                    <div style={{ background: 'var(--bg-primary)', padding: 14, borderRadius: 10, border: '1px solid var(--border-color)', marginTop: 8 }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--accent-warning)' }}>
+                        🔢 Tut Breakdown for {activeNumber} ({tutInfo.allTut.length} Numbers):
+                      </h4>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                        Permutations (အပြန်): {tutInfo.permutations.join(', ') || 'မရှိပါ'}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Near Miss (ကပ်သီး): {tutInfo.nearMisses.join(', ')}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            SECTION 4: APP DISTRIBUTION & TELEGRAM RELEASE
+            ======================================================== */}
+        {activeSection === 'release' && (
+          <div style={{ maxWidth: 840, margin: '0 auto' }}>
+            <div className="card" style={{ border: '1px solid rgba(99, 102, 241, 0.3)', background: 'linear-gradient(180deg, rgba(99, 102, 241, 0.04) 0%, var(--bg-card) 100%)' }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: 26 }}>📲</span>
+                  <div>
+                    <h2 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>
+                      App Distribution & Telegram Release Manager (အက်ပ်ဗားရှင်း ဖြန့်ချိရေး စနစ်)
+                    </h2>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      Zero-server APK hosting directly via Telegram Bot &bull; Real-time automatic updates
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    background: appRelease?.file_id ? 'rgba(0, 200, 151, 0.15)' : 'rgba(255, 179, 71, 0.15)',
+                    color: appRelease?.file_id ? 'var(--accent-success)' : 'var(--accent-warning)',
+                    border: `1px solid ${appRelease?.file_id ? 'rgba(0, 200, 151, 0.3)' : 'rgba(255, 179, 71, 0.3)'}`
+                  }}>
+                    {appRelease?.file_id ? '🟢 Telegram Hosting Active' : '🟡 Pending Upload'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="card-body">
+                {appRelease ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 12,
+                      background: 'var(--bg-primary)',
+                      padding: 16,
+                      borderRadius: 12,
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Active Version</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-success)', marginTop: 4 }}>
+                          v{appRelease.version_name || '1.0.0'} ({appRelease.version_code || 1})
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>File Size</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                          {appRelease.file_size ? `${(appRelease.file_size / (1024 * 1024)).toFixed(1)} MB` : 'Unknown'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Update Mode</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: appRelease.force_update ? '#ef4444' : '#10b981', marginTop: 4 }}>
+                          {appRelease.force_update ? '🔴 Forced (မဖြစ်မနေ)' : '🟢 Optional (ရွေးချယ်နိုင်)'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Release Date</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
+                          {appRelease.released_at ? new Date(appRelease.released_at).toLocaleString() : '—'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ background: 'var(--bg-primary)', padding: 14, borderRadius: 10, border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600, marginBottom: 6 }}>Release Notes (ဗားရှင်း ပြောင်းလဲမှု မှတ်စု)</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                        {appRelease.release_notes || 'ဗားရှင်း အသစ် ထွက်ရှိပါပြီ။'}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: 20, textAlign: 'center' }}>
+                    No active Telegram release published yet. Use the Telegram Admin Bot or publish script to push an APK directly.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            SECTION 5: SALE PLANS & PRICING
+            ======================================================== */}
+        {activeSection === 'plans' && (
+          <div style={{ maxWidth: 840, margin: '0 auto' }}>
+            <div className="card">
+              <div className="card-header">
+                <h2>💰 Sale Plans & Pricing (ရောင်းချမည့် အစီအစဉ်များနှင့် စျေးနှုန်း)</h2>
+              </div>
+              <div className="card-body">
+                {SYNCED_PLAN_IDS.map((planId) => {
+                  const plan = salePlans[planId] || DEFAULT_SALE_PLANS[planId];
+                  return (
+                    <div key={planId} className="plan-editor-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, flexWrap: 'wrap', gap: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                          {plan.name}
+                        </span>
+                        <span className={`device-badge ${plan.device_changeable ? 'changeable' : 'locked'}`}>
+                          {plan.device_changeable ? '🔄 Changeable' : '🔒 1-Device Locked'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
+                        {plan.description}
+                      </p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <input
+                          type="number"
+                          defaultValue={plan.price}
+                          key={plan.price}
+                          placeholder="Price in MMK"
+                          onChange={e => setEditingPlanPrice(prev => ({ ...prev, [planId]: e.target.value }))}
+                          style={{ width: 140, fontWeight: 700 }}
+                        />
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Ks</span>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => savePlanPrice(planId)}
+                        >
+                          💾 Save
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            SECTION 6: TUT CALCULATOR / FORMULA CHECKER
+            ======================================================== */}
+        {activeSection === 'calculator' && (
+          <div style={{ maxWidth: 760, margin: '0 auto' }}>
+            <div className="card">
+              <div className="card-header">
+                <h2>🧪 3D Tut Simulator (တွတ် စမ်းသပ်တွက်စက်)</h2>
               </div>
               <div className="card-body">
                 <div className="form-group">
-                  <label>Enter Any 3D Number to Test</label>
+                  <label>Enter Any 3D Number to Test (ဂဏန်း ၃ လုံး စမ်းသပ်ရန်)</label>
                   <input
                     type="text"
                     maxLength={3}
                     value={calcTestNumber}
                     onChange={e => setCalcTestNumber(e.target.value.replace(/\D/g, ''))}
-                    placeholder="e.g. 212, 123, 789"
-                    style={{ textAlign: 'center', fontSize: 18, fontWeight: 700, letterSpacing: 4 }}
+                    placeholder="e.g. 212, 123, 640"
+                    style={{ textAlign: 'center', fontSize: 24, fontWeight: 900, letterSpacing: 6 }}
                   />
                 </div>
 
                 {calcTestNumber.length === 3 ? (
-                  <div style={{ background: 'var(--bg-primary)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-success)' }}>
+                  <div style={{ background: 'var(--bg-primary)', padding: 16, borderRadius: 10, border: '1px solid var(--border-color)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-success)' }}>
                         တွတ် စုစုပေါင်း ({playgroundTut.allTut.length} ဂဏန်း)
                       </span>
                       <button
                         type="button"
                         className={`copy-btn ${copiedId === 'play-tut-all' ? 'copied' : ''}`}
-                        style={{ fontSize: 10, padding: '2px 8px' }}
+                        style={{ fontSize: 11, padding: '4px 10px' }}
                         onClick={() => copyToClipboard(playgroundTut.allTut.join(', '), 'play-tut-all')}
                       >
                         {copiedId === 'play-tut-all' ? '✅ Copied All' : '📋 Copy All'}
                       </button>
                     </div>
 
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>
-                      အပြန်: {playgroundTut.permutations.join(', ') || 'မရှိပါ'}
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                      အပြန် ({playgroundTut.permutations.length}): {playgroundTut.permutations.join(', ') || 'မရှိပါ'}
                     </div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                      ကပ်သီး: {playgroundTut.nearMisses.join(', ')}
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }}>
+                      ကပ်သီး ({playgroundTut.nearMisses.length}): {playgroundTut.nearMisses.join(', ')}
                     </div>
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {playgroundTut.allTut.map(n => (
                         <span
                           key={n}
                           style={{
                             background: 'rgba(0, 200, 151, 0.15)',
                             color: 'var(--accent-success)',
-                            padding: '2px 6px',
-                            borderRadius: 4,
+                            padding: '4px 10px',
+                            borderRadius: 6,
                             fontFamily: 'monospace',
-                            fontSize: 12,
-                            fontWeight: 700
+                            fontSize: 13,
+                            fontWeight: 800
                           }}
                         >
                           {n}
@@ -1647,272 +2154,14 @@ function App() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                     ဂဏန်း ၃ လုံး ရိုက်ထည့်ပြီး တွတ်ဂဏန်းများ (အပြန် ၅ လုံး + ကပ်သီး ၂ လုံး) ကို စမ်းသပ်ကြည့်ရှုနိုင်ပါသည်။
                   </div>
                 )}
               </div>
             </div>
           </div>
-
-        </div>
-
-        {/* Resellers & Due Settlement Card */}
-        <div className="card" style={{ marginTop: 24, border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-          <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <h2>👥 Resellers & Due Settlement (အရောင်းကိုယ်စားလှယ်များနှင့် ငွေစာရင်း)</h2>
-              <div style={{ display: 'flex', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
-                <span className="status-badge" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818cf8' }}>
-                  👤 {Object.keys(resellers).length} Resellers
-                </span>
-                <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171' }}>
-                  📌 Total Due: {Object.values(resellers).reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
-                </span>
-                <span className="status-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399' }}>
-                  💵 Total Paid: {Object.values(resellers).reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="card-body" style={{ padding: 0 }}>
-            {Object.keys(resellers).length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">👥</div>
-                <p>No resellers registered yet. Add resellers via Telegram bot or /addreseller command.</p>
-              </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="keys-table">
-                  <thead>
-                    <tr>
-                      <th>Reseller Name</th>
-                      <th>Telegram ID</th>
-                      <th>Generated / Active</th>
-                      <th>Commission</th>
-                      <th>Due Balance (ပေးရန်ကျန်ငွေ)</th>
-                      <th>Total Paid (ပေးပြီးငွေ)</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.values(resellers).map((r) => {
-                      const due = r.total_due || 0;
-                      const paid = r.total_paid || 0;
-                      const commission = r.total_commission || 0;
-                      return (
-                        <tr key={r.telegram_id}>
-                          <td>
-                            <strong>{r.name}</strong>
-                            {r.username && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>@{r.username}</span>}
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <code>{r.telegram_id}</code>
-                              <button
-                                type="button"
-                                className={`copy-btn ${copiedId === `reseller-${r.telegram_id}` ? 'copied' : ''}`}
-                                onClick={() => copyToClipboard(r.telegram_id, `reseller-${r.telegram_id}`)}
-                                title="Copy Telegram ID"
-                              >
-                                {copiedId === `reseller-${r.telegram_id}` ? '✅' : '📋'}
-                              </button>
-                            </div>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: 13 }}>
-                              🔢 {r.total_generated || 0} ထုတ် / 🟢 {r.total_activated || 0} သုံး
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ color: '#10b981', fontWeight: 600 }}>
-                              {commission.toLocaleString()} Ks
-                            </span>
-                          </td>
-                          <td>
-                            <span
-                              className="status-badge"
-                              style={{
-                                background: due > 0 ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.15)',
-                                color: due > 0 ? '#ef4444' : '#10b981',
-                                fontWeight: 700,
-                                fontSize: 13
-                              }}
-                            >
-                              {due.toLocaleString()} Ks
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ color: '#6366f1', fontWeight: 600 }}>
-                              {paid.toLocaleString()} Ks
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-primary"
-                              onClick={() => handleOpenSettleModal(r)}
-                              style={{ padding: '6px 12px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                            >
-                              💳 Clear Due / ရှင်းလင်းမည်
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Licenses Table with Filter & Search */}
-        <div className="card" style={{ marginTop: 24 }}>
-          <div className="card-header" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <h2>🔑 License Keys ({totalKeys} ကုဒ်)</h2>
-              <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
-                <span className="status-badge available">🟢 Available ({availableKeys})</span>
-                <span className="status-badge claimed">🔴 Claimed ({claimedKeys})</span>
-                {revokedKeys > 0 && <span className="status-badge revoked">⚪ Revoked ({revokedKeys})</span>}
-              </div>
-            </div>
-
-            {/* Filter Tabs & Search */}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                value={keySearch}
-                onChange={e => setKeySearch(e.target.value)}
-                placeholder="🔍 Search key or device..."
-                style={{
-                  padding: '6px 12px',
-                  fontSize: 12,
-                  borderRadius: 6,
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-primary)',
-                  color: 'var(--text-primary)',
-                  width: 180
-                }}
-              />
-              <select
-                value={keyFilter}
-                onChange={e => setKeyFilter(e.target.value)}
-                className="select-input"
-                style={{ padding: '6px 10px', fontSize: 12, width: 'auto' }}
-              >
-                <option value="all">All Keys (အားလုံး)</option>
-                <option value="available">🟢 Available Only</option>
-                <option value="claimed">🔴 Claimed/Active Only</option>
-                <option value="changeable">🔄 Device Changeable Only</option>
-                <option value="locked">🔒 1-Device Only</option>
-                <option value="trial_3d">⏱️ 3-Day Trial Only</option>
-                <option value="one_year">⭐ 1-Year Only</option>
-                <option value="lifetime">💎 Lifetime Only</option>
-                <option value="revoked">⚪ Revoked Only</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="card-body" style={{ padding: 0 }}>
-            {filteredKeys.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">🔐</div>
-                <p>
-                  {totalKeys === 0
-                    ? 'No license keys yet. Generate your first key above!'
-                    : 'No license keys match your filter criteria.'}
-                </p>
-              </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="keys-table">
-                  <thead>
-                    <tr>
-                      <th>CD-Key</th>
-                      <th>Plan / Duration</th>
-                      <th>Device Mode</th>
-                      <th>Status</th>
-                      <th>Active Device</th>
-                      <th>Date</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredKeys.map(([keyId, keyData]) => (
-                      <tr key={keyId}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span
-                              className="key-code"
-                              style={{ cursor: 'pointer' }}
-                              onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
-                              title="Click to copy"
-                            >
-                              {keyId}
-                            </span>
-                            <button
-                              type="button"
-                              className={`copy-btn ${copiedId === `key-${keyId}` ? 'copied' : ''}`}
-                              onClick={() => copyToClipboard(keyId, `key-${keyId}`)}
-                              title="Copy CD-Key"
-                            >
-                              {copiedId === `key-${keyId}` ? '✅ Copied' : '📋 Copy'}
-                            </button>
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`duration-badge ${keyData.plan_id === 'lifetime' || keyData.duration === 'lifetime' ? 'lifetime' : keyData.plan_id === 'trial_3d' || keyData.duration === 'trial' ? 'trial' : 'custom'}`}>
-                            {formatDuration(keyData.duration, keyData.plan_id)}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`device-badge ${keyData.device_changeable ? 'changeable' : 'locked'}`}>
-                            {keyData.device_changeable ? '🔄 Changeable' : '🔒 1 Device'}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`status-badge ${keyData.status}`}>
-                            {keyData.status === 'available' ? '🟢' : keyData.status === 'active' || keyData.status === 'claimed' ? '🔴' : '⚪'} {keyData.status}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="device-text" title={keyData.claimed_by || keyData.device_fingerprint || ''}>
-                            {keyData.device_model ? `${keyData.device_model}` : (keyData.claimed_by || keyData.device_fingerprint || '—')}
-                            {keyData.previous_device_fingerprint && (
-                              <span style={{ color: 'var(--accent-warning)', marginLeft: 4, fontWeight: 700 }} title={`Previous device: ${keyData.previous_device_fingerprint}`}>
-                                (Migrated)
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {keyData.generated_at || keyData.created_at
-                            ? new Date(keyData.generated_at || keyData.created_at).toLocaleDateString()
-                            : '—'}
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            {(keyData.status === 'claimed' || keyData.status === 'active') && (
-                              <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
-                                Revoke
-                              </button>
-                            )}
-                            <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </main>
 
       {/* Generated Key Popup (Single & Bulk Support) */}

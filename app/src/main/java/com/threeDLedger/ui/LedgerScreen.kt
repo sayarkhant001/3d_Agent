@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -171,35 +172,36 @@ fun LedgerScreen(
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = WinExactBg,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, WinExactRed.copy(alpha = 0.3f)),
+                                color = WinExactRed,
+                                shadowElevation = 2.dp,
                                 modifier = Modifier.clickable(onClick = onNavigateToResult)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("ပေါက်: ", color = WinExactRed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("ပေါက်: ", color = Color.White.copy(alpha = 0.95f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                     Text(
                                         savedWinner,
-                                        color = WinExactRed,
-                                        fontSize = 18.sp,
+                                        color = Color.White,
+                                        fontSize = 19.sp,
                                         fontWeight = FontWeight.Black,
                                         fontFamily = FontFamily.Monospace,
-                                        letterSpacing = 1.sp
+                                        letterSpacing = 1.5.sp
                                     )
                                 }
                             }
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (exactWonCount > 0 || tuwtWonCount > 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldLight else MaterialTheme.colorScheme.surfaceVariant,
+                                border = BorderStroke(1.dp, if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldMedium.copy(alpha = 0.35f) else Color.Transparent)
                             ) {
                                 Text(
                                     if (exactWonCount > 0 || tuwtWonCount > 0) "ဒဲ့ $exactWonCount | တွတ် $tuwtWonCount"
                                     else "ပေါက်သီး မရှိပါ",
-                                    color = if (exactWonCount > 0 || tuwtWonCount > 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldDark else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    fontWeight = FontWeight.ExtraBold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                 )
                             }
@@ -280,37 +282,45 @@ fun LedgerScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                                    .background(if (isEven) Color.White else Color(0xFFF8FAFC))
                                     .clickable(onClick = onNavigateToResult)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Index
                                 Text(
                                     "${idx + 1}.",
                                     fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                     fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.width(36.dp)
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.width(32.dp)
                                 )
-                                // Number
-                                Text(
-                                    exposure.number,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 20.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    letterSpacing = 2.sp,
-                                    modifier = Modifier.weight(1.2f)
-                                )
+                                // Number in distinct badge
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color.White,
+                                    border = BorderStroke(1.dp, EmeraldMedium.copy(alpha = 0.4f)),
+                                    shadowElevation = 1.dp
+                                ) {
+                                    Text(
+                                        exposure.number,
+                                        color = EmeraldPrimary,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 18.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 1.5.sp,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                                Spacer(Modifier.weight(1f))
                                 // Amount
                                 Text(
                                     "%,d".format(exposure.totalBetAmount),
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 16.5.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.weight(1f),
                                     textAlign = TextAlign.End
                                 )
                                 Spacer(Modifier.width(4.dp))
@@ -321,7 +331,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
                         }
                     }
                 }
@@ -348,55 +358,117 @@ fun LedgerScreen(
                         itemsIndexed(relevantRows) { idx, (exposure, cat) ->
                             val isEven = idx % 2 == 0
                             val rowBg = when (cat) {
-                                NumCat.EXACT -> WinExactBg.copy(alpha = 0.5f)
-                                NumCat.TUWT  -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                                else         -> if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                NumCat.EXACT -> Color(0xFFFFF1F2) // Dominant rose highlight for exact win
+                                NumCat.TUWT  -> if (isEven) Color.White else Color(0xFFFFFBEB) // Alternating clean white and warm cream
+                                else         -> if (isEven) Color.White else Color(0xFFF8FAFC)
                             }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(rowBg)
                                     .clickable(onClick = onNavigateToResult)
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Index & Number & Category badge
+                                // Index
+                                Text(
+                                    "${idx + 1}.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.width(32.dp)
+                                )
+
+                                // Number with distinct pill / container
                                 Row(
                                     modifier = Modifier.weight(1.2f),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        "${idx + 1}.",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.width(36.dp)
-                                    )
-                                    Text(
-                                        exposure.number,
-                                        color = when (cat) {
-                                            NumCat.EXACT -> WinExactRed
-                                            NumCat.TUWT  -> MaterialTheme.colorScheme.secondary
-                                            else         -> MaterialTheme.colorScheme.primary
-                                        },
-                                        fontWeight = if (cat != NumCat.NONE) FontWeight.Black else FontWeight.ExtraBold,
-                                        fontSize = 20.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        letterSpacing = 2.sp
-                                    )
-                                    if (cat != NumCat.NONE) {
-                                        Spacer(Modifier.width(10.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(6.dp),
-                                            color = cat.bgColor
-                                        ) {
-                                            Text(
-                                                cat.label,
-                                                color = cat.color,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
+                                    when (cat) {
+                                        NumCat.EXACT -> {
+                                            // Winning number with dominant padding color
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = WinExactRed,
+                                                shadowElevation = 2.dp
+                                            ) {
+                                                Text(
+                                                    exposure.number,
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Black,
+                                                    fontSize = 19.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    letterSpacing = 1.5.sp,
+                                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFFEE2E2),
+                                                border = BorderStroke(1.dp, WinExactRed.copy(alpha = 0.7f))
+                                            ) {
+                                                Text(
+                                                    "ဒဲ့ (ပေါက်)",
+                                                    color = Color(0xFFB91C1C),
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        NumCat.TUWT -> {
+                                            // Tut numbers with distinct high-contrast white container & warm amber border
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color.White,
+                                                border = BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.5f)),
+                                                shadowElevation = 1.dp
+                                            ) {
+                                                Text(
+                                                    exposure.number,
+                                                    color = GoldDark,
+                                                    fontWeight = FontWeight.Black,
+                                                    fontSize = 18.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    letterSpacing = 1.5.sp,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                            Spacer(Modifier.width(8.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = GoldContainer,
+                                                border = BorderStroke(0.8.dp, GoldAccent.copy(alpha = 0.4f))
+                                            ) {
+                                                Text(
+                                                    cat.label,
+                                                    color = GoldDark,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                        else -> {
+                                            // Regular numbers
+                                            Surface(
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color.White,
+                                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                                shadowElevation = 0.5.dp
+                                            ) {
+                                                Text(
+                                                    exposure.number,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 18.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    letterSpacing = 1.5.sp,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -404,9 +476,13 @@ fun LedgerScreen(
                                 // Amount
                                 Text(
                                     "%,d".format(exposure.totalBetAmount),
-                                    color = if (cat == NumCat.EXACT) WinExactRed else MaterialTheme.colorScheme.onSurface,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
+                                    color = when {
+                                        cat == NumCat.EXACT -> WinExactRed
+                                        exposure.totalBetAmount > 0 -> MaterialTheme.colorScheme.onSurface
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    },
+                                    fontWeight = if (exposure.totalBetAmount > 0) FontWeight.ExtraBold else FontWeight.Medium,
+                                    fontSize = 16.5.sp,
                                     fontFamily = FontFamily.Monospace,
                                     modifier = Modifier.weight(1f),
                                     textAlign = TextAlign.End
@@ -419,7 +495,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 0.5.dp)
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
                         }
                     }
                 }

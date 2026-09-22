@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -17,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,8 +38,9 @@ fun CustomersScreen(
     onNavigateToBetting : (Int) -> Unit,
     onNavigateToVouchers: (Int) -> Unit = {}
 ) {
-    val customers by viewModel.customers.collectAsStateWithLifecycle()
-    val allVWB    by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
+    val customers    by viewModel.customers.collectAsStateWithLifecycle()
+    val allVWB       by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
+    val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
 
     var showAdd         by remember { mutableStateOf(false) }
     var editCustomer    by remember { mutableStateOf<Customer?>(null) }
@@ -60,6 +64,22 @@ fun CustomersScreen(
                 c.id to Triple(total, cut, net)
             }
         }
+    }
+
+    BackHandler(enabled = viewingCustomer != null) {
+        viewingCustomer = null
+    }
+
+    BackHandler(enabled = editCustomer != null) {
+        editCustomer = null
+    }
+
+    BackHandler(enabled = showAdd) {
+        showAdd = false
+    }
+
+    BackHandler(enabled = viewingCustomer == null && editCustomer == null && !showAdd) {
+        onNavigateBack()
     }
 
     when {
@@ -95,71 +115,135 @@ fun CustomersScreen(
 
         else -> {
             Scaffold(
+                containerColor = Color(0xFFF4F6F8),
                 topBar = {
-                    TopAppBar(
-                        title = {
-                            Column {
+                    Surface(
+                        color = Color(0xFF2196F3),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .statusBarsPadding()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            // Header Row: Arrow, Title, Batch
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = onNavigateBack) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "Back",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(4.dp))
                                 Text(
                                     "ကော်မရှင်များ",
-                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    color = Color.White,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                                    fontSize = 19.sp,
+                                    modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    "စာရင်းသွင်းထားသူ ${customers.count { !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) && !it.name.contains("upper", ignoreCase = true) && !it.name.contains("အထက်ဒိုင်") }} ဦး",
-                                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
-                                    fontSize = 11.sp
+                                    "အကြိမ် : $currentBatch",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.padding(end = 16.dp)
                                 )
                             }
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = onNavigateBack) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.ArrowBack,
-                                    "Back",
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
+
+                            // Embedded White Pill Search Bar
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 14.dp, vertical = 2.dp)
+                                    .height(44.dp),
+                                shape = RoundedCornerShape(22.dp),
+                                color = Color.White,
+                                shadowElevation = 1.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        Icons.Default.Search,
+                                        contentDescription = "Search",
+                                        tint = Color(0xFF2196F3),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier.weight(1f),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (searchQuery.isEmpty()) {
+                                            Text(
+                                                "ကော်မရှင် အမည် ရှာရန်...",
+                                                color = Color(0xFF9E9E9E),
+                                                fontSize = 14.sp
+                                            )
+                                        }
+                                        BasicTextField(
+                                            value = searchQuery,
+                                            onValueChange = { searchQuery = it },
+                                            singleLine = true,
+                                            textStyle = TextStyle(
+                                                color = Color(0xFF212121),
+                                                fontSize = 14.sp
+                                            ),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    if (searchQuery.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { searchQuery = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Clear,
+                                                contentDescription = "Clear",
+                                                tint = Color(0xFF757575),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    )
+                        }
+                    }
                 },
                 floatingActionButton = {
                     FloatingActionButton(
                         onClick = { showAdd = true },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                        containerColor = Color(0xFFF44336),
+                        contentColor = Color.White,
+                        shape = CircleShape,
+                        modifier = Modifier.size(56.dp)
                     ) {
-                        Icon(Icons.Default.Add, "ကော်မရှင်အသစ်ထည့်ရန်")
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "ကော်မရှင်အသစ်ထည့်ရန်",
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             ) { padding ->
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .background(MaterialTheme.colorScheme.background)
-                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .background(Color(0xFFF4F6F8))
                 ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("ကော်မရှင် အမည် ရှာရန်...") },
-                        leadingIcon = { Icon(Icons.Default.Search, "Search", tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                        )
-                    )
-                    Spacer(Modifier.height(12.dp))
-
                     val filtered = remember(customers, searchQuery) {
                         customers
                             .filter { it.name.contains(searchQuery, ignoreCase = true) }
@@ -178,7 +262,7 @@ fun CustomersScreen(
                                 Icon(
                                     Icons.Default.PeopleOutline,
                                     null,
-                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                    tint = Color(0xFF2196F3).copy(alpha = 0.4f),
                                     modifier = Modifier.size(56.dp)
                                 )
                                 Spacer(Modifier.height(8.dp))
@@ -192,8 +276,10 @@ fun CustomersScreen(
                         }
                     } else {
                         LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             items(filtered, key = { it.id }) { customer ->
                                 val (total, cut, net) = customerTotals[customer.id]
@@ -225,195 +311,146 @@ fun CustomersScreen(
     }
 }
 
-// ── Polished Stateless Customer Card ──────────────────────────────────────────
+// ── Two-Tone Distinct Color Customer Card ──────────────────────────────────────────
 @Composable
 private fun CustomerCard(
     customer     : Customer,
     totalAmount  : Int,
     commCut      : Int,
     netAmount    : Int,
-    commPct      : Int,
+    commPct      : Int = 0,
     voucherCount : Int,
     onEditTap    : () -> Unit,
     onBetsTap    : () -> Unit,
     onAddBetTap  : () -> Unit
 ) {
-    val rDimens = rememberResponsiveDimens()
     Card(
-        modifier  = Modifier.fillMaxWidth(),
-        shape     = RoundedCornerShape(16.dp),
-        colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        border    = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column {
-            // ── UPPER: tap to EDIT ────────────────────────────────────────────
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // ── UPPER: Teal (#009788) ────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .background(Color(0xFF009788))
                     .clickable(onClick = onEditTap)
-                    .padding(horizontal = rDimens.responsiveDp(14f), vertical = rDimens.responsiveDp(10f)),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            "အမှတ် ${customer.id}",
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
-                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp),
-                            fontFamily = FontFamily.Monospace,
-                            maxLines = 1
-                        )
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f, fill = false)) {
-                        Text(
-                            customer.name,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = if (rDimens.isCompact) 15.sp else 17.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                                Text(
-                                    "ကော် $commPct%",
-                                    fontSize = 10.sp,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp),
-                                    maxLines = 1
-                                )
-                            }
-                            Text(
-                                "အဆ: ${customer.multiplier}",
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (rDimens.isCompact) 4.dp else 6.dp)) {
-                    IconButton(
-                        onClick = onEditTap,
-                        modifier = Modifier
-                            .size(if (rDimens.isCompact) 32.dp else 36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            "ပြင်ဆင်မည်",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(if (rDimens.isCompact) 15.dp else 17.dp)
-                        )
-                    }
-
-                    // Ergonomic Tactile Add-Bet Pill Button
-                    Button(
-                        onClick = onAddBetTap,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldPrimary,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = if (rDimens.isCompact) 8.dp else 10.dp, vertical = 2.dp),
-                        modifier = Modifier.height(if (rDimens.isCompact) 32.dp else 36.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(3.dp))
-                        Text("ထိုးမည်", fontSize = if (rDimens.isCompact) 11.sp else 12.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
-                    }
-                }
-            }
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
-
-            // ── LOWER: tap to VIEW bets ───────────────────────────────────────
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onBetsTap)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                    .padding(horizontal = rDimens.responsiveDp(14f), vertical = 8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Pale yellow circular avatar with orange person icon
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFEF9CF)),
+                    contentAlignment = Alignment.Center
                 ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color(0xFFFA7505),
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+
+                Spacer(Modifier.width(10.dp))
+
+                // Customer ID and Name
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "စုစုပေါင်း: %,d Ks".format(totalAmount),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
-                        fontFamily = FontFamily.Monospace,
+                        "ကော် အိုင်ဒီ : ${customer.id}",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "အမည် : ${customer.name}",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        "ဘောင်ချာ: $voucherCount စောင်",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
-                        maxLines = 1
+                }
+
+                // Add Bet '+' Icon Button
+                IconButton(
+                    onClick = onAddBetTap,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = "ထိုးမည်",
+                        tint = Color.White,
+                        modifier = Modifier.size(30.dp)
                     )
                 }
-                Spacer(Modifier.height(3.dp))
+            }
+
+            // ── LOWER: Vibrant Orange (#FE6D00) ──────────────────────────────
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFFE6D00))
+                    .clickable(onClick = onBetsTap)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                // Row 1: စုပေါင်း, ကော်, နှုတ်ပြီးငွေ
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "ကော်မရှင် ($commPct%): ${"%,d".format(commCut)} Ks",
-                        color = MaterialTheme.colorScheme.secondary,
-                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
-                        fontFamily = FontFamily.Monospace,
+                        "စုပေါင်း = $totalAmount",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "ပေးငွေ: %,d Ks".format(customer.paidAmount.toInt()),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1
+                        "ကော် = $commCut",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "နှုတ်ပြီးငွေ = $netAmount",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.height(4.dp))
-                val isToGet = netAmount >= 0
-                val netColor = if (isToGet) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                val netLabel = if (isToGet) "နှုတ်ပြီးငွေ (ရရန်):" else "နှုတ်ပြီးငွေ (ပေးရန်):"
+
+                Spacer(Modifier.height(6.dp))
+
+                // Row 2: ဘောင်ချာ, ပေးငွေ
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        netLabel,
-                        fontSize = if (rDimens.isCompact) 11.5.sp else 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = netColor,
+                        "ဘောင်ချာ = $voucherCount",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1
                     )
                     Text(
-                        "%,d Ks".format(netAmount),
-                        color = netColor,
-                        fontWeight = FontWeight.Black,
-                        fontSize = if (rDimens.isCompact) 14.sp else 16.sp,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        "ပေးငွေ = ${customer.paidAmount.toInt()}",
+                        color = Color.White,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
                     )
                 }
             }
@@ -429,6 +466,8 @@ fun AddCustomerFullScreen(
     nextId   : Int,
     onBack   : () -> Unit
 ) {
+    BackHandler(onBack = onBack)
+
     var name          by remember { mutableStateOf("") }
     var commissionStr by remember { mutableStateOf("15") }
     var multiplierStr by remember { mutableStateOf("80") }
@@ -512,6 +551,8 @@ fun EditCustomerFullScreen(
     customer : Customer,
     onBack   : () -> Unit
 ) {
+    BackHandler(onBack = onBack)
+
     var name          by remember { mutableStateOf(customer.name) }
     var commissionStr by remember { mutableStateOf((customer.commissionRate * 100).toInt().toString()) }
     var multiplierStr by remember { mutableStateOf(customer.multiplier.toString()) }
@@ -689,6 +730,8 @@ fun AgentNumbersView(
     netAmount   : Int,
     onBack      : () -> Unit
 ) {
+    BackHandler(onBack = onBack)
+
     val commPct = (customer.commissionRate * 100).toInt()
 
     val numberTotals: List<Pair<String, Int>> = remember(allVWB, customer.id) {

@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,9 +56,29 @@ fun String.myanmarToEnglish(): String {
 
 private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_+])\s*""")
 private val ROUND_MARKERS_REGEX    = Regex("""\s*[Rr/]\s*""")
-private val TAIL_AMOUNT_REGEX       = Regex("""[=:\-.,_+ ]?(\d+)(?:R(\d+))?$""")
-private val NUM_PATTERN_REGEX       = Regex("""(?<!\d)(\d{2,3})(R?)(?!\d)""")
+private val TAIL_AMOUNT_REGEX       = Regex("""(?:[=:\s]|(?<=\d)[Rr/]|-(?!\d{3}$))\s*(\d+)(?:\s*[Rr/]\s*(\d+))?$""")
+private val NUM_PATTERN_REGEX       = Regex("""(?<!\d)(\d{3})(R?)(?!\d)""")
 private val CURRENCY_SUFFIX_REGEX   = Regex("""(?i)\s*(?:ks|ကျပ်)\s*$""")
+
+// Error data class when a line has invalid numbers or format
+data class BetLineParseError(
+    val lineNumber: Int,
+    val rawLine: String,
+    val reason: String,
+    val invalidTokens: List<String> = emptyList()
+)
+
+sealed class LineParseResult {
+    data class Success(val bets: List<Pair<String, Int>>) : LineParseResult()
+    data class Error(val error: BetLineParseError) : LineParseResult()
+    object Ignored : LineParseResult()
+}
+
+data class PasteValidationResult(
+    val isValid: Boolean,
+    val validBets: List<Pair<String, Int>>,
+    val errors: List<BetLineParseError>
+)
 
 // Check if a line is voucher metadata/header/footer/timestamp to ignore
 fun isVoucherMetadataLine(raw: String): Boolean {
@@ -89,43 +110,54 @@ fun isVoucherMetadataLine(raw: String): Boolean {
     return false
 }
 
-// Parse one line of pasted bet text into a list of (number, amount) pairs.
-// Handles ALL these real-world formats:
-//   108   = 50                     -> 1 number at 50 (from overflow voucher)
-//   723-372-245-309 = 2000         -> 4 numbers at 2000
-//   446=1000                       -> 1 number at 1000
-//   235-615 = 3000                 -> 2 numbers at 3000
-//   456=5000r1000                  -> 456 at 5000, permutations at 1000
-//   456R=5000  OR  456/=5000       -> 456 + all perms at 5000  (R and / both mean Round)
-//   123/5000   OR  123R5000        -> 123 + perms at 5000
-//   123/456/789=5000               -> 123+perms, 456+perms, 789+perms at 5000
-//   185-217-378-549 = 10000        -> 4 numbers at 10000
-fun parsePastedLine(raw: String): List<Pair<String, Int>> {
-    if (isVoucherMetadataLine(raw)) return emptyList()
+// Parses and validates a single line. Detects less-than-3-digit numbers, more-than-3-digit numbers, and wrong formats.
+fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank() || isVoucherMetadataLine(trimmed)) {
+        return LineParseResult.Ignored
+    }
 
     // Convert Myanmar digits -> English, strip currency suffix, and trim
-    var line = raw.trim().myanmarToEnglish().replace(CURRENCY_SUFFIX_REGEX, "").trim()
-    if (line.isBlank()) return emptyList()
+    var line = trimmed.myanmarToEnglish().replace(CURRENCY_SUFFIX_REGEX, "").trim()
+    if (line.isBlank()) return LineParseResult.Ignored
 
     // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
     line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-]?\s*""", RegexOption.IGNORE_CASE), "").trim()
 
     // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
-    // CRITICAL: Must NEVER strip 3D betting numbers (like 123 in "123.345.678=1000" or 723 in "723-372=2000")!
     // Format A: Explicit brackets / parens e.g. "(1)", "[1]", "1)"
     line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()
-    // Format B: 1-2 digit serial number followed by dot/colon/dash/Burmese punctuation AND whitespace (\s+) AND followed by a 2-3 digit bet
-    line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d{2,3})"""), "").trim()
-    if (line.isBlank()) return emptyList()
+    // Format B: 1-2 digit serial number followed by dot/colon/dash/Burmese punctuation AND whitespace (\s+) AND followed by a digit
+    line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d)"""), "").trim()
+    if (line.isBlank()) return LineParseResult.Ignored
 
-    // Direct single bet format check e.g. "108 = 50", "108=50", "108-50"
-    val directMatch = Regex("""^(\d{2,3})\s*[=:\-]\s*(\d+)$""").matchEntire(line)
+    // Direct single bet format check e.g. "108 = 50", "108=50", "108:50"
+    val directMatch = Regex("""^([^\s=:.,_+\-]+)\s*[=:]\s*(\d+)$""").matchEntire(line)
     if (directMatch != null) {
-        val num = directMatch.groupValues[1]
+        val numToken = directMatch.groupValues[1]
         val amt = directMatch.groupValues[2].toIntOrNull()
-        if (amt != null && amt > 0) {
-            return listOf(num to amt)
+        if (amt == null || amt <= 0) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
         }
+        val cleanNum = numToken.removeSuffix("R").removeSuffix("r").removeSuffix("/").trim()
+        if (!cleanNum.all { it.isDigit() }) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ပုံစံမမှန်ပါ", listOf(numToken)))
+        }
+        if (cleanNum.length < 3) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံး မပြည့်ပါ", listOf(cleanNum)))
+        }
+        if (cleanNum.length > 3) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံးထက် ပိုနေပါသည်", listOf(cleanNum)))
+        }
+        val isRound = numToken.endsWith("R", ignoreCase = true) || numToken.endsWith("/")
+        val results = mutableListOf<Pair<String, Int>>()
+        results.add(cleanNum to amt)
+        if (isRound) {
+            NumberGenerator.permutations(cleanNum).forEach { perm ->
+                if (perm != cleanNum) results.add(perm to amt)
+            }
+        }
+        return LineParseResult.Success(results)
     }
 
     // Step 1: collapse spaces around plain separators (NOT / -- handled below)
@@ -135,48 +167,164 @@ fun parsePastedLine(raw: String): List<Pair<String, Int>> {
     text = text.replace(ROUND_MARKERS_REGEX, "R")
 
     // Find the AMOUNT at the end: (optional separator)(digits)(optional R digits)$
-    val tailMatch = TAIL_AMOUNT_REGEX.find(text) ?: return emptyList()
+    val tailMatch = TAIL_AMOUNT_REGEX.find(text)
+    if (tailMatch == null) {
+        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+    }
 
-    val amount  = tailMatch.groupValues[1].toIntOrNull() ?: return emptyList()
-    val rAmount = tailMatch.groupValues[2].toIntOrNull()
+    val amount = tailMatch.groupValues[1].toIntOrNull()
+    if (amount == null || amount <= 0) {
+        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+    }
+    val rAmount = tailMatch.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull()
 
     // Everything BEFORE the tail match is the numbers section
-    val numbersStr = text.substring(0, tailMatch.range.first)
-    if (numbersStr.isBlank()) return emptyList()
+    val numbersStr = text.substring(0, tailMatch.range.first).trim()
+    if (numbersStr.isBlank()) {
+        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
+    }
 
-    // Step 3: extract (number, hasR) pairs using regex.
-    // After normalisation "123/456/789=5000" -> "123R456R789=5000"
-    // Pattern matches each 2-3 digit number and its optional trailing R
-    val results = mutableListOf<Pair<String, Int>>()
+    val chunks = numbersStr.split(Regex("""[\s\-.,_+]+""")).filter { it.isNotBlank() }
+    if (chunks.isEmpty()) {
+        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
+    }
 
-    for (match in NUM_PATTERN_REGEX.findAll(numbersStr)) {
-        val baseNum = match.groupValues[1]
-        val hasR    = match.groupValues[2] == "R"
+    val lessThan3Digits = mutableListOf<String>()
+    val moreThan3Digits = mutableListOf<String>()
+    val invalidFormat = mutableListOf<String>()
+    val parsedBets = mutableListOf<Pair<String, Int>>()
 
-        if (!baseNum.all { it.isDigit() }) continue
-
-        results.add(baseNum to amount)
-
-        when {
-            // Global R amount wins (e.g. 456=5000R1000 -> perms at 1000)
-            rAmount != null && rAmount > 0 -> {
-                NumberGenerator.permutations(baseNum).forEach { perm ->
-                    if (perm != baseNum) results.add(perm to rAmount)
-                }
+    for (chunk in chunks) {
+        val subTokens = if (chunk.contains('R')) {
+            if (chunk.endsWith("R") && chunk.count { it == 'R' } == 1) {
+                listOf(chunk)
+            } else {
+                chunk.split('R').filter { it.isNotBlank() }.map { "${it}R" }
             }
-            // Number-local R/slash marker (e.g. "456R=5000" or "456/5000")
-            hasR -> {
-                NumberGenerator.permutations(baseNum).forEach { perm ->
-                    if (perm != baseNum) results.add(perm to amount)
+        } else {
+            listOf(chunk)
+        }
+
+        for (token in subTokens) {
+            val hasR = token.endsWith("R")
+            val baseNum = if (hasR) token.dropLast(1) else token
+
+            if (!baseNum.all { it.isDigit() } || baseNum.isEmpty()) {
+                invalidFormat.add(token)
+                continue
+            }
+
+            if (baseNum.length < 3) {
+                lessThan3Digits.add(baseNum)
+                continue
+            }
+
+            if (baseNum.length > 3) {
+                moreThan3Digits.add(baseNum)
+                continue
+            }
+
+            parsedBets.add(baseNum to amount)
+
+            when {
+                rAmount != null && rAmount > 0 -> {
+                    NumberGenerator.permutations(baseNum).forEach { perm ->
+                        if (perm != baseNum) parsedBets.add(perm to rAmount)
+                    }
+                }
+                hasR -> {
+                    NumberGenerator.permutations(baseNum).forEach { perm ->
+                        if (perm != baseNum) parsedBets.add(perm to amount)
+                    }
                 }
             }
         }
     }
 
+    if (lessThan3Digits.isNotEmpty()) {
+        return LineParseResult.Error(
+            BetLineParseError(
+                lineNumber = lineNumber,
+                rawLine = raw,
+                reason = "ဂဏန်း ၃ လုံး မပြည့်ပါ",
+                invalidTokens = lessThan3Digits
+            )
+        )
+    }
+
+    if (moreThan3Digits.isNotEmpty()) {
+        return LineParseResult.Error(
+            BetLineParseError(
+                lineNumber = lineNumber,
+                rawLine = raw,
+                reason = "ဂဏန်း ၃ လုံးထက် ပိုနေပါသည်",
+                invalidTokens = moreThan3Digits
+            )
+        )
+    }
+
+    if (invalidFormat.isNotEmpty()) {
+        return LineParseResult.Error(
+            BetLineParseError(
+                lineNumber = lineNumber,
+                rawLine = raw,
+                reason = "ပုံစံမမှန်ပါ",
+                invalidTokens = invalidFormat
+            )
+        )
+    }
+
+    if (parsedBets.isEmpty()) {
+        return LineParseResult.Error(
+            BetLineParseError(
+                lineNumber = lineNumber,
+                rawLine = raw,
+                reason = "ထိုးဂဏန်း မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"
+            )
+        )
+    }
+
     // De-duplicate: same number appearing twice -> sum amounts
     val merged = linkedMapOf<String, Int>()
-    results.forEach { (num, amt) -> merged[num] = (merged[num] ?: 0) + amt }
-    return merged.entries.map { it.key to it.value }
+    parsedBets.forEach { (num, amt) -> merged[num] = (merged[num] ?: 0) + amt }
+    return LineParseResult.Success(merged.entries.map { it.key to it.value })
+}
+
+// Validates the entire pasted text block. If ANY line has errors, declines the WHOLE paste.
+fun validatePastedText(text: String): PasteValidationResult {
+    val lines = text.lines()
+    val allBets = mutableListOf<Pair<String, Int>>()
+    val errors = mutableListOf<BetLineParseError>()
+
+    lines.forEachIndexed { index, rawLine ->
+        val lineNum = index + 1
+        when (val res = validateAndParseLine(rawLine, lineNum)) {
+            is LineParseResult.Success -> {
+                allBets.addAll(res.bets)
+            }
+            is LineParseResult.Error -> {
+                errors.add(res.error)
+            }
+            is LineParseResult.Ignored -> {
+                // Ignore blank lines and metadata lines
+            }
+        }
+    }
+
+    return if (errors.isNotEmpty()) {
+        // DECLINE THE WHOLE PASTE!
+        PasteValidationResult(isValid = false, validBets = emptyList(), errors = errors)
+    } else {
+        PasteValidationResult(isValid = true, validBets = allBets, errors = emptyList())
+    }
+}
+
+// Parse one line of pasted bet text into a list of (number, amount) pairs (returns emptyList on error).
+fun parsePastedLine(raw: String): List<Pair<String, Int>> {
+    return when (val res = validateAndParseLine(raw, 0)) {
+        is LineParseResult.Success -> res.bets
+        else -> emptyList()
+    }
 }
 
 
@@ -219,6 +367,7 @@ fun BettingScreen(
     var isParsing       by remember { mutableStateOf(false) }
     var parseProgress   by remember { mutableStateOf(0f) }
     var parseStatus     by remember { mutableStateOf("") }
+    var pasteErrors     by remember { mutableStateOf<List<BetLineParseError>>(emptyList()) }
 
     val pendingBets = remember { mutableStateListOf<Bet>() }
 
@@ -276,10 +425,17 @@ fun BettingScreen(
         focusedField = FocusField.NUMBER
     }
     
-    // Async paste processing — runs IO-heavy parsing off the main thread.
+    // Async paste processing — validates all bets and adds them off the main thread.
+    // Declines the whole paste if any numbers are less than 3 digits or in wrong format.
     // For <= 500 resulting bets: adds to pendingBets (shows in list).
     // For > 500: submits directly as a voucher so the list never lags.
     fun addBetsFromPasteAsync(text: String) {
+        val validation = validatePastedText(text)
+        if (!validation.isValid) {
+            pasteErrors = validation.errors
+            return
+        }
+
         if (selectedCustomer == null && text.lines().size > 500) {
             android.widget.Toast.makeText(context, "ထိုးသူ ဦးစွာရွေးချယ်ပေးပါ", android.widget.Toast.LENGTH_SHORT).show()
         }
@@ -288,24 +444,20 @@ fun BettingScreen(
         parseStatus = "ပြင်ဆင်နေသည်..."
         coroutineScope.launch {
             val bannedList = viewModel.bannedNumbers.value.map { it.number }.toHashSet()
-            val lines = text.lines().filter { it.isNotBlank() }
-            val total = lines.size.coerceAtLeast(1)
-            val allBets = ArrayList<Bet>(total * 2)
+            val total = validation.validBets.size.coerceAtLeast(1)
+            val allBets = ArrayList<Bet>(total)
             var bannedCount = 0
 
             withContext(Dispatchers.Default) {
-                lines.forEachIndexed { i, line ->
-                    val parsed = parsePastedLine(line)
-                    parsed.forEach { (num, amt) ->
-                        if (amt > 0) {
-                            if (num in bannedList) bannedCount++
-                            else allBets.add(Bet(voucherId = 0, number = num, amount = amt))
-                        }
+                validation.validBets.forEachIndexed { i, (num, amt) ->
+                    if (amt > 0) {
+                        if (num in bannedList) bannedCount++
+                        else allBets.add(Bet(voucherId = 0, number = num, amount = amt))
                     }
                     if (i % 1000 == 0 || i == total - 1) {
                         withContext(Dispatchers.Main) {
                             parseProgress = (i + 1).toFloat() / total
-                            parseStatus = "${i + 1} ကြောင်း စစ်ဆေးပြီး..."
+                            parseStatus = "${i + 1} ဂဏန်း ထည့်သွင်းပြီး..."
                         }
                     }
                 }
@@ -568,9 +720,15 @@ fun BettingScreen(
                         // After pasting numbers: Confirm & Add Bets button appears
                         Button(
                             onClick = {
-                                addBetsFromPasteAsync(pasteText)
-                                showPasteDialog = false
-                                pasteText = ""
+                                val validation = validatePastedText(pasteText)
+                                if (!validation.isValid) {
+                                    pasteErrors = validation.errors
+                                } else {
+                                    pasteErrors = emptyList()
+                                    addBetsFromPasteAsync(pasteText)
+                                    showPasteDialog = false
+                                    pasteText = ""
+                                }
                             },
                             enabled = !isParsing,
                             modifier = Modifier.height(42.dp),
@@ -594,6 +752,7 @@ fun BettingScreen(
                                 if (!isParsing) {
                                     showPasteDialog = false
                                     pasteText = ""
+                                    pasteErrors = emptyList()
                                 }
                             },
                             modifier = Modifier.height(42.dp),
@@ -601,6 +760,132 @@ fun BettingScreen(
                         ) {
                             Text("မလုပ်တော့")
                         }
+                    }
+                }
+            )
+        }
+
+        // --- PASTE ERROR DECLINE ALERT DIALOG ---
+        if (pasteErrors.isNotEmpty()) {
+            AlertDialog(
+                onDismissRequest = { pasteErrors = emptyList() },
+                icon = {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFFEE2E2),
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text("⚠️", fontSize = 26.sp)
+                        }
+                    }
+                },
+                title = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "စာရင်း ပယ်ချပါသည် (Declined)",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = Color(0xFFDC2626),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "အမှား ${pasteErrors.size} ခု တွေ့ရှိပါသည်",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF991B1B)
+                        )
+                    }
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "၃ လုံး မပြည့်သော ဂဏန်းများ သို့မဟုတ် ပုံစံမမှန်သော စာကြောင်းများ ပါဝင်နေသဖြင့် စာရင်းတစ်ခုလုံးကို ထည့်သွင်းခြင်း မပြုဘဲ ပယ်ချလိုက်ပါသည်။ အောက်ပါ အမှားများကို ပြင်ဆင်ပြီးမှ ပြန်လည် ထည့်သွင်းပေးပါ -",
+                            fontSize = 12.sp,
+                            lineHeight = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFFEF2F2),
+                            border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 280.dp)
+                        ) {
+                            LazyColumn(
+                                modifier = Modifier.padding(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(pasteErrors) { err ->
+                                    Card(
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    "မျဉ်း ${err.lineNumber}",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFFDC2626)
+                                                )
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color(0xFFFEE2E2)
+                                                ) {
+                                                    Text(
+                                                        err.reason,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFB91C1C),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                err.rawLine,
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 12.5.sp,
+                                                color = Color(0xFF1E293B),
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            if (err.invalidTokens.isNotEmpty()) {
+                                                Spacer(Modifier.height(2.dp))
+                                                Text(
+                                                    "မှားယွင်းနေသော ဂဏန်း: ${err.invalidTokens.joinToString(", ")}",
+                                                    fontSize = 11.5.sp,
+                                                    color = Color(0xFFDC2626),
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { pasteErrors = emptyList() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("✏️ ပြန်လည် ပြင်ဆင်မည်", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             )

@@ -93,7 +93,7 @@ fun WinnerScreen(
     val currentBatch   = viewModel.currentBatch.collectAsStateWithLifecycle().value
     var targetBatch    by remember { mutableStateOf(currentBatch.toString()) }
     var exactMult      by remember { mutableStateOf("600") }
-    var tuwtMult       by remember { mutableStateOf("100") }
+    var tuwtMult       by remember { mutableStateOf("10") }
     var isFetching     by remember { mutableStateOf(false) }
     var fetchStatus    by remember { mutableStateOf("") }
     var isFinalResult  by remember { mutableStateOf(false) }

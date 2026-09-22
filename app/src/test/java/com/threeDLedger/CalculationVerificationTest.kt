@@ -13,7 +13,7 @@ import org.junit.Test
  * 2. Permutation reductions (distinct vs double vs triple digits)
  * 3. 000-999 cyclic boundary wrapping
  * 4. Commission calculations (ရောင်းကြေး, ကော်မရှင်, နုတ်ပြီးငွေ)
- * 5. Multiplier payouts (ဒဲ့ x600, တွတ် x100)
+ * 5. Multiplier payouts (ဒဲ့ x600, တွတ် x10)
  * 6. Balance & remaining settlements (ရရန် Green vs ပေးရန် Red)
  * 7. Overflow threshold and hedging calculations
  */
@@ -107,22 +107,22 @@ class CalculationVerificationTest {
         // Bet 100 Ks on Exact 108 (multiplier 600)
         val exactBetAmt = 100L
         val exactPayout = exactBetAmt * 600L // 60,000
-        // Bet 200 Ks on Tut 107 and 200 Ks on Tut 801 (total tut bet = 400, multiplier 100)
+        // Bet 200 Ks on Tut 107 and 200 Ks on Tut 801 (total tut bet = 400, multiplier 10)
         val tuwtBetAmt = 400L
-        val tuwtPayout = tuwtBetAmt * 100L // 40,000
+        val tuwtPayout = tuwtBetAmt * 10L // 4,000
 
         val totalPayout = exactPayout + tuwtPayout
-        assertEquals(100_000L, totalPayout) // 60,000 + 40,000 = 100,000
+        assertEquals(64_000L, totalPayout) // 60,000 + 4,000 = 64,000
 
         // Step 4: Net Balance (House perspective)
-        // House receives netAfterComm (170,000), owes totalPayout (100,000)
+        // House receives netAfterComm (170,000), owes totalPayout (64,000)
         val balance = netAfterComm - totalPayout
-        assertEquals(70_000L, balance) // +70,000 Ks => House receives / Agent owes
+        assertEquals(106_000L, balance) // +106,000 Ks => House receives / Agent owes
 
         // Step 5: Payments and Remaining Debt
         val paidAmount = 20_000L
         val remaining = balance - paidAmount
-        assertEquals(50_000L, remaining) // Agent still owes 50,000 Ks
+        assertEquals(86_000L, remaining) // Agent still owes 86,000 Ks
 
         val settlement = AgentSettlement(
             customer = customer,
@@ -216,5 +216,55 @@ class CalculationVerificationTest {
         val netHousePayout = totalLiability - overflowRecovered
         assertEquals(houseRetained * 600L, netHousePayout)
         assertEquals(6_000_000L, netHousePayout)
+    }
+
+    @Test
+    fun verifyPatternH_UnderBrakeWinningSettlement_Screenshot1() {
+        // Test replicating Legacy App Screenshot 1 exactly
+        val winningNumber = "640"
+        val brakeLimit = 2000
+
+        // 1. Permutations & near numbers verification
+        val allPerms = NumberGenerator.permutations(winningNumber).toSet()
+        val permsOnly = (allPerms - setOf(winningNumber)).sorted()
+        val winInt = winningNumber.toIntOrNull() ?: 0
+        val numMinus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
+        val numPlus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
+        val lastDigit = winningNumber[2].digitToIntOrNull() ?: 0
+        val lastMinus1 = "${winningNumber.substring(0, 2)}${(lastDigit + 9) % 10}"
+        val lastPlus1  = "${winningNumber.substring(0, 2)}${(lastDigit + 1) % 10}"
+        val nearOnly = (setOf(numMinus1, numPlus1, lastMinus1, lastPlus1) - setOf(winningNumber) - allPerms).sorted()
+
+        // Verify that 649 and 641 are in nearOnly
+        assertTrue(nearOnly.contains("649"))
+        assertTrue(nearOnly.contains("641"))
+        // Verify permutations
+        assertEquals(setOf("046", "064", "406", "460", "604"), permsOnly.toSet())
+
+        // 2. Financial calculation verification from Screenshot 1
+        val totalBraked = 727_208L
+        val meCommRate = 0.25 // 25%
+
+        val commAmount = (totalBraked * meCommRate).toLong()
+        assertEquals(181_802L, commAmount)
+
+        val netAfterComm = totalBraked - commAmount
+        assertEquals(545_406L, netAfterComm)
+
+        // Exact win kept amount: 1000 Ks on 640
+        val exactKept = 1_000L
+        val exactMult = 600L
+        val exactPayout = exactKept * exactMult
+        assertEquals(600_000L, exactPayout)
+
+        // Tut win kept amount: 1000 on 604, 2000 on 641 => 3000 Ks
+        val tuwtKept = 3_000L
+        val permMult = 10L
+        val tuwtPayout = tuwtKept * permMult
+        assertEquals(30_000L, tuwtPayout)
+
+        // Profit / Net
+        val brakedProfit = netAfterComm - (exactPayout + tuwtPayout)
+        assertEquals(-84_594L, brakedProfit)
     }
 }
