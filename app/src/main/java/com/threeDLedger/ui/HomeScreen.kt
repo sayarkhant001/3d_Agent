@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -73,6 +74,18 @@ fun HomeScreen(
     val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
     val rDimens = rememberResponsiveDimens()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var lastBackPressTime by remember { mutableLongStateOf(0L) }
+
+    BackHandler {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastBackPressTime < 2000) {
+            (context as? android.app.Activity)?.finish()
+        } else {
+            lastBackPressTime = currentTime
+            android.widget.Toast.makeText(context, "အက်ပ်မှ ထွက်ရန် နောက်သို့ ထပ်နှိပ်ပါ", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Strictly ordered: 4 Core Modules
     val menuItems = listOf(

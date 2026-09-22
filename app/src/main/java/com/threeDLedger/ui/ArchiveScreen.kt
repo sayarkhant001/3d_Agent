@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,8 @@ fun ArchiveScreen(
     onNavigateBack: () -> Unit,
     onNavigateToBatchResult: (Int) -> Unit = {}
 ) {
+    BackHandler(onBack = onNavigateBack)
+
     val batches by viewModel.archivedBatchSummaries.collectAsStateWithLifecycle()
 
     Scaffold(

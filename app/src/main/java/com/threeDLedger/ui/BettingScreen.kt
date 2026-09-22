@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -419,7 +420,25 @@ fun BettingScreen(
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     var selectedCustomer by remember { mutableStateOf<Int?>(initialCustomerId) }
     var expandedCustomer by remember { mutableStateOf(false) }
+    var showPasteDialog by remember { mutableStateOf(false) }
+    var isParsing       by remember { mutableStateOf(false) }
     val rDimens = rememberResponsiveDimens()
+
+    BackHandler {
+        when {
+            showPasteDialog -> {
+                if (!isParsing) {
+                    showPasteDialog = false
+                }
+            }
+            expandedCustomer -> {
+                expandedCustomer = false
+            }
+            else -> {
+                onNavigateBack()
+            }
+        }
+    }
     
     val context = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(Unit) {
@@ -439,9 +458,7 @@ fun BettingScreen(
 
     var currentBetType  by remember { mutableStateOf("ဒဲ့") }
 
-    var showPasteDialog by remember { mutableStateOf(false) }
     var pasteText       by remember { mutableStateOf("") }
-    var isParsing       by remember { mutableStateOf(false) }
     var parseProgress   by remember { mutableStateOf(0f) }
     var parseStatus     by remember { mutableStateOf("") }
     var pasteErrors     by remember { mutableStateOf<List<BetLineParseError>>(emptyList()) }

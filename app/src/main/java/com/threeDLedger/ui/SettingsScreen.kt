@@ -2,6 +2,7 @@ package com.threeDLedger.ui
 
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -58,6 +59,18 @@ fun SettingsScreen(
     val currentVersion = remember {
         try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }
         catch (e: PackageManager.NameNotFoundException) { "?" }
+    }
+
+    BackHandler {
+        when {
+            showBannedDialog -> showBannedDialog = false
+            showPasswordDialog -> showPasswordDialog = false
+            showResetDialog -> showResetDialog = false
+            showPrinterDialog -> showPrinterDialog = false
+            showManualUpdateDialog -> showManualUpdateDialog = false
+            showDownloadDialog -> showDownloadDialog = false
+            else -> onNavigateBack()
+        }
     }
 
     val primaryColor = MaterialTheme.colorScheme.primary

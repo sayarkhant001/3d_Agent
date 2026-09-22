@@ -66,20 +66,14 @@ fun CustomersScreen(
         }
     }
 
-    BackHandler(enabled = viewingCustomer != null) {
-        viewingCustomer = null
-    }
-
-    BackHandler(enabled = editCustomer != null) {
-        editCustomer = null
-    }
-
-    BackHandler(enabled = showAdd) {
-        showAdd = false
-    }
-
-    BackHandler(enabled = viewingCustomer == null && editCustomer == null && !showAdd) {
-        onNavigateBack()
+    BackHandler {
+        when {
+            viewingCustomer != null -> viewingCustomer = null
+            editCustomer != null -> editCustomer = null
+            showAdd -> showAdd = false
+            searchQuery.isNotEmpty() -> searchQuery = ""
+            else -> onNavigateBack()
+        }
     }
 
     when {

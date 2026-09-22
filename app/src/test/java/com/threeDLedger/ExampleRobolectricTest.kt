@@ -18,4 +18,16 @@ class ExampleRobolectricTest {
     val appName = context.getString(R.string.app_name)
     assertEquals("3D စာရင်း ဆော့ဝဲလ်", appName)
   }
+
+  @Test
+  fun `default batch of the app is 1`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val database = com.threeDLedger.data.AppDatabase.getDatabase(context)
+    val repository = com.threeDLedger.data.LotteryRepository(database.lotteryDao())
+    val prefs = context.getSharedPreferences("test_prefs_batch_1", Context.MODE_PRIVATE)
+    prefs.edit().clear().commit()
+    val viewModel = com.threeDLedger.ui.MainViewModel(repository, prefs)
+    assertEquals(1, viewModel.currentBatch.value)
+  }
 }
+

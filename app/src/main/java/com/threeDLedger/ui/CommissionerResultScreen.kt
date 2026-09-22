@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -122,6 +123,16 @@ fun CommissionerResultScreen(
     var editPaidText        by remember { mutableStateOf("") }
     var tutBreakdownAgent   by remember { mutableStateOf<AgentSettlement?>(null) }
     var exactBreakdownAgent by remember { mutableStateOf<AgentSettlement?>(null) }
+
+    BackHandler {
+        when {
+            tutBreakdownAgent != null -> tutBreakdownAgent = null
+            exactBreakdownAgent != null -> exactBreakdownAgent = null
+            dialogAgent != null -> dialogAgent = null
+            editAgent != null -> editAgent = null
+            else -> onNavigateBack()
+        }
+    }
 
     // ── Compute settlements ──────────────────────────────────────────────────
     val settlements: List<AgentSettlement> = remember(

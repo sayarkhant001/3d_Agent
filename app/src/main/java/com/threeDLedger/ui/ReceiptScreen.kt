@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +24,8 @@ import java.util.Date
 fun ReceiptScreen(
     onNavigateBack: () -> Unit
 ) {
+    BackHandler(onBack = onNavigateBack)
+
     Scaffold(
         topBar = {
             TopAppBar(

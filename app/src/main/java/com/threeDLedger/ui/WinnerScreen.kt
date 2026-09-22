@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import com.threeDLedger.ui.theme.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -103,6 +104,14 @@ fun WinnerScreen(
     var isDeclared     by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
     var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher, 2=Overflow
+
+    BackHandler {
+        if (showClearDialog) {
+            showClearDialog = false
+        } else {
+            onNavigateBack()
+        }
+    }
 
     val allBets          by viewModel.allBets.collectAsStateWithLifecycle()
     val allVWB           by viewModel.vouchersWithBets.collectAsStateWithLifecycle()

@@ -51,7 +51,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     val allExportRecords: StateFlow<List<ExportRecordWithNumbers>> = repository.allExportRecords
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         
-    var currentBatch = MutableStateFlow(15)
+    var currentBatch = MutableStateFlow(prefs.getInt("currentBatch", 1))
 
     val appPassword = MutableStateFlow("")
     val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
@@ -65,6 +65,12 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     init {
         loadWinningNumber()
         brakeLimit.value = prefs.getInt("brakeLimit", 3000)
+        viewModelScope.launch {
+            currentBatch.collect { batch ->
+                prefs.edit().putInt("currentBatch", batch).apply()
+                loadWinningNumber()
+            }
+        }
         viewModelScope.launch {
             repository.purgeOverflowArtifacts()
             ensureDefaultCustomer()

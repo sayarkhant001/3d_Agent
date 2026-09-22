@@ -1,5 +1,6 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -135,6 +136,14 @@ fun OverflowScreen(
     // Overflow voucher dialog state — holds a snapshot taken at the moment "တင်မည်" was pressed
     data class OverflowSnapshot(val voucherId: Int, val items: List<Pair<String, Int>>, val total: Int, val timestamp: String, val batch: Int)
     var overflowSnapshot by remember { mutableStateOf<OverflowSnapshot?>(null) }
+
+    BackHandler {
+        when {
+            showBrakeDialog -> showBrakeDialog = false
+            overflowSnapshot != null -> overflowSnapshot = null
+            else -> onNavigateBack()
+        }
+    }
 
     // ── Brake Limit Dialog ──────────────────────────────────────────────────
     if (showBrakeDialog) {
