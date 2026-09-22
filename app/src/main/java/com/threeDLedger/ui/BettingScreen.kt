@@ -47,23 +47,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Myanmar digit to English digit converter, supporting digit zero (၀), consonant Wa (ဝ), Burmese round terms, and direct bet terms
+// Myanmar digit to English digit converter - strictly converts only Myanmar numbers (၀-၉)
 fun String.myanmarToEnglish(): String {
     val myanmarDigits = "၀၁၂၃၄၅၆၇၈၉"
     val englishDigits = "0123456789"
-    var res = this.map { c ->
-        if (c == 'ဝ' || c == '၀') '0'
-        else {
-            val idx = myanmarDigits.indexOf(c)
-            if (idx >= 0) englishDigits[idx] else c
-        }
+    return this.map { c ->
+        val idx = myanmarDigits.indexOf(c)
+        if (idx >= 0) englishDigits[idx] else c
     }.joinToString("")
-
-    // Normalize Burmese round terms (ပတ်လည် / ပတ် / ပါတ်လည် / ပါတ် / အာပတ်) to 'R'
-    res = res.replace(Regex("""(?:\s*\(?(?:အာပတ်|ပတ်လည်|ပါတ်လည်|ပတ်|ပါတ်)\)?\s*)"""), "R")
-    // Normalize Burmese direct terms (ဒဲ့) to space/separator so it doesn't break number or amount parsing
-    res = res.replace(Regex("""(?:\s*\(?ဒဲ့\)?\s*)"""), " ")
-    return res
 }
 
 private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_+၊။])\s*""")
