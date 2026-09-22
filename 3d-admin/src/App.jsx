@@ -110,8 +110,8 @@ function App() {
   const [settleNotes, setSettleNotes] = useState('');
   const [settlingDue, setSettlingDue] = useState(false);
 
-  // Section navigation state ('resellers', 'generate', 'lottery', 'release', 'plans', 'calculator')
-  const [activeSection, setActiveSection] = useState('resellers');
+  // Section navigation state ('overview', 'resellers', 'generate', 'lottery', 'release', 'plans', 'calculator')
+  const [activeSection, setActiveSection] = useState('overview');
 
   // Reseller separation state: 'all' | 'direct' | telegram_id
   const [selectedResellerId, setSelectedResellerId] = useState('all');
@@ -1060,6 +1060,15 @@ function App() {
           <nav className="section-nav">
             <button
               type="button"
+              className={`section-tab ${activeSection === 'overview' ? 'active' : ''}`}
+              onClick={() => setActiveSection('overview')}
+            >
+              <span className="tab-icon">📊</span>
+              <span className="tab-title">Overview (ပင်မစာမျက်နှာ)</span>
+            </button>
+
+            <button
+              type="button"
               className={`section-tab ${activeSection === 'resellers' ? 'active' : ''}`}
               onClick={() => setActiveSection('resellers')}
             >
@@ -1121,53 +1130,389 @@ function App() {
       </div>
 
       <main className="dashboard-content">
-        {/* Interactive Stats Overview Row */}
-        <div className="stats-row">
-          <div
-            className="stat-card purple"
-            onClick={() => { setActiveSection('resellers'); setSelectedResellerId('all'); setKeyFilter('all'); }}
-            style={{ cursor: 'pointer' }}
-            title="View All License Keys"
-          >
-            <div className="stat-icon">🔑</div>
-            <div className="stat-value">{totalKeys}</div>
-            <div className="stat-label">Total Keys (လိုင်စင်ကုဒ်များ)</div>
+        {/* Page Breadcrumb Bar for dedicated sub-pages */}
+        {activeSection !== 'overview' && (
+          <div className="page-breadcrumb-bar">
+            <div className="breadcrumb-path">
+              <button
+                type="button"
+                className="breadcrumb-home-btn"
+                onClick={() => setActiveSection('overview')}
+                title="Return to Dashboard Overview"
+              >
+                <span className="crumb-icon">📊</span>
+                <span>Dashboard Overview</span>
+              </button>
+              <span className="breadcrumb-separator">›</span>
+              <span className="breadcrumb-current">
+                {activeSection === 'resellers' && '👥 Resellers & Keys Hub (ကိုယ်စားလှယ်များနှင့် ကုဒ်များ)'}
+                {activeSection === 'generate' && '🔑 Key Generation Studio (လိုင်စင်ကုဒ် အသစ်ထုတ်ရန်)'}
+                {activeSection === 'lottery' && '🎯 3D Lottery Draw & Official GLO (ထိုင်း 3D နှင့် ရလဒ်)'}
+                {activeSection === 'release' && '📲 App Release & Telegram Distribution (ဗားရှင်း ဖြန့်ချိရေး)'}
+                {activeSection === 'plans' && '💰 Sale Plans & Pricing (အစီအစဉ်နှင့် စျေးနှုန်း)'}
+                {activeSection === 'calculator' && '🧮 Tut Calculator Playground (တွတ်စစ်ဆေးရန်)'}
+              </span>
+            </div>
+            <div className="breadcrumb-actions">
+              {activeSection === 'resellers' && (
+                <span className="breadcrumb-pill">👥 {allResellerList.length} Resellers</span>
+              )}
+              {activeSection === 'lottery' && liveResults.winning_number && (
+                <span className="breadcrumb-pill winning">3D: {liveResults.winning_number}</span>
+              )}
+              {activeSection === 'generate' && (
+                <span className="breadcrumb-pill">🔑 3 Plans (Trial/1-Yr/Lifetime)</span>
+              )}
+              {activeSection === 'release' && (
+                <span className="breadcrumb-pill">📲 {appRelease?.version_name ? `v${appRelease.version_name}` : 'Live Build'}</span>
+              )}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm breadcrumb-back-btn"
+                onClick={() => setActiveSection('overview')}
+              >
+                ← Back to Overview
+              </button>
+            </div>
           </div>
-          <div
-            className="stat-card green"
-            onClick={() => { setActiveSection('resellers'); setKeyFilter('available'); }}
-            style={{ cursor: 'pointer' }}
-            title="View Available Keys"
-          >
-            <div className="stat-icon">✅</div>
-            <div className="stat-value">{availableKeys}</div>
-            <div className="stat-label">Available (သုံးနိုင်သော)</div>
-          </div>
-          <div
-            className="stat-card red"
-            onClick={() => { setActiveSection('resellers'); setKeyFilter('claimed'); }}
-            style={{ cursor: 'pointer' }}
-            title="View Claimed / Active Keys"
-          >
-            <div className="stat-icon">📱</div>
-            <div className="stat-value">{claimedKeys}</div>
-            <div className="stat-label">Claimed (အသုံးပြုထားသော)</div>
-          </div>
-          <div
-            className="stat-card orange"
-            onClick={() => { setActiveSection('lottery'); }}
-            style={{ cursor: 'pointer' }}
-            title="View 3D Live Draw & Results"
-          >
-            <div className="stat-icon">🎯</div>
-            <div className="stat-value">{liveResults.winning_number || '---'}</div>
-            <div className="stat-label">3D ပေါက်ဂဏန်း (Winning 3D)</div>
-          </div>
-        </div>
+        )}
 
         {/* ========================================================
-            SECTION 1: RESELLERS & KEYS HUB (CORE USER REQUIREMENT)
+            PAGE 0: EXECUTIVE DASHBOARD OVERVIEW
             ======================================================== */}
+        {activeSection === 'overview' && (
+          <div className="overview-page-container">
+            {/* System Status / Health Banner */}
+            <div className="overview-system-banner">
+              <div className="system-banner-left">
+                <div className="system-banner-title">
+                  <span>⚡</span>
+                  <span>Executive Admin Dashboard (စီမံခန့်ခွဲသူ ပင်မစာမျက်နှာ)</span>
+                </div>
+                <div className="system-banner-sub">
+                  Control center for license keys, reseller accounts, automated Thai 3D lottery draws, and APK distribution.
+                </div>
+              </div>
+              <div className="system-status-pills">
+                <div className="status-pill online">
+                  <span className="live-pulse-dot" />
+                  <span>Cloudflare D1 & Pages: Active</span>
+                </div>
+                <div className="status-pill batch">
+                  <span>🎯 Batch #{currentBatch}</span>
+                </div>
+                {gloResult ? (
+                  <div className="status-pill online">
+                    <span>🇹🇭 GLO Live: Synced</span>
+                  </div>
+                ) : (
+                  <div className="status-pill">
+                    <span>🇹🇭 GLO Scraper: Polling</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Interactive Stats Overview Row */}
+            <div className="stats-row">
+              <div
+                className="stat-card purple"
+                onClick={() => { setActiveSection('resellers'); setSelectedResellerId('all'); setKeyFilter('all'); }}
+                style={{ cursor: 'pointer' }}
+                title="View All License Keys"
+              >
+                <div className="stat-icon">🔑</div>
+                <div className="stat-value">{totalKeys}</div>
+                <div className="stat-label">Total Keys (လိုင်စင်ကုဒ်များ)</div>
+              </div>
+              <div
+                className="stat-card green"
+                onClick={() => { setActiveSection('resellers'); setKeyFilter('available'); }}
+                style={{ cursor: 'pointer' }}
+                title="View Available Keys"
+              >
+                <div className="stat-icon">✅</div>
+                <div className="stat-value">{availableKeys}</div>
+                <div className="stat-label">Available (သုံးနိုင်သော)</div>
+              </div>
+              <div
+                className="stat-card red"
+                onClick={() => { setActiveSection('resellers'); setKeyFilter('claimed'); }}
+                style={{ cursor: 'pointer' }}
+                title="View Claimed / Active Keys"
+              >
+                <div className="stat-icon">📱</div>
+                <div className="stat-value">{claimedKeys}</div>
+                <div className="stat-label">Claimed (အသုံးပြုထားသော)</div>
+              </div>
+              <div
+                className="stat-card orange"
+                onClick={() => { setActiveSection('lottery'); }}
+                style={{ cursor: 'pointer' }}
+                title="View 3D Live Draw & Results"
+              >
+                <div className="stat-icon">🎯</div>
+                <div className="stat-value">{liveResults.winning_number || '---'}</div>
+                <div className="stat-label">3D ပေါက်ဂဏန်း (Winning 3D)</div>
+              </div>
+            </div>
+
+            {/* Financial Settlement & Reseller Health Grid */}
+            <div className="overview-financial-grid">
+              <div className="financial-card">
+                <div className="financial-card-header">
+                  <span className="financial-card-title">Outstanding Balance Due (ကျန်ငွေ စုစုပေါင်း)</span>
+                  <span className="financial-card-icon">💸</span>
+                </div>
+                <div className="financial-card-amount due">
+                  {allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
+                </div>
+                <div className="financial-card-hint">
+                  Unsettled dues pending collection from resellers
+                </div>
+              </div>
+
+              <div className="financial-card">
+                <div className="financial-card-header">
+                  <span className="financial-card-title">Total Collected / Settled (ရှင်းပြီးငွေ)</span>
+                  <span className="financial-card-icon">💳</span>
+                </div>
+                <div className="financial-card-amount paid">
+                  {allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
+                </div>
+                <div className="financial-card-hint">
+                  Lifetime confirmed payments deposited
+                </div>
+              </div>
+
+              <div className="financial-card">
+                <div className="financial-card-header">
+                  <span className="financial-card-title">Reseller Commission (ကော်မရှင်စုစုပေါင်း)</span>
+                  <span className="financial-card-icon">🎁</span>
+                </div>
+                <div className="financial-card-amount comm">
+                  {allResellerList.reduce((sum, r) => sum + (r.total_commission || 0), 0).toLocaleString()} Ks
+                </div>
+                <div className="financial-card-hint">
+                  Total commission credited across all agents
+                </div>
+              </div>
+
+              <div className="financial-card">
+                <div className="financial-card-header">
+                  <span className="financial-card-title">Network Resellers (ကိုယ်စားလှယ်များ)</span>
+                  <span className="financial-card-icon">👥</span>
+                </div>
+                <div className="financial-card-amount count">
+                  {allResellerList.length} Resellers
+                </div>
+                <div className="financial-card-hint">
+                  {keyEntries.length} total active and generated keys managed
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions Navigation Hub */}
+            <div>
+              <div className="overview-section-title">
+                <span>🚀</span>
+                <span>System Modules & Direct Actions (လုပ်ဆောင်ချက် ဌာနများ)</span>
+              </div>
+              <div className="quick-actions-grid">
+                <div
+                  className="quick-action-card"
+                  onClick={() => setActiveSection('generate')}
+                >
+                  <div className="quick-action-icon">🔑</div>
+                  <div className="quick-action-body">
+                    <div className="quick-action-name">
+                      <span>Generate Keys</span>
+                      <span className="quick-action-arrow">→</span>
+                    </div>
+                    <div className="quick-action-desc">
+                      Create 3-Day Trial, 1-Year or Lifetime keys with bulk batch generation, device lock toggles, and direct reseller assignment.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="quick-action-card"
+                  onClick={() => setActiveSection('resellers')}
+                >
+                  <div className="quick-action-icon">👥</div>
+                  <div className="quick-action-body">
+                    <div className="quick-action-name">
+                      <span>Reseller & Key Management</span>
+                      <span className="quick-action-arrow">→</span>
+                    </div>
+                    <div className="quick-action-desc">
+                      Separate isolated views for each reseller, balance due settlements, device HWID resets, and license status filters.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="quick-action-card"
+                  onClick={() => setActiveSection('lottery')}
+                >
+                  <div className="quick-action-icon">🎯</div>
+                  <div className="quick-action-body">
+                    <div className="quick-action-name">
+                      <span>3D Live Draw & GLO Scraper</span>
+                      <span className="quick-action-arrow">→</span>
+                    </div>
+                    <div className="quick-action-desc">
+                      Official Government Lottery Office (GLO) Thailand live scraper, manual winning number override, and Telegram announcement.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="quick-action-card"
+                  onClick={() => setActiveSection('release')}
+                >
+                  <div className="quick-action-icon">📲</div>
+                  <div className="quick-action-body">
+                    <div className="quick-action-name">
+                      <span>App Release & Distribution</span>
+                      <span className="quick-action-arrow">→</span>
+                    </div>
+                    <div className="quick-action-desc">
+                      Publish latest Android APK builds, configure version codes, write release notes, and broadcast downloads to Telegram.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="quick-action-card"
+                  onClick={() => setActiveSection('plans')}
+                >
+                  <div className="quick-action-icon">💰</div>
+                  <div className="quick-action-body">
+                    <div className="quick-action-name">
+                      <span>Sale Plans & Pricing</span>
+                      <span className="quick-action-arrow">→</span>
+                    </div>
+                    <div className="quick-action-desc">
+                      Set official MMK retail rates for 3-Day Trial, 1-Year Plan, and Lifetime Access, and manage device transfer privileges.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="quick-action-card"
+                  onClick={() => setActiveSection('calculator')}
+                >
+                  <div className="quick-action-icon">🧮</div>
+                  <div className="quick-action-body">
+                    <div className="quick-action-name">
+                      <span>3D Tut Simulator</span>
+                      <span className="quick-action-arrow">→</span>
+                    </div>
+                    <div className="quick-action-desc">
+                      Interactive test bench for Myanmar 3D Tut permutations (5 reversal digits) and cyclic near-miss neighbor boundaries.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Reseller Directory Snapshot Table */}
+            <div>
+              <div className="overview-section-title">
+                <span>📋</span>
+                <span>Reseller Performance & Financial Snapshot (ကိုယ်စားလှယ်များ စာရင်းချုပ်)</span>
+              </div>
+              <div className="overview-resellers-card">
+                {allResellerList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>
+                    No resellers registered yet.
+                  </div>
+                ) : (
+                  <table className="overview-resellers-table">
+                    <thead>
+                      <tr>
+                        <th>Reseller Name</th>
+                        <th>Telegram ID</th>
+                        <th>Rate (%)</th>
+                        <th>Keys Assigned</th>
+                        <th>Total Paid</th>
+                        <th>Outstanding Due</th>
+                        <th style={{ textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allResellerList.map((r) => {
+                        const count = resellerKeyCounts[String(r.telegram_id)] || 0;
+                        const due = r.total_due || 0;
+                        const paid = r.total_paid || 0;
+                        return (
+                          <tr key={String(r.telegram_id)}>
+                            <td>
+                              <strong style={{ color: 'var(--text-primary)' }}>{r.name}</strong>
+                              {r.username && (
+                                <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)' }}>
+                                  @{r.username.replace('@', '')}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <code style={{ fontSize: 11, background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>
+                                {r.telegram_id}
+                              </code>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
+                                {r.percentage || 10}%
+                              </span>
+                            </td>
+                            <td>
+                              <span style={{ fontWeight: 600 }}>{count} keys</span>
+                            </td>
+                            <td style={{ color: '#34d399', fontWeight: 700, fontFamily: 'monospace' }}>
+                              {paid.toLocaleString()} Ks
+                            </td>
+                            <td style={{ color: due > 0 ? '#f87171' : 'var(--text-muted)', fontWeight: 700, fontFamily: 'monospace' }}>
+                              {due.toLocaleString()} Ks
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline btn-sm"
+                                  style={{ fontSize: 11, padding: '4px 10px' }}
+                                  onClick={() => {
+                                    setSelectedResellerId(String(r.telegram_id));
+                                    setActiveSection('resellers');
+                                  }}
+                                  title="View keys for this reseller"
+                                >
+                                  📂 Open Keys
+                                </button>
+                                {due > 0 && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary"
+                                    style={{ fontSize: 11, padding: '4px 10px' }}
+                                    onClick={() => handleOpenSettleModal(r)}
+                                    title="Settle balance due"
+                                  >
+                                    💵 Settle
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ========================================================
             SECTION 1: RESELLERS & KEYS HUB (CORE USER REQUIREMENT)
             ======================================================== */}

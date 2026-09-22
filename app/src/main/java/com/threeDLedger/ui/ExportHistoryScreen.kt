@@ -235,38 +235,38 @@ fun ExportHistoryBottomBar(
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shadowElevation = 12.dp,
-        tonalElevation = 3.dp,
+        shadowElevation = 10.dp,
+        tonalElevation = 2.dp,
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .then(if (onTapTotal != null) Modifier.clickable(onClick = onTapTotal) else Modifier)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (selectedBatch != null) "အကြိမ် ($selectedBatch) တင်ငွေ စုစုပေါင်း" else "အထက်ဒိုင် တင်ငွေ စုစုပေါင်း",
-                    fontSize = 14.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(Modifier.height(2.dp))
+                Spacer(Modifier.height(1.dp))
                 Text(
                     text = "ဘောင်ချာ ($totalVouchers) စောင် • ($totalNumbers) ဂဏန်း",
-                    fontSize = 12.sp,
+                    fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (isWinningDeclared) {
-                    Spacer(Modifier.height(2.dp))
+                    Spacer(Modifier.height(1.dp))
                     Text(
                         text = "နှိပ်၍ အထက်ဒိုင် ရှင်းတမ်း ကြည့်ရန် ▶",
-                        fontSize = 11.sp,
+                        fontSize = 9.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = EmeraldPrimary
                     )
@@ -274,23 +274,23 @@ fun ExportHistoryBottomBar(
             }
 
             Surface(
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(8.dp),
                 color = MaterialTheme.colorScheme.error,
                 shadowElevation = 2.dp,
                 modifier = if (onTapTotal != null) {
                     Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                         .clickable(onClick = onTapTotal)
                 } else Modifier
             ) {
                 Column(
                     horizontalAlignment = Alignment.End,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = "%,d Ks".format(totalAmount),
                         color = MaterialTheme.colorScheme.onError,
-                        fontSize = 17.sp,
+                        fontSize = 14.5.sp,
                         fontWeight = FontWeight.Black,
                         fontFamily = FontFamily.Monospace,
                         maxLines = 1
@@ -299,7 +299,7 @@ fun ExportHistoryBottomBar(
                         Text(
                             text = "ရှင်းတမ်း ▶",
                             color = MaterialTheme.colorScheme.onError.copy(alpha = 0.9f),
-                            fontSize = 10.sp,
+                            fontSize = 8.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -340,9 +340,9 @@ private fun ExportRecordCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-        shape = RoundedCornerShape(14.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+            .padding(bottom = 8.dp),
+        shape = RoundedCornerShape(10.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column {
@@ -352,45 +352,45 @@ private fun ExportRecordCard(
                     .fillMaxWidth()
                     .background(headerColor)
                     .clickable { expanded = !expanded }
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(5.dp),
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
                         ) {
                             Text(
                                 "ဘောင်ချာ #${export.record.id}",
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                fontSize = 11.5.sp,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             "အကြိမ်: ${export.record.batchNumber}",
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.Schedule,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                            modifier = Modifier.size(13.dp)
+                            modifier = Modifier.size(11.dp)
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(3.dp))
                         Text(
                             dateString,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                            fontSize = 12.sp,
+                            fontSize = 9.5.sp,
                             fontFamily = FontFamily.Monospace
                         )
                     }
@@ -402,20 +402,21 @@ private fun ExportRecordCard(
                             "%,d Ks".format(export.record.totalAmount),
                             color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Black,
-                            fontSize = 16.sp,
+                            fontSize = 14.sp,
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
                             "${sortedNumbers.size} ဂဏန်း",
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                            fontSize = 11.sp
+                            fontSize = 9.5.sp
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(6.dp))
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = if (expanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.onPrimary
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -426,34 +427,34 @@ private fun ExportRecordCard(
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(8.dp)) {
                     // Column headers
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(headerColor.copy(alpha = 0.12f))
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
                     ) {
                         Text(
                             "စဉ်",
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(40.dp),
+                            modifier = Modifier.width(32.dp),
                             textAlign = TextAlign.Start,
-                            fontSize = 13.sp
+                            fontSize = 10.5.sp
                         )
                         Text(
                             "ဂဏန်း",
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f),
                             textAlign = TextAlign.Center,
-                            fontSize = 13.sp
+                            fontSize = 10.5.sp
                         )
                         Text(
                             "ပမာဏ",
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f),
                             textAlign = TextAlign.Center,
-                            fontSize = 13.sp
+                            fontSize = 10.5.sp
                         )
                     }
 
@@ -461,7 +462,7 @@ private fun ExportRecordCard(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, headerColor.copy(alpha = 0.25f))
+                            .border(0.5.dp, headerColor.copy(alpha = 0.25f))
                     ) {
                         sortedNumbers.forEachIndexed { index, num ->
                             Row(
@@ -471,26 +472,26 @@ private fun ExportRecordCard(
                                         if (index % 2 == 0) Color.Transparent
                                         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                     )
-                                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                                    .padding(horizontal = 6.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     "${index + 1}.",
-                                    fontSize = 12.sp,
+                                    fontSize = 9.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(40.dp)
+                                    modifier = Modifier.width(32.dp)
                                 )
                                 Text(
                                     num.number,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp,
+                                    fontSize = 13.sp,
                                     modifier = Modifier.weight(1f),
                                     textAlign = TextAlign.Center,
                                     fontFamily = FontFamily.Monospace
                                 )
                                 Text(
                                     "%,d Ks".format(num.amount),
-                                    fontSize = 15.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.weight(1f),
@@ -509,7 +510,7 @@ private fun ExportRecordCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(headerColor)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -517,43 +518,45 @@ private fun ExportRecordCard(
                             "စုစုပေါင်း (${sortedNumbers.size} ဂဏန်း)",
                             color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
+                            fontSize = 10.5.sp
                         )
                         Text(
                             "%,d Ks".format(export.record.totalAmount),
                             color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace
                         )
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(8.dp))
 
                     // Action buttons
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         OutlinedButton(
                             onClick = { onPrint(export) },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f).height(34.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = headerColor)
                         ) {
-                            Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("ပရင့်ထုတ်မည်", fontSize = 13.sp)
+                            Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("ပရင့်", fontSize = 11.sp)
                         }
                         Button(
                             onClick = { onCopy(voucherText) },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f).height(34.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = headerColor)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("ကော်ပီကူးမည်", fontSize = 13.sp)
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("ကော်ပီ", fontSize = 11.sp)
                         }
                     }
                 }
@@ -650,7 +653,7 @@ fun UpperAgentSettlementDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         title = {
             Row(
@@ -660,28 +663,28 @@ fun UpperAgentSettlementDialog(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(38.dp).clip(CircleShape).background(EmeraldPrimary),
+                        Modifier.size(32.dp).clip(CircleShape).background(EmeraldPrimary),
                         Alignment.Center
                     ) {
-                        Icon(Icons.Default.AccountBalance, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.AccountBalance, null, tint = Color.White, modifier = Modifier.size(17.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("အထက်ဒိုင် ရှင်းတမ်း", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text("အကြိမ် $batchNumber", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        Text("အထက်ဒိုင် ရှင်းတမ်း", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurface)
+                        Text("အကြိမ် $batchNumber", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.5.sp)
                     }
                 }
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(6.dp),
                     color = WinExactRed
                 ) {
                     Text(
                         "ထွက်: $winningNumber",
                         color = Color.White,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 13.sp,
+                        fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                     )
                 }
             }
@@ -691,37 +694,37 @@ fun UpperAgentSettlementDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Section 1: Sent Bets & Commission
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .border(0.6.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("တင်ငွေ & ကော်မရှင် တွက်ချက်မှု", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("တင်ငွေ & ကော်မရှင် တွက်ချက်မှု", fontWeight = FontWeight.Bold, fontSize = 10.5.sp, color = MaterialTheme.colorScheme.primary)
 
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("တင်ငွေ စုစုပေါင်း", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("%,d Ks".format(totalSentBet), fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+                        Text("တင်ငွေ စုစုပေါင်း", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("%,d Ks".format(totalSentBet), fontSize = 11.5.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
 
                     // Editable commission % row
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("ကော်မရှင်", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.width(6.dp))
+                            Text("ကော်မရှင်", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.width(5.dp))
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(RoundedCornerShape(5.dp))
                                     .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    .border(0.8.dp, EmeraldPrimary.copy(alpha = 0.5f), RoundedCornerShape(5.dp))
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
                             ) {
                                 BasicTextField(
                                     value = commPercentText,
@@ -730,10 +733,10 @@ fun UpperAgentSettlementDialog(
                                             commPercentText = input
                                         }
                                     },
-                                    modifier = Modifier.width(34.dp),
+                                    modifier = Modifier.width(30.dp),
                                     textStyle = LocalTextStyle.current.copy(
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         fontFamily = FontFamily.Monospace,
                                         textAlign = TextAlign.Center
@@ -741,12 +744,12 @@ fun UpperAgentSettlementDialog(
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                                 )
-                                Text("%", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                                Text("%", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
                             }
                         }
                         Text(
                             "-%,d Ks".format(commDeduction),
-                            fontSize = 13.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
                             color = GoldAccent
@@ -756,10 +759,10 @@ fun UpperAgentSettlementDialog(
                     HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
 
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("နုတ်ပြီး တင်ငွေ", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("နုတ်ပြီး တင်ငွေ", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "%,d Ks".format(netSentBet),
-                            fontSize = 14.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.ExtraBold,
                             fontFamily = FontFamily.Monospace,
                             color = EmeraldPrimary
@@ -771,33 +774,33 @@ fun UpperAgentSettlementDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (totalUpperPayout > 0) WinExactBg.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (totalUpperPayout > 0) WinExactBg.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                         .border(
-                            0.6.dp,
+                            0.5.dp,
                             if (totalUpperPayout > 0) WinExactRed.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant,
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(10.dp)
                         )
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         "အထက်ဒိုင် ပေါက်ကြေး (လျော်ငွေ)",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = 10.5.sp,
                         color = if (totalUpperPayout > 0) WinExactRed else MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     if (exactBetAmt > 0) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Star, null, tint = WinExactRed, modifier = Modifier.size(15.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("ဒဲ့ ($winningNumber)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WinExactRed)
+                                Icon(Icons.Default.Star, null, tint = WinExactRed, modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(3.dp))
+                                Text("ဒဲ့ ($winningNumber)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = WinExactRed)
                             }
                             Text(
                                 "%,d Ks (x${exactMult.toInt()}) → %,d Ks".format(exactBetAmt, exactPayout),
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
                             )
@@ -807,13 +810,13 @@ fun UpperAgentSettlementDialog(
                     if (tutBetAmt > 0) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.CheckCircle, null, tint = GoldDark, modifier = Modifier.size(15.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("တွတ် (${tutBreakdown.size} ကွက်)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GoldDark)
+                                Icon(Icons.Default.CheckCircle, null, tint = GoldDark, modifier = Modifier.size(13.dp))
+                                Spacer(Modifier.width(3.dp))
+                                Text("တွတ် (${tutBreakdown.size} ကွက်)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = GoldDark)
                             }
                             Text(
                                 "%,d Ks (x${permMult.toInt()}) → %,d Ks".format(tutBetAmt, tutPayout),
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace
                             )
@@ -821,12 +824,12 @@ fun UpperAgentSettlementDialog(
                         // Show tut won details
                         tutBreakdown.forEach { (num, amt) ->
                             Row(
-                                Modifier.fillMaxWidth().padding(start = 20.dp),
+                                Modifier.fillMaxWidth().padding(start = 16.dp),
                                 Arrangement.SpaceBetween,
                                 Alignment.CenterVertically
                             ) {
-                                Text("• $num", fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text("%,d Ks → %,d Ks".format(amt, (amt * permMult).toLong()), fontSize = 11.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("• $num", fontSize = 9.5.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("%,d Ks → %,d Ks".format(amt, (amt * permMult).toLong()), fontSize = 9.5.sp, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -834,7 +837,7 @@ fun UpperAgentSettlementDialog(
                     if (totalUpperPayout == 0L) {
                         Text(
                             "ပေါက်ဂဏန်း မပါပါ (ပေါက်ငွေ 0 Ks)",
-                            fontSize = 12.sp,
+                            fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                         )
@@ -843,10 +846,10 @@ fun UpperAgentSettlementDialog(
                     HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
 
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("စုစုပေါင်း ပေါက်ငွေ", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("စုစုပေါင်း ပေါက်ငွေ", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "%,d Ks".format(totalUpperPayout),
-                            fontSize = 14.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.ExtraBold,
                             fontFamily = FontFamily.Monospace,
                             color = if (totalUpperPayout > 0) WinExactRed else MaterialTheme.colorScheme.onSurface
@@ -876,12 +879,12 @@ fun UpperAgentSettlementDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(resultBg)
-                        .border(1.dp, resultBorder, RoundedCornerShape(12.dp))
-                        .padding(14.dp),
+                        .border(0.8.dp, resultBorder, RoundedCornerShape(10.dp))
+                        .padding(10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Text(
                         text = when {
@@ -890,7 +893,7 @@ fun UpperAgentSettlementDialog(
                             else -> "ကျေအေး (ရှင်းပြီး)"
                         },
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
+                        fontSize = 11.5.sp,
                         color = resultColor
                     )
                     Text(
@@ -900,7 +903,7 @@ fun UpperAgentSettlementDialog(
                             else -> "0 Ks"
                         },
                         fontWeight = FontWeight.Black,
-                        fontSize = 20.sp,
+                        fontSize = 16.sp,
                         fontFamily = FontFamily.Monospace,
                         color = resultColor
                     )
@@ -910,7 +913,7 @@ fun UpperAgentSettlementDialog(
         confirmButton = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 OutlinedButton(
                     onClick = {
@@ -923,12 +926,13 @@ fun UpperAgentSettlementDialog(
                         val shareIntent = Intent.createChooser(sendIntent, "အထက်ဒိုင် ရှင်းတမ်း မျှဝေမည်")
                         context.startActivity(shareIntent)
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp)
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
-                    Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("မျှဝေမည်", fontSize = 12.sp)
+                    Text("မျှဝေမည်", fontSize = 11.sp)
                 }
 
                 Button(
@@ -938,19 +942,23 @@ fun UpperAgentSettlementDialog(
                         cm.setPrimaryClip(android.content.ClipData.newPlainText("Upper Settlement", slip))
                         Toast.makeText(context, "ရှင်းတမ်း ကူးယူပြီးပါပြီ", Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("ကော်ပီ", fontSize = 12.sp)
+                    Text("ကော်ပီ", fontSize = 11.sp)
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("ပိတ်မည်")
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.height(36.dp)
+            ) {
+                Text("ပိတ်မည်", fontSize = 11.sp)
             }
         }
     )
