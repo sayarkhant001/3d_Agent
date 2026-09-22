@@ -123,7 +123,8 @@ fun parseNumbersWithExplicitAmount(
     lineNumber: Int,
     raw: String
 ): LineParseResult {
-    val chunks = numbersStr.split(Regex("""[\s\-.,_+၊။]+""")).filter { it.isNotBlank() }
+    val cleanStr = numbersStr.replace(Regex("""(?<=\d)\s+[Rr/](?!\w)"""), "R")
+    val chunks = cleanStr.split(Regex("""[\s\-.,_+၊။]+""")).filter { it.isNotBlank() }
     if (chunks.isEmpty()) {
         return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
     }
@@ -343,6 +344,12 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
         val candidateAmt = candidateAmtStr.toIntOrNull()
         val candidateRAmt = tailMatch.groupValues[2].takeIf { it.isNotEmpty() }?.replace(",", "")?.toIntOrNull()
         val prefixText = text.substring(0, tailMatch.range.first).trim()
+        val matchedSeparator = tailMatch.value.first()
+        val adjustedPrefix = if (matchedSeparator == 'R' && candidateRAmt == null) {
+            if (prefixText.endsWith("R")) prefixText else "${prefixText}R"
+        } else {
+            prefixText
+        }
 
         // PROTECTION RULE:
         // A 3-digit candidate amount without currency suffix ('Ks', 'ကျပ်') is AMBIGUOUS with a 3D bet number (e.g. "123 456 789").
@@ -355,10 +362,11 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
         val isConfirmedAmount = hasCurrencySuffix || 
                                 (candidateAmtStr.length >= 4) || 
                                 (candidateRAmt != null) ||
+                                (matchedSeparator == 'R') ||
                                 (candidateAmt != null && candidateAmt < 100)
 
-        if (isConfirmedAmount && candidateAmt != null && candidateAmt > 0 && prefixText.isNotBlank()) {
-            return parseNumbersWithExplicitAmount(prefixText, candidateAmt, candidateRAmt, lineNumber, raw)
+        if (isConfirmedAmount && candidateAmt != null && candidateAmt > 0 && adjustedPrefix.isNotBlank()) {
+            return parseNumbersWithExplicitAmount(adjustedPrefix, candidateAmt, candidateRAmt, lineNumber, raw)
         }
     }
 
@@ -475,7 +483,7 @@ fun BettingScreen(
     var tempNumber   by remember { mutableStateOf("") }
     var tempAmount   by remember { mutableStateOf("1000") }
     var tempRemark   by remember { mutableStateOf("") }
-    var showManualKeypad by remember { mutableStateOf(true) }
+    var showManualKeypad by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -763,7 +771,7 @@ fun BettingScreen(
                             enabled = !isParsing,
                             placeholder = {
                                 Text(
-                                    "အောက်ပါ 'စာသား ကူးထည့်မည် (PASTE)' ခလုတ်ကို နှိပ်ပါ သို့မဟုတ် စာရင်း ရိုက်ထည့်ပါ...",
+                                    "အောက်ပါ 'စာသား ကူးထည့်မည်' ခလုတ်ကို နှိပ်ပါ သို့မဟုတ် စာရင်း ရိုက်ထည့်ပါ...",
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
@@ -870,7 +878,7 @@ fun BettingScreen(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "📋 စာသား ကူးထည့်မည် (PASTE)",
+                                "📋 စာသား ကူးထည့်မည်",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1132,7 +1140,7 @@ fun BettingScreen(
 
         Column(
             modifier = Modifier
-                .weight(if (showManualKeypad) 2f else 1f)
+                .weight(1f)
                 .padding(horizontal = 8.dp)
                 .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                 .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
@@ -1513,33 +1521,35 @@ fun BettingScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Summary Badge (Scales cleanly for all number places)
+                // Left: Summary Badge (Scales cleanly for all number places, height matched with buttons)
                 Surface(
-                    modifier = Modifier.weight(1f, fill = false),
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .height(36.dp),
                     shape = RoundedCornerShape(9.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Column(
-                        modifier = Modifier.padding(
-                            horizontal = if (rDimens.isCompact) 7.dp else 9.dp,
-                            vertical = if (rDimens.isCompact) 2.dp else 3.dp
-                        ),
-                        verticalArrangement = Arrangement.Center
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.Start
                     ) {
                         Text(
                             "${pendingBets.size} ကွက်",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = if (rDimens.isCompact) 10.5.sp else 11.5.sp,
+                            fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             softWrap = false
                         )
                         val amountFontSize = when {
-                            totalAmount >= 100_000_000 -> if (rDimens.isCompact) 10.sp else 11.sp
-                            totalAmount >= 10_000_000  -> if (rDimens.isCompact) 10.5.sp else 11.5.sp
-                            totalAmount >= 1_000_000   -> if (rDimens.isCompact) 11.5.sp else 12.5.sp
-                            else                       -> if (rDimens.isCompact) 12.5.sp else 13.5.sp
+                            totalAmount >= 100_000_000 -> 10.sp
+                            totalAmount >= 10_000_000  -> 10.5.sp
+                            totalAmount >= 1_000_000   -> 11.5.sp
+                            else                       -> 12.5.sp
                         }
                         Text(
                             "= %,d Ks".format(totalAmount),
@@ -1571,7 +1581,7 @@ fun BettingScreen(
                             horizontal = if (rDimens.isCompact) 7.dp else 9.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 36.dp)
+                        modifier = Modifier.height(36.dp)
                     ) {
                         Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(2.dp))
@@ -1599,7 +1609,7 @@ fun BettingScreen(
                             containerColor = if (showManualKeypad) primaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = if (showManualKeypad) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 36.dp)
+                        modifier = Modifier.height(36.dp)
                     ) {
                         Text(
                             if (showManualKeypad) "⌨️ ဝှက်" else "⌨️ ကီးပက်",
@@ -1625,7 +1635,7 @@ fun BettingScreen(
                             horizontal = if (rDimens.isCompact) 9.dp else 12.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 36.dp)
+                        modifier = Modifier.height(36.dp)
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(3.dp))
@@ -1641,34 +1651,33 @@ fun BettingScreen(
             }
         }
 
-        // ── RED-LINED MANUAL BETTING SECTION (Exactly 1/3 of the screen when shown) ──
+        // --- FORMER VIEW KEYPAD (Shown when toggled open) ---
         if (showManualKeypad) {
             Column(
                 modifier = Modifier
-                    .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp, vertical = 2.dp)
                     .navigationBarsPadding(),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 // --- INPUT ROW: Number | BetType | Amount ---
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(34.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
                     val isNumFocused = focusedField == FocusField.NUMBER
                     Box(
                         modifier = Modifier
                             .weight(1.1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(if (rDimens.isCompact) 42.dp else 46.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(if (isNumFocused) EmeraldLight.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface)
                             .border(
-                                width = if (isNumFocused) 2.dp else 1.dp,
+                                width = if (isNumFocused) 2.5.dp else 1.dp,
                                 color = if (isNumFocused) KeypadFocusRing else borderColor,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1679,10 +1688,10 @@ fun BettingScreen(
                         Text(
                             text = if (tempNumber.isEmpty()) "ဂဏန်းရိုက်ပါ" else tempNumber,
                             color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.outline else EmeraldPrimary,
-                            fontSize = if (tempNumber.isEmpty()) 11.5.sp else 17.sp,
+                            fontSize = if (tempNumber.isEmpty()) (if (rDimens.isCompact) 11.5.sp else 13.sp) else (if (rDimens.isCompact) 19.sp else 22.sp),
                             fontWeight = FontWeight.ExtraBold,
                             fontFamily = FontFamily.Monospace,
-                            letterSpacing = if (tempNumber.isEmpty()) 0.sp else 1.5.sp,
+                            letterSpacing = if (tempNumber.isEmpty()) 0.sp else 2.sp,
                             maxLines = 1
                         )
                     }
@@ -1691,13 +1700,13 @@ fun BettingScreen(
                     Box(
                         modifier = Modifier
                             .weight(0.9f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(if (rDimens.isCompact) 42.dp else 46.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f))
                             .border(
-                                width = 1.2.dp,
+                                width = 1.5.dp,
                                 color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1714,15 +1723,16 @@ fun BettingScreen(
                             Text(
                                 text = currentBetType,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                fontSize = 14.sp,
+                                fontSize = if (rDimens.isCompact) 15.sp else 17.sp,
                                 fontWeight = FontWeight.Black,
                                 maxLines = 1
                             )
+                            Spacer(Modifier.width(2.dp))
                             Icon(
                                 Icons.Default.ArrowDropDown,
                                 contentDescription = "Cycle Bet Type",
                                 tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(15.dp)
+                                modifier = Modifier.size(16.dp)
                             )
                         }
                     }
@@ -1732,13 +1742,13 @@ fun BettingScreen(
                     Box(
                         modifier = Modifier
                             .weight(1.2f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(8.dp))
+                            .height(if (rDimens.isCompact) 42.dp else 46.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(if (isAmtFocused) GoldContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface)
                             .border(
-                                width = if (isAmtFocused) 2.dp else 1.dp,
+                                width = if (isAmtFocused) 2.5.dp else 1.dp,
                                 color = if (isAmtFocused) GoldAccent else borderColor,
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(12.dp)
                             )
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -1750,15 +1760,15 @@ fun BettingScreen(
                             Text(
                                 text = tempAmount,
                                 color = if (isAmtFocused) GoldDark else MaterialTheme.colorScheme.onSurface,
-                                fontSize = if (tempAmount.length > 5) 13.sp else 16.sp,
+                                fontSize = if (tempAmount.length > 5) (if (rDimens.isCompact) 14.sp else 16.sp) else (if (rDimens.isCompact) 17.sp else 20.sp),
                                 fontWeight = FontWeight.ExtraBold,
                                 fontFamily = FontFamily.Monospace,
                                 maxLines = 1
                             )
-                            Spacer(Modifier.width(2.dp))
+                            Spacer(Modifier.width(3.dp))
                             Text(
                                 "Ks",
-                                fontSize = 10.sp,
+                                fontSize = if (rDimens.isCompact) 10.sp else 12.sp,
                                 color = MaterialTheme.colorScheme.outline,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1766,15 +1776,45 @@ fun BettingScreen(
                     }
                 }
 
-                // --- COMBINED COMPACT PILLS: Quick Amounts & Shortcuts ---
+                // --- မှတ်ချက် (Remark) row ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 2.dp, vertical = 2.dp)
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    if (tempRemark.isEmpty()) {
+                        Text(
+                            "မှတ်ချက် (မထည့်လည်းရသည်)",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = tempRemark,
+                        onValueChange = { tempRemark = it },
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Medium
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // --- QUICK AMOUNTS (Ergonomic Thumb Pills) ---
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(26.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                 ) {
-                    // Quick Amounts
                     items(listOf("100", "300", "500", "1000", "2000", "3000", "5000", "10000")) { amt ->
                         val isSel = tempAmount == amt
                         Surface(
@@ -1783,15 +1823,16 @@ fun BettingScreen(
                                 tempAmount = amt
                                 focusedField = FocusField.AMOUNT
                             },
-                            shape = RoundedCornerShape(6.dp),
+                            shape = RoundedCornerShape(8.dp),
                             color = if (isSel) GoldAccent else MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, if (isSel) GoldDark else borderColor.copy(alpha = 0.5f)),
-                            modifier = Modifier.fillMaxHeight()
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) GoldDark else borderColor),
+                            shadowElevation = if (isSel) 2.dp else 1.dp,
+                            modifier = Modifier.height(34.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 12.dp)) {
                                 Text(
                                     amt,
-                                    fontSize = 11.5.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = if (isSel) FontWeight.Black else FontWeight.SemiBold,
                                     color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
                                     fontFamily = FontFamily.Monospace
@@ -1799,28 +1840,28 @@ fun BettingScreen(
                             }
                         }
                     }
+                }
 
-                    // Divider dot
-                    item {
-                        Text("•", color = borderColor, fontSize = 12.sp)
-                    }
-
-                    // Shortcuts
-                    val shortcuts = listOf(
-                        Triple("ဒဲ့",         true,  { currentBetType = "ဒဲ့" }),
-                        Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
-                        Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
-                        Triple("လယ်",         true,  { currentBetType = "လယ်" }),
-                        Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
-                        Triple("အပါ",         true,  { currentBetType = "အပါ" }),
-                        Triple("ရှေ့စီးရီး",  false, { handleSpecial("ရှေ့စီးရီး") }),
-                        Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),
-                        Triple("နောက်စီးရီး", false, { handleSpecial("နောက်စီးရီး") }),
-                        Triple("ဘရိတ်",       false, { handleSpecial("ဘရိတ်") }),
-                        Triple("ရှေ့ပူး",      false, { handleSpecial("ရှေ့ပူး") }),
-                        Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
-                        Triple("အခွ",          false, { handleSpecial("အခွ") })
-                    )
+                // --- SCROLLABLE SHORTCUT CHIPS ---
+                val shortcuts = listOf(
+                    Triple("ဒဲ့",         true,  { currentBetType = "ဒဲ့" }),
+                    Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
+                    Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
+                    Triple("လယ်",         true,  { currentBetType = "လယ်" }),
+                    Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
+                    Triple("အပါ",         true,  { currentBetType = "အပါ" }),
+                    Triple("ရှေ့စီးရီး",  false, { handleSpecial("ရှေ့စီးရီး") }),
+                    Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),
+                    Triple("နောက်စီးရီး", false, { handleSpecial("နောက်စီးရီး") }),
+                    Triple("ဘရိတ်",       false, { handleSpecial("ဘရိတ်") }),
+                    Triple("ရှေ့ပူး",      false, { handleSpecial("ရှေ့ပူး") }),
+                    Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
+                    Triple("အခွ",          false, { handleSpecial("အခွ") })
+                )
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
                     items(shortcuts.size) { i ->
                         val (label, isBetTypeChip, action) = shortcuts[i]
                         val isSelected = isBetTypeChip && currentBetType == label
@@ -1829,15 +1870,16 @@ fun BettingScreen(
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 action()
                             },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(16.dp),
                             color = if (isSelected) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                            border = BorderStroke(1.dp, if (isSelected) primaryBlue else borderColor.copy(alpha = 0.5f)),
-                            modifier = Modifier.fillMaxHeight()
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) primaryBlue else borderColor.copy(alpha = 0.5f)),
+                            shadowElevation = if (isSelected) 2.dp else 0.dp,
+                            modifier = Modifier.height(30.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 9.dp)) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 11.dp)) {
                                 Text(
                                     label,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
                                 )
@@ -1846,15 +1888,15 @@ fun BettingScreen(
                     }
                 }
 
-                // --- 4x4 TACTILE KEYPAD (Proportionally weighted inside 1/3 section) ---
+                // --- 4x4 TACTILE KEYPAD ---
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(2.5.dp)
+                        .padding(horizontal = 2.dp, vertical = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     // Row 1: 1, 2, 3, R (ပတ်လည်)
-                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         TactileKeypadButton("1", modifier = Modifier.weight(1f)) { appendText("1") }
                         TactileKeypadButton("2", modifier = Modifier.weight(1f)) { appendText("2") }
                         TactileKeypadButton("3", modifier = Modifier.weight(1f)) { appendText("3") }
@@ -1868,7 +1910,7 @@ fun BettingScreen(
                     }
 
                     // Row 2: 4, 5, 6, ထွိုင် (၃ပူး)
-                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         TactileKeypadButton("4", modifier = Modifier.weight(1f)) { appendText("4") }
                         TactileKeypadButton("5", modifier = Modifier.weight(1f)) { appendText("5") }
                         TactileKeypadButton("6", modifier = Modifier.weight(1f)) { appendText("6") }
@@ -1882,7 +1924,7 @@ fun BettingScreen(
                     }
 
                     // Row 3: 7, 8, 9, ⌫ (ဖျက်)
-                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         TactileKeypadButton("7", modifier = Modifier.weight(1f)) { appendText("7") }
                         TactileKeypadButton("8", modifier = Modifier.weight(1f)) { appendText("8") }
                         TactileKeypadButton("9", modifier = Modifier.weight(1f)) { appendText("9") }
@@ -1897,7 +1939,7 @@ fun BettingScreen(
                     }
 
                     // Row 4: ရှင်း (Clear), 0, 00, OK (ထည့်)
-                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         TactileKeypadButton(
                             text = "ရှင်း",
                             subtitle = "Clear",

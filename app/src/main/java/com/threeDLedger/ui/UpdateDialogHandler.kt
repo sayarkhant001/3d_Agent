@@ -177,7 +177,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                     }
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "တိုက်ရိုက်ဒေါင်းလုဒ် မရရှိပါက Browser သို့မဟုတ် Telegram Bot မှလည်း ဒေါင်းလုဒ် ရယူနိုင်ပါသည်။",
+                        "တိုက်ရိုက်ဒေါင်းလုဒ် မရရှိပါက Telegram Bot မှလည်း ဒေါင်းလုဒ် ရယူနိုင်ပါသည်။",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -195,21 +195,6 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                         }
                     ) {
                         Text("တိုက်ရိုက် Update လုပ်မည်")
-                    }
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            try {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.downloadUrl)).apply {
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                android.widget.Toast.makeText(context, "Browser ဖွင့်မရပါ", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Text("🌐 Browser မှ တိုက်ရိုက်ဒေါင်းမည်")
                     }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),

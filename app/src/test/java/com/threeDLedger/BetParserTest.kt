@@ -432,5 +432,72 @@ class BetParserTest {
         assertTrue("Must parse valid bets", pasteRes.validBets.isNotEmpty())
         assertEquals(0, pasteRes.errors.size)
     }
+
+    @Test
+    fun testSeventeenLinesPastedBetsExactFromUser() {
+        val pasted = """
+            723-372-245-309 = 2000
+            446=1000
+            235-615 = 3000
+            907=4000
+            110=5000
+            149-223=1000
+            807=2000
+            813-724-648-247-369 = 5000
+            472=10000
+            577=1500
+            205-108= 2000
+            764-220 = 3000
+            456=5000r1000
+            185-217-378-549 = 10000
+            895=2500
+            464r10000
+            ၆၅၆r၁၀၀၀
+        """.trimIndent()
+
+        // Test line 16 individually
+        val l16 = parsePastedLine("464r10000")
+        assertEquals(3, l16.size)
+        assertEquals(setOf("464", "446", "644"), l16.map { it.first }.toSet())
+        assertTrue(l16.all { it.second == 10000 })
+
+        // Test line 17 individually (Myanmar numerals)
+        val l17 = parsePastedLine("၆၅၆r၁၀၀၀")
+        assertEquals(3, l17.size)
+        assertEquals(setOf("656", "665", "566"), l17.map { it.first }.toSet())
+        assertTrue(l17.all { it.second == 1000 })
+
+        // Test the entire 17-line block
+        val result = validatePastedText(pasted)
+        assertTrue("Paste must be valid", result.isValid)
+        assertEquals(0, result.errors.size)
+        assertEquals(40, result.validBets.size)
+        assertEquals(160000, result.validBets.sumOf { it.second })
+    }
+
+    @Test
+    fun testRoundNumberWithoutEqualsSignVariations() {
+        // 123r1000 -> 6 perms
+        val l1 = parsePastedLine("123r1000")
+        assertEquals(6, l1.size)
+        assertEquals(setOf("123", "132", "213", "231", "312", "321"), l1.map { it.first }.toSet())
+        assertTrue(l1.all { it.second == 1000 })
+
+        // 111r500 -> 1 bet
+        val l2 = parsePastedLine("111r500")
+        assertEquals(1, l2.size)
+        assertEquals("111" to 500, l2[0])
+
+        // Space before/after r: 464 R 10000
+        val l3 = parsePastedLine("464 R 10000")
+        assertEquals(3, l3.size)
+        assertTrue(l3.all { it.second == 10000 })
+
+        // Myanmar with spaces: ၆၅၆ R ၁၀၀၀
+        val l4 = parsePastedLine("၆၅၆ R ၁၀၀၀")
+        assertEquals(3, l4.size)
+        assertTrue(l4.all { it.second == 1000 })
+    }
 }
+
 

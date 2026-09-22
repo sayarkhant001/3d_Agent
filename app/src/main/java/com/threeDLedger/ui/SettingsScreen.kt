@@ -256,20 +256,6 @@ fun SettingsScreen(
                             }
                         }
                     ) { Text("Install လုပ်မည်") }
-
-                    OutlinedButton(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = {
-                            try {
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.downloadUrl)).apply {
-                                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(intent)
-                            } catch (_: Exception) {
-                                android.widget.Toast.makeText(context, "Browser ဖွင့်မရပါ", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) { Text("🌐 Browser မှ တိုက်ရိုက်ဒေါင်းမည်") }
                 }
             },
             dismissButton = { TextButton(onClick = { showManualUpdateDialog = false }) { Text("နောက်မှ") } }
