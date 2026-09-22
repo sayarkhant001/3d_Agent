@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
@@ -45,21 +47,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Myanmar digit to English digit converter
+// Myanmar digit to English digit converter, supporting digit zero (၀), consonant Wa (ဝ), and Burmese round terms
 fun String.myanmarToEnglish(): String {
     val myanmarDigits = "၀၁၂၃၄၅၆၇၈၉"
     val englishDigits = "0123456789"
-    return this.map { c ->
-        val idx = myanmarDigits.indexOf(c)
-        if (idx >= 0) englishDigits[idx] else c
+    var res = this.map { c ->
+        if (c == 'ဝ' || c == '၀') '0'
+        else {
+            val idx = myanmarDigits.indexOf(c)
+            if (idx >= 0) englishDigits[idx] else c
+        }
     }.joinToString("")
+
+    // Normalize Burmese round terms (ပတ်လည် / ပတ်) to 'R'
+    res = res.replace(Regex("""(?:\s*\(?(?:ပတ်လည်|ပတ်)\)?\s*)"""), "R")
+    return res
 }
 
-private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_+])\s*""")
+private val SEPARATOR_SPACES_REGEX = Regex("""\s*([=:\-.,_+၊။])\s*""")
 private val ROUND_MARKERS_REGEX    = Regex("""\s*[Rr/]\s*""")
 private val TAIL_AMOUNT_REGEX       = Regex("""(?:[=:\s]|(?<=\d)[Rr/]|-(?!\d{3}$))\s*(\d+)(?:\s*[Rr/]\s*(\d+))?$""")
 private val NUM_PATTERN_REGEX       = Regex("""(?<!\d)(\d{3})(R?)(?!\d)""")
-private val CURRENCY_SUFFIX_REGEX   = Regex("""(?i)\s*(?:ks|ကျပ်)\s*$""")
+private val CURRENCY_SUFFIX_REGEX   = Regex("""(?i)\s*(?:ks|ကျပ်|ဖိုး)\s*$""")
 
 // Error data class when a line has invalid numbers or format
 data class BetLineParseError(
@@ -83,11 +92,11 @@ data class PasteValidationResult(
 
 // Check if a line is voucher metadata/header/footer/timestamp to ignore
 fun isVoucherMetadataLine(raw: String): Boolean {
-    val trimmed = raw.trim()
+    val trimmed = raw.trim().myanmarToEnglish()
     if (trimmed.isBlank()) return true
     
-    // Pure separators: ---, ===, ***, ___
-    if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' }) return true
+    // Pure separators: ---, ===, ***, ___, ၊, ။
+    if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' || it == '၊' || it == '။' }) return true
     
     val lower = trimmed.lowercase()
     if (lower.contains("တင်ကွက်") || 
@@ -96,10 +105,10 @@ fun isVoucherMetadataLine(raw: String): Boolean {
         lower.contains("အချိန်") || 
         lower.contains("စုစုပေါင်း") || 
         lower.contains("အထက်ဒိုင်") || 
-        lower.contains("ရက်စွဲ") ||
-        lower.contains("voucher") ||
-        lower.contains("batch") ||
-        lower.contains("time") ||
+        lower.contains("ရက်စွဲ") || 
+        lower.contains("voucher") || 
+        lower.contains("batch") || 
+        lower.contains("time") || 
         lower.contains("total")) {
         return true
     }
@@ -119,7 +128,7 @@ fun parseNumbersWithExplicitAmount(
     lineNumber: Int,
     raw: String
 ): LineParseResult {
-    val chunks = numbersStr.split(Regex("""[\s\-.,_+]+""")).filter { it.isNotBlank() }
+    val chunks = numbersStr.split(Regex("""[\s\-.,_+၊။]+""")).filter { it.isNotBlank() }
     if (chunks.isEmpty()) {
         return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
     }
@@ -240,7 +249,7 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
     if (line.isBlank()) return LineParseResult.Ignored
 
     // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
-    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-]?\s*""", RegexOption.IGNORE_CASE), "").trim()
+    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-၊။]?\s*""", RegexOption.IGNORE_CASE), "").trim()
 
     // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
     line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()
@@ -421,11 +430,13 @@ fun BettingScreen(
     var selectedCustomer by remember { mutableStateOf<Int?>(initialCustomerId) }
     var expandedCustomer by remember { mutableStateOf(false) }
     var showPasteDialog by remember { mutableStateOf(false) }
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
     var isParsing       by remember { mutableStateOf(false) }
     val rDimens = rememberResponsiveDimens()
 
     BackHandler {
         when {
+            showClearConfirmDialog -> showClearConfirmDialog = false
             showPasteDialog -> {
                 if (!isParsing) {
                     showPasteDialog = false
@@ -618,7 +629,13 @@ fun BettingScreen(
             "R" -> if (digits.length == 3) addBets(NumberGenerator.permutations(digits))
             "/" -> backspace()
             "ဖျက်" -> backspace()
-            "ရှင်းပါ" -> clearAll()
+            "ရှင်းပါ" -> {
+                if (pendingBets.isNotEmpty()) {
+                    showClearConfirmDialog = true
+                } else {
+                    clearAll()
+                }
+            }
         }
     }
 
@@ -1149,7 +1166,21 @@ fun BettingScreen(
                     textAlign = TextAlign.End,
                     modifier = Modifier.width(90.dp)
                 )
-                Spacer(Modifier.width(28.dp))  // room for delete icon column
+                if (pendingBets.isNotEmpty()) {
+                    IconButton(
+                        onClick = { showClearConfirmDialog = true },
+                        modifier = Modifier.size(24.dp).padding(start = 4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "အားလုံး ရှင်းမည်",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                } else {
+                    Spacer(Modifier.width(28.dp))  // room for delete icon column
+                }
             }
 
             // ── Rows ──────────────────────────────────────────────────────────
@@ -1281,6 +1312,85 @@ fun BettingScreen(
                 return
             }
             showBetConfirmDialog = true
+        }
+
+        // --- CONFIRM CLEAR ALL BETS DIALOG ---
+        if (showClearConfirmDialog) {
+            val totalAmount = pendingBets.sumOf { it.amount }
+            AlertDialog(
+                onDismissRequest = { showClearConfirmDialog = false },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(36.dp)
+                    )
+                },
+                title = {
+                    Text(
+                        "ထိုးထားသော စာရင်းများ အားလုံး ရှင်းလင်းမည်လား?",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("ဖျက်မည့် စာရင်း :", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("${pendingBets.size} ကွက်", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("စုစုပေါင်း ပမာဏ :", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("%,d Ks".format(totalAmount), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error, fontFamily = FontFamily.Monospace, fontSize = 14.sp)
+                                }
+                            }
+                        }
+                        Text(
+                            "စာရင်းသွင်းထားသော ထိုးကြေးဂဏန်းများ အားလုံး ပျက်သွားပါမည်။ အမှန်တကယ် ရှင်းလင်းမည်ဆိုပါက 'အားလုံး ရှင်းမည်' ကို နှိပ်ပါ။",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 16.sp
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            pendingBets.clear()
+                            clearAll()
+                            showClearConfirmDialog = false
+                            android.widget.Toast.makeText(context, "စာရင်းများ အားလုံး ရှင်းလင်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        ),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                    ) {
+                        Text("အားလုံး ရှင်းမည်", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(
+                        onClick = { showClearConfirmDialog = false },
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                    ) {
+                        Text("မရှင်းပါ (ဖျက်သိမ်း)")
+                    }
+                }
+            )
         }
 
         if (showBetConfirmDialog) {
@@ -1795,7 +1905,13 @@ fun BettingScreen(
                             bgColor = KeypadClearAmber,
                             bevelColor = Color(0xFF92400E),
                             modifier = Modifier.weight(1f)
-                        ) { clearAll() }
+                        ) {
+                            if (pendingBets.isNotEmpty()) {
+                                showClearConfirmDialog = true
+                            } else {
+                                clearAll()
+                            }
+                        }
                         TactileKeypadButton("0", modifier = Modifier.weight(1f)) { appendText("0") }
                         TactileKeypadButton("00", modifier = Modifier.weight(1f)) { appendText("00") }
                         TactileKeypadButton(

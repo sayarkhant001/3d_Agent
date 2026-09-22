@@ -359,4 +359,54 @@ class BetParserTest {
         assertEquals("123" to 1000, bets4Digit[0])
         assertEquals("456" to 1000, bets4Digit[1])
     }
+
+    @Test
+    fun testQuickBetMyanmarNumbersSupport() {
+        // 1. Standard Myanmar digits with '='
+        val r1 = validateAndParseLine("၁၂၃ = ၁၀၀၀", 1)
+        assertTrue(r1 is LineParseResult.Success)
+        val bets1 = (r1 as LineParseResult.Success).bets
+        assertEquals(1, bets1.size)
+        assertEquals("123" to 1000, bets1[0])
+
+        // 2. Myanmar digits with Burmese round word 'ပတ်လည်'
+        val rRound = validateAndParseLine("၁၂၃ ပတ်လည် = ၁၀၀၀", 2)
+        assertTrue(rRound is LineParseResult.Success)
+        val betsRound = (rRound as LineParseResult.Success).bets
+        assertEquals(6, betsRound.size) // 123 + 5 permutations
+        assertTrue(betsRound.any { it.first == "123" && it.second == 1000 })
+        assertTrue(betsRound.any { it.first == "321" && it.second == 1000 })
+
+        // 3. Myanmar letter Wa 'ဝ' used as 0
+        val rWa = validateAndParseLine("ဝ၁၂ = ၅၀၀", 3)
+        assertTrue(rWa is LineParseResult.Success)
+        val betsWa = (rWa as LineParseResult.Success).bets
+        assertEquals(1, betsWa.size)
+        assertEquals("012" to 500, betsWa[0])
+
+        // 4. Myanmar comma delimiter '၊'
+        val rComma = validateAndParseLine("၁၂၃၊ ၄၅၆ = ၁၀၀၀", 4)
+        assertTrue(rComma is LineParseResult.Success)
+        val betsComma = (rComma as LineParseResult.Success).bets
+        assertEquals(2, betsComma.size)
+        assertEquals("123" to 1000, betsComma[0])
+        assertEquals("456" to 1000, betsComma[1])
+
+        // 5. Myanmar prefix pattern
+        val rPrefix = validateAndParseLine("၁၀၀၀ဖိုး ၁၂၃ ၄၅၆", 5)
+        assertTrue(rPrefix is LineParseResult.Success)
+        val betsPrefix = (rPrefix as LineParseResult.Success).bets
+        assertEquals(2, betsPrefix.size)
+        assertEquals("123" to 1000, betsPrefix[0])
+        assertEquals("456" to 1000, betsPrefix[1])
+
+        // 6. Strict enforcement: less than 3 digits in Myanmar numbers must be declined
+        val rLess = validateAndParseLine("၁၂ = ၁၀၀၀", 6)
+        assertTrue("Less than 3 digits must be declined", rLess is LineParseResult.Error)
+
+        // 7. Strict enforcement: more than 3 digits in Myanmar numbers must be declined
+        val rMore = validateAndParseLine("၁၂၃၄ = ၁၀၀၀", 7)
+        assertTrue("More than 3 digits must be declined", rMore is LineParseResult.Error)
+    }
 }
+
