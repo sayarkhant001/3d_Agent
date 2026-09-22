@@ -192,4 +192,20 @@ class ComposeUiIntegrationTest {
         composeTestRule.onNodeWithText("ကောင်းပြီ").performClick()
         assertTrue(dismissed)
     }
+
+    @Test
+    fun testExportHistoryBottomBarDisplaysTotalSent() {
+        composeTestRule.setContent {
+            com.threeDLedger.ui.ExportHistoryBottomBar(
+                totalAmount = 16_000L,
+                totalVouchers = 1,
+                totalNumbers = 6,
+                selectedBatch = 15
+            )
+        }
+
+        composeTestRule.onNodeWithText("အကြိမ် (15) တင်ငွေ စုစုပေါင်း", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("ဘောင်ချာ (1) စောင် • (6) ဂဏန်း", substring = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("16,000 Ks").assertIsDisplayed()
+    }
 }

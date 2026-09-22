@@ -1,13 +1,16 @@
 package com.threeDLedger.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,10 +44,29 @@ fun ExportHistoryScreen(
     viewModel: MainViewModel,
     onNavigateBack: () -> Unit
 ) {
+    BackHandler(onBack = onNavigateBack)
+
     val exportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+
+    val batches = remember(exportRecords) {
+        exportRecords.map { it.record.batchNumber }.distinct().sortedDescending()
+    }
+    var selectedBatchFilter by remember { mutableStateOf<Int?>(null) }
+    val displayedRecords = remember(exportRecords, selectedBatchFilter) {
+        if (selectedBatchFilter == null) exportRecords
+        else exportRecords.filter { it.record.batchNumber == selectedBatchFilter }
+    }
+
+    val totalAmount = remember(displayedRecords) {
+        displayedRecords.sumOf { it.record.totalAmount.toLong() }
+    }
+    val totalVouchers = displayedRecords.size
+    val totalNumbers = remember(displayedRecords) {
+        displayedRecords.sumOf { it.numbers.size }
+    }
 
     Scaffold(
         topBar = {
@@ -57,49 +79,149 @@ fun ExportHistoryScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
+        },
+        bottomBar = {
+            if (exportRecords.isNotEmpty()) {
+                ExportHistoryBottomBar(
+                    totalAmount = totalAmount,
+                    totalVouchers = totalVouchers,
+                    totalNumbers = totalNumbers,
+                    selectedBatch = selectedBatchFilter
+                )
+            }
         }
     ) { padding ->
-        if (exportRecords.isEmpty()) {
-            Box(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("မှတ်တမ်း မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+        ) {
+            if (batches.size > 1) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = selectedBatchFilter == null,
+                            onClick = { selectedBatchFilter = null },
+                            label = { Text("အားလုံး (${exportRecords.size})") }
+                        )
+                    }
+                    items(batches) { batch ->
+                        val count = exportRecords.count { it.record.batchNumber == batch }
+                        FilterChip(
+                            selected = selectedBatchFilter == batch,
+                            onClick = { selectedBatchFilter = batch },
+                            label = { Text("အကြိမ် $batch ($count)") }
+                        )
+                    }
+                }
             }
-        } else {
-            LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(12.dp)) {
-                items(exportRecords) { export ->
-                    ExportRecordCard(
-                        export = export,
-                        footerText = footerText,
-                        onCopy = { text ->
-                            val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            cm.setPrimaryClip(android.content.ClipData.newPlainText("Export Record", text))
-                            android.widget.Toast.makeText(context, "ကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                        },
-                        onPrint = { export ->
-                            coroutineScope.launch {
-                                try {
-                                    val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-                                    val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
-                                    val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
-                                        batchNumber = export.record.batchNumber,
-                                        voucherId = export.record.id,
-                                        date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(export.record.timestamp)),
-                                        customerName = export.record.type,
-                                        bets = export.numbers.map { it.number to it.amount },
-                                        totalAmount = export.record.totalAmount,
-                                        footerText = footerText
-                                    )
-                                    val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
-                                    com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
-                                } catch (e: Exception) {
-                                    android.widget.Toast.makeText(context, "ပရင်တာ error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+
+            if (displayedRecords.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("မှတ်တမ်း မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp)
+                ) {
+                    items(displayedRecords, key = { it.record.id }) { export ->
+                        ExportRecordCard(
+                            export = export,
+                            footerText = footerText,
+                            onCopy = { text ->
+                                val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("Export Record", text))
+                                android.widget.Toast.makeText(context, "ကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            onPrint = { export ->
+                                coroutineScope.launch {
+                                    try {
+                                        val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                        val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
+                                        val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
+                                            batchNumber = export.record.batchNumber,
+                                            voucherId = export.record.id,
+                                            date = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(export.record.timestamp)),
+                                            customerName = export.record.type,
+                                            bets = export.numbers.map { it.number to it.amount },
+                                            totalAmount = export.record.totalAmount,
+                                            footerText = footerText
+                                        )
+                                        val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
+                                        com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(context, "ပရင်တာ error: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ExportHistoryBottomBar(
+    totalAmount: Long,
+    totalVouchers: Int,
+    totalNumbers: Int,
+    selectedBatch: Int? = null,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shadowElevation = 12.dp,
+        tonalElevation = 3.dp,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (selectedBatch != null) "အကြိမ် ($selectedBatch) တင်ငွေ စုစုပေါင်း" else "အထက်ဒိုင် တင်ငွေ စုစုပေါင်း",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "ဘောင်ချာ ($totalVouchers) စောင် • ($totalNumbers) ဂဏန်း",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.error,
+                shadowElevation = 2.dp
+            ) {
+                Text(
+                    text = "%,d Ks".format(totalAmount),
+                    color = MaterialTheme.colorScheme.onError,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
             }
         }
     }
