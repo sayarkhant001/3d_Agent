@@ -55,6 +55,9 @@ interface LotteryDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBannedNumber(bannedNumber: BannedNumber)
 
+    @Update
+    suspend fun updateBannedNumber(bannedNumber: BannedNumber)
+
     @Delete
     suspend fun deleteBannedNumber(bannedNumber: BannedNumber)
 

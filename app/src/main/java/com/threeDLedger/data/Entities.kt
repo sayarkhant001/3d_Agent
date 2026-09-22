@@ -64,7 +64,18 @@ data class ExportRecord(
 @Entity(tableName = "banned_numbers")
 data class BannedNumber(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
-    val number: String
+    val number: String,
+    val amountLimit: Int = 0 // 0 = completely banned (လုံးဝပိတ်), > 0 = maximum bet limit ceiling in Ks
+)
+
+data class BannedLimitRemoval(
+    val number: String,
+    val attemptedAmount: Int,
+    val limitAmount: Int, // 0 = completely banned
+    val currentBetTotal: Int,
+    val acceptedAmount: Int,
+    val removedAmount: Int,
+    val reason: String
 )
 
 @Entity(

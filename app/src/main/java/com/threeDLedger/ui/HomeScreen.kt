@@ -398,9 +398,12 @@ fun HomeScreen(
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = bannedNumbers.joinToString(", ") { it.number },
+                                    text = bannedNumbers.joinToString(", ") {
+                                        if (it.amountLimit > 0) "${it.number} (≤%,d Ks)".format(it.amountLimit)
+                                        else "${it.number} (လုံးဝပိတ်)"
+                                    },
                                     color = MaterialTheme.colorScheme.error,
-                                    fontSize = 15.sp,
+                                    fontSize = 13.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace
                                 )

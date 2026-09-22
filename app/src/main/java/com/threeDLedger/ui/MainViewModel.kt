@@ -57,6 +57,7 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
     val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
     val printerSettings = MutableStateFlow("")
     val bannedNumberEvent = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>()
+    val bannedLimitNotificationEvent = kotlinx.coroutines.flow.MutableSharedFlow<List<com.threeDLedger.data.BannedLimitRemoval>>()
     var brakeLimit = MutableStateFlow(3000)
 
     // Winning number declared for the current batch (persisted per batch key)
@@ -258,11 +259,23 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         prefs.edit().putString("printerSettings", text).apply()
     }
 
-    fun addBannedNumber(number: String) {
+    fun addBannedNumber(number: String, amountLimit: Int = 0) {
         viewModelScope.launch {
-            repository.insertBannedNumber(BannedNumber(number = number))
+            val existing = bannedNumbers.value.find { it.number == number }
+            if (existing != null) {
+                repository.updateBannedNumber(existing.copy(amountLimit = amountLimit))
+            } else {
+                repository.insertBannedNumber(BannedNumber(number = number, amountLimit = amountLimit))
+            }
         }
     }
+
+    fun updateBannedNumber(bannedNumber: BannedNumber) {
+        viewModelScope.launch {
+            repository.updateBannedNumber(bannedNumber)
+        }
+    }
+
     fun deleteBannedNumber(bannedNumber: BannedNumber) {
         viewModelScope.launch {
             repository.deleteBannedNumber(bannedNumber)
@@ -310,13 +323,111 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         }
     }
 
+    fun getActiveBatchGrossBetsMap(): Map<String, Int> {
+        val batch = currentBatch.value
+        val map = mutableMapOf<String, Int>()
+        vouchersWithBets.value
+            .filter { it.voucher.batchNumber == batch && !it.voucher.isArchived }
+            .forEach { vb ->
+                vb.bets.forEach { b ->
+                    map[b.number] = (map[b.number] ?: 0) + b.amount
+                }
+            }
+        return map
+    }
+
+    fun validateAndFilterBetsWithBannedLimits(
+        incomingBets: List<Bet>,
+        pendingSessionAmounts: Map<String, Int> = emptyMap()
+    ): Pair<List<Bet>, List<com.threeDLedger.data.BannedLimitRemoval>> {
+        val bannedMap = bannedNumbers.value.associateBy { it.number }
+        if (bannedMap.isEmpty()) {
+            return Pair(incomingBets, emptyList())
+        }
+
+        val dbTotals = getActiveBatchGrossBetsMap()
+        val accumulatedAmounts = dbTotals.toMutableMap()
+        pendingSessionAmounts.forEach { (num, amt) ->
+            accumulatedAmounts[num] = (accumulatedAmounts[num] ?: 0) + amt
+        }
+
+        val validBets = mutableListOf<Bet>()
+        val removals = mutableListOf<com.threeDLedger.data.BannedLimitRemoval>()
+
+        for (bet in incomingBets) {
+            val banned = bannedMap[bet.number]
+            if (banned == null) {
+                validBets.add(bet)
+                accumulatedAmounts[bet.number] = (accumulatedAmounts[bet.number] ?: 0) + bet.amount
+                continue
+            }
+
+            val limit = banned.amountLimit
+            val currentAccum = accumulatedAmounts[bet.number] ?: 0
+
+            if (limit <= 0) {
+                // Case 1: Completely Banned (0 Ks allowed)
+                removals.add(
+                    com.threeDLedger.data.BannedLimitRemoval(
+                        number = bet.number,
+                        attemptedAmount = bet.amount,
+                        limitAmount = 0,
+                        currentBetTotal = currentAccum,
+                        acceptedAmount = 0,
+                        removedAmount = bet.amount,
+                        reason = "လုံးဝပိတ်ထားသော ဂဏန်းဖြစ်ပါသည်"
+                    )
+                )
+            } else {
+                // Case 2: Capped with Limit Amount
+                val remainingAllowed = (limit - currentAccum).coerceAtLeast(0)
+                if (remainingAllowed <= 0) {
+                    // Limit already reached or exceeded
+                    removals.add(
+                        com.threeDLedger.data.BannedLimitRemoval(
+                            number = bet.number,
+                            attemptedAmount = bet.amount,
+                            limitAmount = limit,
+                            currentBetTotal = currentAccum,
+                            acceptedAmount = 0,
+                            removedAmount = bet.amount,
+                            reason = "ကန့်သတ်ငွေ %,d ကျပ် ပြည့်သွားပါသည် (လက်ရှိ: %,d ကျပ်)".format(limit, currentAccum)
+                        )
+                    )
+                } else if (bet.amount <= remainingAllowed) {
+                    validBets.add(bet)
+                    accumulatedAmounts[bet.number] = currentAccum + bet.amount
+                } else {
+                    val excess = bet.amount - remainingAllowed
+                    validBets.add(bet.copy(amount = remainingAllowed))
+                    accumulatedAmounts[bet.number] = currentAccum + remainingAllowed
+                    removals.add(
+                        com.threeDLedger.data.BannedLimitRemoval(
+                            number = bet.number,
+                            attemptedAmount = bet.amount,
+                            limitAmount = limit,
+                            currentBetTotal = currentAccum,
+                            acceptedAmount = remainingAllowed,
+                            removedAmount = excess,
+                            reason = "ကန့်သတ်ငွေ %,d ကျပ် ပြည့်ရန် %,d ကျပ်သာ လက်ခံပြီး ပိုငွေ %,d ကျပ် ဖယ်ထုတ်လိုက်ပါသည်".format(
+                                limit, remainingAllowed, excess
+                            )
+                        )
+                    )
+                }
+            }
+        }
+
+        return Pair(validBets, removals)
+    }
+
     fun addVoucherAndBets(customerId: Int, time: String, rawInput: String, remark: String = "") {
         viewModelScope.launch {
             val bets = parseBets(rawInput)
-            val banned = bannedNumbers.value.map { it.number }
-            val validBets = bets.filter { it.number !in banned }
-            if (validBets.size < bets.size) {
+            val (validBets, removals) = validateAndFilterBetsWithBannedLimits(bets)
+            if (removals.isNotEmpty()) {
                 bannedNumberEvent.emit(true)
+                bannedLimitNotificationEvent.emit(removals)
             }
             if (validBets.isNotEmpty()) {
                 val totalAmount = validBets.sumOf { it.amount }
@@ -331,10 +442,10 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
 
     fun addVoucherWithBetList(customerId: Int, time: String, bets: List<Bet>, remark: String = "") {
         viewModelScope.launch {
-            val banned = bannedNumbers.value.map { it.number }
-            val validBets = bets.filter { it.number !in banned }
-            if (validBets.size < bets.size) {
+            val (validBets, removals) = validateAndFilterBetsWithBannedLimits(bets)
+            if (removals.isNotEmpty()) {
                 bannedNumberEvent.emit(true)
+                bannedLimitNotificationEvent.emit(removals)
             }
             if (validBets.isNotEmpty()) {
                 val totalAmount = validBets.sumOf { it.amount }

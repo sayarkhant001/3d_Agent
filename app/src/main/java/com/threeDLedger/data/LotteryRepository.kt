@@ -49,6 +49,10 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
         lotteryDao.insertBannedNumber(bannedNumber)
     }
 
+    suspend fun updateBannedNumber(bannedNumber: BannedNumber) {
+        lotteryDao.updateBannedNumber(bannedNumber)
+    }
+
     suspend fun deleteBannedNumber(bannedNumber: BannedNumber) {
         lotteryDao.deleteBannedNumber(bannedNumber)
     }

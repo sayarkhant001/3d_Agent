@@ -382,36 +382,203 @@ private fun UpdateCard(currentVersion: String, updateCheckStatus: String, onChec
 @Composable
 fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     var newNumber by remember { mutableStateOf("") }
+    var newLimit by remember { mutableStateOf("") }
+    var editingBanned by remember { mutableStateOf<com.threeDLedger.data.BannedNumber?>(null) }
+    var editLimitInput by remember { mutableStateOf("") }
     val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
-    AlertDialog(onDismissRequest = onDismiss,
-        title = { Text("မရဂဏန်းများ", fontWeight = FontWeight.Bold) },
+    val activeGrossMap = remember(bannedNumbers) { viewModel.getActiveBatchGrossBetsMap() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("မရဂဏန်းများ (ပိတ်ဂဏန်း / ကန့်သတ်ငွေ)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        },
         text = {
-            Column(modifier = Modifier.heightIn(max = 300.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newNumber, onValueChange = { newNumber = it },
-                        modifier = Modifier.weight(1f), label = { Text("ဂဏန်းထည့်ပါ") },
-                        shape = RoundedCornerShape(12.dp), singleLine = true)
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = { if (newNumber.isNotEmpty()) { viewModel.addBannedNumber(newNumber); newNumber = "" } },
-                        shape = RoundedCornerShape(10.dp)) { Text("ထည့်") }
-                }
-                Spacer(Modifier.height(8.dp))
-                LazyColumn {
-                    items(bannedNumbers) { banned ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(banned.number, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            IconButton(onClick = { viewModel.deleteBannedNumber(banned) }) {
-                                Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error)
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                Text(
+                    "ဂဏန်းနှင့် ကန့်သတ်လိုသော ပမာဏကို ထည့်ပါ။ ပမာဏ ၀ သို့မဟုတ် အလွတ်ထားပါက လုံးဝပိတ်ပါမည်။",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 16.sp
+                )
+                Spacer(Modifier.height(10.dp))
+
+                // Input Row: Number + Limit Amount
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = newNumber,
+                        onValueChange = { newNumber = it.filter { c -> c.isDigit() || c == ',' || c == ' ' } },
+                        modifier = Modifier.weight(1.1f),
+                        label = { Text("ဂဏန်း (၃ လုံး)", fontSize = 11.sp) },
+                        placeholder = { Text("123", fontSize = 11.sp) },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                    OutlinedTextField(
+                        value = newLimit,
+                        onValueChange = { newLimit = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier.weight(1.3f),
+                        label = { Text("ကန့်သတ်ငွေ (ကျပ်)", fontSize = 11.sp) },
+                        placeholder = { Text("၀ = လုံးဝပိတ်", fontSize = 10.sp) },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                    )
+                    Button(
+                        onClick = {
+                            val nums = newNumber.split(",", " ").map { it.trim() }.filter { it.length == 3 }
+                            val limit = newLimit.toIntOrNull() ?: 0
+                            if (nums.isNotEmpty()) {
+                                nums.forEach { n -> viewModel.addBannedNumber(n, limit) }
+                                newNumber = ""
+                                newLimit = ""
+                            } else if (newNumber.trim().isNotEmpty()) {
+                                viewModel.addBannedNumber(newNumber.trim(), limit)
+                                newNumber = ""
+                                newLimit = ""
                             }
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                    ) {
+                        Text("ထည့်", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                if (bannedNumbers.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Text("ပိတ်ထားသော ဂဏန်းများ မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(bannedNumbers) { banned ->
+                            val currentBet = activeGrossMap[banned.number] ?: 0
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(
+                                            banned.number,
+                                            fontSize = 17.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        )
+                                        if (banned.amountLimit <= 0) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFFF5252).copy(alpha = 0.15f)
+                                            ) {
+                                                Text(
+                                                    "လုံးဝပိတ်",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFFF5252),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        } else {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFFFFB300).copy(alpha = 0.18f)
+                                            ) {
+                                                Text(
+                                                    "ကန့်သတ်: %,d Ks".format(banned.amountLimit),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFFFB300),
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (banned.amountLimit > 0) {
+                                        Text(
+                                            "လက်ရှိထိုးငွေ: %,d Ks / ကျန်: %,d Ks".format(
+                                                currentBet,
+                                                (banned.amountLimit - currentBet).coerceAtLeast(0)
+                                            ),
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(
+                                        onClick = {
+                                            editingBanned = banned
+                                            editLimitInput = if (banned.amountLimit > 0) banned.amountLimit.toString() else "0"
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Edit, "Edit Limit", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(
+                                        onClick = { viewModel.deleteBannedNumber(banned) },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                         }
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } }
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK", fontWeight = FontWeight.Bold) }
+        }
     )
+
+    // Quick Edit Limit Dialog
+    editingBanned?.let { target ->
+        AlertDialog(
+            onDismissRequest = { editingBanned = null },
+            title = { Text("ကန့်သတ်ငွေ ပြင်ဆင်မည် (${target.number})", fontSize = 15.sp, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("ကန့်သတ်ငွေ (ကျပ်) ထည့်ပါ (၀ = လုံးဝပိတ်):", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editLimitInput,
+                        onValueChange = { editLimitInput = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val newLim = editLimitInput.toIntOrNull() ?: 0
+                        viewModel.updateBannedNumber(target.copy(amountLimit = newLim))
+                        editingBanned = null
+                    }
+                ) {
+                    Text("သိမ်းမည်")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingBanned = null }) { Text("မလုပ်တော့") }
+            }
+        )
+    }
 }
 
 @Composable

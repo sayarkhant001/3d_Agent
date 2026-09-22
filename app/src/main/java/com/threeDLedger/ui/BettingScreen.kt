@@ -463,8 +463,11 @@ fun BettingScreen(
         }
     }
 
+    var bannedRemovalsNotification by remember { mutableStateOf<List<com.threeDLedger.data.BannedLimitRemoval>>(emptyList()) }
+
     BackHandler {
         when {
+            bannedRemovalsNotification.isNotEmpty() -> bannedRemovalsNotification = emptyList()
             showClearConfirmDialog -> showClearConfirmDialog = false
             showPasteDialog -> {
                 if (!isParsing) {
@@ -484,6 +487,13 @@ fun BettingScreen(
     LaunchedEffect(Unit) {
         viewModel.bannedNumberEvent.collect {
             android.widget.Toast.makeText(context, "ထိုးထားသော ဂဏန်းများထဲတွင် ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေသဖြင့် ဖယ်ရှားလိုက်ပါသည်", android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.bannedLimitNotificationEvent.collect { removals ->
+            if (removals.isNotEmpty()) {
+                bannedRemovalsNotification = removals
+            }
         }
     }
 
@@ -518,18 +528,19 @@ fun BettingScreen(
     fun addBets(numbers: List<String>) {
         val amount = tempAmount.toIntOrNull() ?: 0
         if (amount <= 0) return
-        val bannedList = viewModel.bannedNumbers.value.map { it.number }
-        var bannedFound = false
-        val validNumbers = numbers.filter { 
-            if (it in bannedList) { bannedFound = true; false } else true 
+
+        val candidateBets = numbers.map { num -> Bet(voucherId = 0, number = num, amount = amount) }
+        val pendingMap = pendingBets.groupBy { it.number }.mapValues { (_, list) -> list.sumOf { it.amount } }
+        val (validBets, removals) = viewModel.validateAndFilterBetsWithBannedLimits(candidateBets, pendingMap)
+
+        for (bet in validBets) {
+            pendingBets.add(bet)
         }
-        for (num in validNumbers) {
-            // Append at end like normal list, or insert at 0
-            pendingBets.add(Bet(voucherId = 0, number = num, amount = amount))
+
+        if (removals.isNotEmpty()) {
+            bannedRemovalsNotification = removals
         }
-        if (bannedFound) {
-            android.widget.Toast.makeText(context, "ပိတ်ထားသော ဂဏန်းများ ပါဝင်နေ၍ ဖယ်ထုတ်လိုက်ပါသည်", android.widget.Toast.LENGTH_SHORT).show()
-        }
+
         tempNumber = "" // reset temp input
         focusedField = FocusField.NUMBER
     }
@@ -578,46 +589,30 @@ fun BettingScreen(
         parseProgress = 0f
         parseStatus = "ပြင်ဆင်နေသည်..."
         coroutineScope.launch {
-            val bannedList = viewModel.bannedNumbers.value.map { it.number }.toHashSet()
-            val total = validation.validBets.size.coerceAtLeast(1)
-            val allBets = ArrayList<Bet>(total)
-            var bannedCount = 0
-
-            withContext(Dispatchers.Default) {
-                validation.validBets.forEachIndexed { i, (num, amt) ->
-                    if (amt > 0) {
-                        if (num in bannedList) bannedCount++
-                        else allBets.add(Bet(voucherId = 0, number = num, amount = amt))
-                    }
-                    if (i % 1000 == 0 || i == total - 1) {
-                        withContext(Dispatchers.Main) {
-                            parseProgress = (i + 1).toFloat() / total
-                            parseStatus = "${i + 1} ဂဏန်း ထည့်သွင်းပြီး..."
-                        }
-                    }
-                }
-            }
+            val candidateBets = validation.validBets
+                .filter { it.second > 0 }
+                .map { (num, amt) -> Bet(voucherId = 0, number = num, amount = amt) }
+            val pendingMap = pendingBets.groupBy { it.number }.mapValues { (_, list) -> list.sumOf { it.amount } }
+            val (validBets, removals) = viewModel.validateAndFilterBetsWithBannedLimits(candidateBets, pendingMap)
 
             // Back on Main thread — update UI
-            val addedCount = allBets.size
+            val addedCount = validBets.size
             if (addedCount <= 500) {
-                // Small batch: buffer in the list so user can review
-                pendingBets.addAll(allBets)
+                pendingBets.addAll(validBets)
             } else {
-                // Large batch: submit straight to DB in one voucher to keep UI responsive
                 if (selectedCustomer != null) {
                     val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
-                    viewModel.addVoucherWithBetList(selectedCustomer!!, time, allBets, tempRemark)
+                    viewModel.addVoucherWithBetList(selectedCustomer!!, time, validBets, tempRemark)
                     tempRemark = ""
-                    android.widget.Toast.makeText(context, "${allBets.size} ကြောင်း ထိုးကြေး သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, "${validBets.size} ကြောင်း ထိုးကြေး သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
                 } else {
-                    // No customer selected — still buffer (they can submit later)
-                    pendingBets.addAll(allBets)
+                    pendingBets.addAll(validBets)
                 }
             }
 
-            if (bannedCount > 0)
-                android.widget.Toast.makeText(context, "$bannedCount ကြောင်း ပိတ်ဂဏန်းများ ဖယ်ထုတ်ပြီး", android.widget.Toast.LENGTH_SHORT).show()
+            if (removals.isNotEmpty()) {
+                bannedRemovalsNotification = removals
+            }
             if (addedCount > 0 && addedCount <= 500)
                 android.widget.Toast.makeText(context, "$addedCount ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
 
@@ -1033,6 +1028,14 @@ fun BettingScreen(
                         }
                     }
                 }
+            )
+        }
+
+        // --- BANNED NUMBER / AMOUNT LIMIT EXCEEDED NOTIFICATION DIALOG ---
+        if (bannedRemovalsNotification.isNotEmpty()) {
+            BannedRemovalNotificationDialog(
+                removals = bannedRemovalsNotification,
+                onDismiss = { bannedRemovalsNotification = emptyList() }
             )
         }
 
@@ -2203,3 +2206,159 @@ fun KeypadButton(
         onClick = onClick
     )
 }
+
+/**
+ * Alert notification dialog displayed with OK confirmation when bets hit the ban/limit ceiling
+ * and are automatically removed from the bet slip.
+ */
+@Composable
+fun BannedRemovalNotificationDialog(
+    removals: List<com.threeDLedger.data.BannedLimitRemoval>,
+    onDismiss: () -> Unit
+) {
+    val totalRemoved = removals.sumOf { it.removedAmount }
+    val numbersCount = removals.size
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color(0xFFFF5252).copy(alpha = 0.15f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Warning,
+                    contentDescription = "Alert",
+                    tint = Color(0xFFFF5252),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "ပိတ်ဂဏန်း / ကန့်သတ်ငွေ သတိပေးချက်",
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 16.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "$numbersCount ဂဏန်း ကန့်သတ်ငွေ ပြည့်သဖြင့် အလိုအလျောက် ဖယ်ထုတ်လိုက်ပါသည်",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 360.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("စုစုပေါင်း ဖယ်ထုတ်ငွေ:", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "%,d Ks".format(totalRemoved),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color(0xFFFF5252)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                LazyColumn(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(removals) { item ->
+                        Card(
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(
+                                            item.number,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Black,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = if (item.limitAmount <= 0) Color(0xFFFF5252).copy(alpha = 0.15f) else Color(0xFFFFB300).copy(alpha = 0.18f)
+                                        ) {
+                                            Text(
+                                                if (item.limitAmount <= 0) "လုံးဝပိတ်" else "ကန့်သတ်: %,d Ks".format(item.limitAmount),
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (item.limitAmount <= 0) Color(0xFFFF5252) else Color(0xFFFFB300),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        "-%,d Ks".format(item.removedAmount),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = Color(0xFFFF5252)
+                                    )
+                                }
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    item.reason,
+                                    fontSize = 10.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    lineHeight = 14.sp
+                                )
+                                if (item.acceptedAmount > 0) {
+                                    Text(
+                                        "လက်ခံရရှိငွေ: %,d Ks".format(item.acceptedAmount),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF10B981)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("အိုကေ (OK)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    )
+}
+
