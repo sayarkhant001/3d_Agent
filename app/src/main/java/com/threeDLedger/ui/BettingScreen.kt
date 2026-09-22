@@ -436,6 +436,31 @@ fun BettingScreen(
     var showClearConfirmDialog by remember { mutableStateOf(false) }
     var isParsing       by remember { mutableStateOf(false) }
     val rDimens = rememberResponsiveDimens()
+    val haptic = LocalHapticFeedback.current
+
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    var detectedClipboardText by remember { mutableStateOf<String?>(null) }
+    var detectedValidation by remember { mutableStateOf<PasteValidationResult?>(null) }
+
+    fun checkClipboardForBets() {
+        val clip = clipboardManager.getText()?.text?.toString()?.trim()
+        if (!clip.isNullOrBlank()) {
+            val validation = validatePastedText(clip)
+            if (validation.validBets.isNotEmpty()) {
+                detectedClipboardText = clip
+                detectedValidation = validation
+                return
+            }
+        }
+        detectedClipboardText = null
+        detectedValidation = null
+    }
+
+    LaunchedEffect(showPasteDialog) {
+        if (showPasteDialog) {
+            checkClipboardForBets()
+        }
+    }
 
     BackHandler {
         when {
@@ -763,11 +788,89 @@ fun BettingScreen(
                             }
                         }
 
+                        // --- ONE-TAP CLIPBOARD INSERT PROMPT ---
+                        val detectedText = detectedClipboardText
+                        val detectedVal = detectedValidation
+                        if (pasteText.isBlank() && detectedText != null && detectedVal != null) {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)),
+                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.ContentPaste,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                "Clipboard မှ စာရင်း တွေ့ရှိပါသည်",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.5.sp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = EmeraldPrimary.copy(alpha = 0.15f)
+                                        ) {
+                                            Text(
+                                                "${detectedVal.validBets.size} ကွက် (%,d Ks)".format(detectedVal.validBets.sumOf { it.second }),
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = EmeraldPrimary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            pasteText = detectedText
+                                        },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(38.dp),
+                                        shape = RoundedCornerShape(9.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.ContentPaste,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            "📋 ကူးယူထားသော စာရင်း ထည့်မည်",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // Text input — placeholder vanishes on paste/type
                         OutlinedTextField(
                             value = pasteText,
                             onValueChange = { pasteText = it },
-                            modifier = Modifier.fillMaxWidth().height(210.dp),
+                            modifier = Modifier.fillMaxWidth().height(if (pasteText.isBlank() && detectedText != null) 150.dp else 210.dp),
                             enabled = !isParsing,
                             placeholder = {
                                 Text(
@@ -858,7 +961,7 @@ fun BettingScreen(
                         // Prominent Paste button positioned in place of Cancel & ထည့်မည်
                         Button(
                             onClick = {
-                                val clip = clipboardManager.getText()?.text
+                                val clip = detectedClipboardText ?: clipboardManager.getText()?.text?.toString()
                                 if (!clip.isNullOrBlank()) {
                                     pasteText = clip
                                 } else {
@@ -1502,8 +1605,6 @@ fun BettingScreen(
             )
         }
 
-        val haptic = LocalHapticFeedback.current
-
         // ── PRO CASHIER VOUCHER ACTION BAR ──────────────────────────────────
         Surface(
             modifier = Modifier
@@ -1573,6 +1674,7 @@ fun BettingScreen(
                     FilledTonalButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            checkClipboardForBets()
                             pasteText = ""
                             showPasteDialog = true
                         },
