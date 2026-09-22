@@ -942,7 +942,7 @@ function App() {
               <span className="live-pulse-dot"></span> Cloudflare Pages Live &bull; v2.4 PRO
             </span>
           </div>
-          <div className="logo">🎰</div>
+          <img src="/app_logo.jpg" alt="3D စာရင်း" className="app-logo-large" />
           <h1>3D Lottery Admin</h1>
           <p className="burmese-subtitle">3D စာရင်း PRO စီမံခန့်ခွဲမှုစနစ်</p>
           <p className="subtitle">Sign in to manage your 3D Ledger system, keys & GLO results</p>
@@ -1034,8 +1034,12 @@ function App() {
     <div className="dashboard">
       {/* Header */}
       <header className="dashboard-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h1>🎰 <span>3D Lottery Admin (3D စာရင်း စီမံခန့်ခွဲမှု)</span></h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <img src="/app_logo.jpg" alt="3D စာရင်း" className="header-app-logo" />
+          <div>
+            <h1 style={{ margin: 0, lineHeight: 1.2 }}><span>3D Lottery Admin</span></h1>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>3D စာရင်း PRO စီမံခန့်ခွဲမှုစနစ်</div>
+          </div>
           <span style={{
             fontSize: 11,
             background: 'rgba(0, 200, 151, 0.15)',

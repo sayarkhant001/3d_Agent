@@ -133,6 +133,32 @@ body {
   filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.3));
 }
 
+.login-card .app-logo-large {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto 16px auto;
+  border: 1.5px solid rgba(212, 175, 55, 0.55);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), 0 0 16px rgba(212, 175, 55, 0.25);
+  transition: transform 0.3s ease;
+}
+
+.login-card .app-logo-large:hover {
+  transform: scale(1.05);
+}
+
+.dashboard-header .header-app-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1.2px solid rgba(212, 175, 55, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+}
+
 .login-divider {
   display: flex;
   align-items: center;

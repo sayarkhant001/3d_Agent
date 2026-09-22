@@ -1,6 +1,7 @@
 package com.threeDLedger.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payment
@@ -33,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.R
 import com.threeDLedger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -87,7 +91,7 @@ fun HomeScreen(
         }
     }
 
-    // Strictly ordered: 4 Core Modules
+    // Strictly ordered: 4 Core Modules with cohesive, elegant FinTech accents
     val menuItems = listOf(
         MenuItem(
             title = "ကော်မရှင်",
@@ -100,7 +104,7 @@ fun HomeScreen(
             title = "ဂဏန်းများ",
             subtitle = "ပေါက်/တွတ် စစ်ဆေးချက်",
             icon = Icons.AutoMirrored.Filled.List,
-            iconColors = listOf(Color(0xFF0284C7), Color(0xFF0369A1)),
+            iconColors = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8)),
             onClick = onNavigateToLedger
         ),
         MenuItem(
@@ -114,7 +118,7 @@ fun HomeScreen(
             title = "တင်ကွက်များ",
             subtitle = "အထက်ဒိုင် တင်ကွက်",
             icon = Icons.Default.Payment,
-            iconColors = listOf(Color(0xFF8B5CF6), Color(0xFF6D28D9)),
+            iconColors = listOf(Color(0xFF7C3AED), Color(0xFF6D28D9)),
             onClick = onNavigateToOverflow
         )
     )
@@ -122,49 +126,87 @@ fun HomeScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { 
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "3D စာရင်း PRO",
-                            fontWeight = FontWeight.Black,
-                            fontSize = 20.sp,
-                            letterSpacing = 1.2.sp
-                        )
-                        Text(
-                            currentDate,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onNavigateToWinner()
-                        }
+            TopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Box(
+                        Image(
+                            painter = painterResource(id = R.drawable.app_logo),
+                            contentDescription = "3D စာရင်း Logo",
                             modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFFFD93D).copy(alpha = 0.25f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.EmojiEvents,
-                                contentDescription = "ပေါက်ဂဏန်း",
-                                tint = Color(0xFFFFD93D),
-                                modifier = Modifier.size(24.dp)
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                        )
+                        Column {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "3D စာရင်း",
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    letterSpacing = 0.3.sp
+                                )
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+                                ) {
+                                    Text(
+                                        text = "PRO",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            Text(
+                                text = currentDate,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp
                             )
                         }
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                actions = {
+                    Surface(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToWinner()
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFFFEF3C7),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A).copy(alpha = 0.8f)),
+                        modifier = Modifier.padding(end = 12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EmojiEvents,
+                                contentDescription = "ပေါက်ဂဏန်း",
+                                tint = Color(0xFFB45309),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "ပေါက်ဂဏန်း",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF92400E)
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }
@@ -434,31 +476,68 @@ fun HomeScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // ── Settings Button - Warm Champagne Gold Luxury Finish ────────
-                Button(
+                // ── Settings & Preferences Navigation Card ───────────────────
+                Card(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onNavigateToSettings()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                        .shadow(3.dp, RoundedCornerShape(18.dp)),
+                        .shadow(2.dp, RoundedCornerShape(18.dp)),
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings", modifier = Modifier.size(22.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("ဆက်တင်", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.5.sp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "ဆက်တင်နှင့် အချက်အလက်",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    "လိုင်စင်၊ စကားဝှက်၊ အရန်သိမ်းဆည်းမှု စီမံရန်",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }
@@ -478,10 +557,10 @@ fun MenuCard(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = if (rDimens.isCompact) 115.dp else 128.dp)
-            .shadow(4.dp, RoundedCornerShape(22.dp)),
-        shape = RoundedCornerShape(22.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+            .heightIn(min = if (rDimens.isCompact) 112.dp else 124.dp)
+            .shadow(2.dp, RoundedCornerShape(20.dp)),
+        shape = RoundedCornerShape(20.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
@@ -494,15 +573,15 @@ fun MenuCard(
             // Gradient Icon Medallion
             Box(
                 modifier = Modifier
-                    .size(if (rDimens.isCompact) 42.dp else 48.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .size(if (rDimens.isCompact) 40.dp else 44.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(Brush.linearGradient(colors = iconColors)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    modifier = Modifier.size(if (rDimens.isCompact) 22.dp else 24.dp),
+                    modifier = Modifier.size(if (rDimens.isCompact) 20.dp else 22.dp),
                     tint = Color.White
                 )
             }
@@ -512,10 +591,10 @@ fun MenuCard(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = title,
-                    fontWeight = FontWeight.Black,
-                    fontSize = rDimens.responsiveSp(16f),
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = rDimens.responsiveSp(15.5f),
                     color = MaterialTheme.colorScheme.onSurface,
-                    letterSpacing = 0.3.sp,
+                    letterSpacing = 0.2.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -532,3 +611,4 @@ fun MenuCard(
         }
     }
 }
+

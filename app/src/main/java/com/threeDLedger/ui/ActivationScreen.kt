@@ -2,6 +2,7 @@ package com.threeDLedger.ui
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -20,12 +21,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.threeDLedger.R
 import com.threeDLedger.logic.ActivationResult
 import com.threeDLedger.logic.LicenseManager
 import com.threeDLedger.ui.theme.*
@@ -111,8 +114,16 @@ fun ActivationScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.app_logo),
+                        contentDescription = "3D စာရင်း Logo",
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    )
                     CircularProgressIndicator(
-                        modifier = Modifier.size(44.dp),
+                        modifier = Modifier.size(36.dp),
                         color = MaterialTheme.colorScheme.primary,
                         strokeWidth = 3.dp
                     )
@@ -336,20 +347,14 @@ fun ActivationScreen(
                         }
                     }
 
-                    Box(
+                    Image(
+                        painter = painterResource(id = R.drawable.app_logo),
+                        contentDescription = "3D စာရင်း Logo",
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Key,
-                            contentDescription = "Activation Key",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
+                            .size(68.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .border(1.2.dp, Color(0xFFD4AF37).copy(alpha = 0.6f), RoundedCornerShape(18.dp))
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
