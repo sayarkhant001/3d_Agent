@@ -110,80 +110,14 @@ fun isVoucherMetadataLine(raw: String): Boolean {
     return false
 }
 
-// Parses and validates a single line. Detects less-than-3-digit numbers, more-than-3-digit numbers, and wrong formats.
-fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
-    val trimmed = raw.trim()
-    if (trimmed.isBlank() || isVoucherMetadataLine(trimmed)) {
-        return LineParseResult.Ignored
-    }
-
-    // Convert Myanmar digits -> English, strip currency suffix, and trim
-    var line = trimmed.myanmarToEnglish().replace(CURRENCY_SUFFIX_REGEX, "").trim()
-    if (line.isBlank()) return LineParseResult.Ignored
-
-    // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
-    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-]?\s*""", RegexOption.IGNORE_CASE), "").trim()
-
-    // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
-    // Format A: Explicit brackets / parens e.g. "(1)", "[1]", "1)"
-    line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()
-    // Format B: 1-2 digit serial number followed by dot/colon/dash/Burmese punctuation AND whitespace (\s+) AND followed by a digit
-    line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d)"""), "").trim()
-    if (line.isBlank()) return LineParseResult.Ignored
-
-    // Direct single bet format check e.g. "108 = 50", "108=50", "108:50"
-    val directMatch = Regex("""^([^\s=:.,_+\-]+)\s*[=:]\s*(\d+)$""").matchEntire(line)
-    if (directMatch != null) {
-        val numToken = directMatch.groupValues[1]
-        val amt = directMatch.groupValues[2].toIntOrNull()
-        if (amt == null || amt <= 0) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
-        }
-        val cleanNum = numToken.removeSuffix("R").removeSuffix("r").removeSuffix("/").trim()
-        if (!cleanNum.all { it.isDigit() }) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ပုံစံမမှန်ပါ", listOf(numToken)))
-        }
-        if (cleanNum.length < 3) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံး မပြည့်ပါ", listOf(cleanNum)))
-        }
-        if (cleanNum.length > 3) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံးထက် ပိုနေပါသည်", listOf(cleanNum)))
-        }
-        val isRound = numToken.endsWith("R", ignoreCase = true) || numToken.endsWith("/")
-        val results = mutableListOf<Pair<String, Int>>()
-        results.add(cleanNum to amt)
-        if (isRound) {
-            NumberGenerator.permutations(cleanNum).forEach { perm ->
-                if (perm != cleanNum) results.add(perm to amt)
-            }
-        }
-        return LineParseResult.Success(results)
-    }
-
-    // Step 1: collapse spaces around plain separators (NOT / -- handled below)
-    var text = line.replace(SEPARATOR_SPACES_REGEX, "$1")
-
-    // Step 2: normalise R, r, AND / -> "R"  (/ is treated as Round, same as R)
-    text = text.replace(ROUND_MARKERS_REGEX, "R")
-
-    // Find the AMOUNT at the end: (optional separator)(digits)(optional R digits)$
-    val tailMatch = TAIL_AMOUNT_REGEX.find(text)
-    if (tailMatch == null) {
-        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
-    }
-
-    val amount = tailMatch.groupValues[1].toIntOrNull()
-    if (amount == null || amount <= 0) {
-        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
-    }
-    val rAmount = tailMatch.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull()
-
-    // Everything BEFORE the tail match is the numbers section
-    val numbersStr = text.substring(0, tailMatch.range.first).trim()
-    if (numbersStr.isBlank()) {
-        return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
-    }
-
+// Parses numbers string with a validated explicit amount, strictly enforcing 3-digit bet rules.
+fun parseNumbersWithExplicitAmount(
+    numbersStr: String,
+    amount: Int,
+    rAmount: Int?,
+    lineNumber: Int,
+    raw: String
+): LineParseResult {
     val chunks = numbersStr.split(Regex("""[\s\-.,_+]+""")).filter { it.isNotBlank() }
     if (chunks.isEmpty()) {
         return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
@@ -290,6 +224,149 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
     return LineParseResult.Success(merged.entries.map { it.key to it.value })
 }
 
+// Parses and validates a single line. Detects less-than-3-digit numbers, more-than-3-digit numbers, and wrong formats.
+// Strictly prevents amounts and numbers from being confused or mistakenly assumed.
+fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank() || isVoucherMetadataLine(trimmed)) {
+        return LineParseResult.Ignored
+    }
+
+    // Convert Myanmar digits -> English
+    val converted = trimmed.myanmarToEnglish()
+    val hasCurrencySuffix = CURRENCY_SUFFIX_REGEX.containsMatchIn(converted)
+    var line = converted.replace(CURRENCY_SUFFIX_REGEX, "").trim()
+    if (line.isBlank()) return LineParseResult.Ignored
+
+    // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
+    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-]?\s*""", RegexOption.IGNORE_CASE), "").trim()
+
+    // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
+    line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()
+    line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d)"""), "").trim()
+    if (line.isBlank()) return LineParseResult.Ignored
+
+    // 3. Prefix amount pattern e.g. "1000ဖိုး 123 456" or "1000 ks : 123 456" or "500ကျပ် = 123"
+    val prefixMatch = Regex("""^(\d+)\s*(?:ဖိုး|ks|ကျပ်)\s*[:=\-]?\s*(.+)$""", RegexOption.IGNORE_CASE).matchEntire(line)
+    if (prefixMatch != null) {
+        val amt = prefixMatch.groupValues[1].toIntOrNull()
+        val numPart = prefixMatch.groupValues[2].trim()
+        if (amt == null || amt <= 0) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+        }
+        return parseNumbersWithExplicitAmount(numPart, amt, null, lineNumber, raw)
+    }
+
+    // 4. Check for explicit '=' or ':' delimiter
+    if (line.contains('=') || line.contains(':')) {
+        // Direct single bet format check e.g. "108 = 50", "108=50", "108:50"
+        val directMatch = Regex("""^([^\s=:.,_+\-]+)\s*[=:]\s*(\d+)$""").matchEntire(line)
+        if (directMatch != null) {
+            val numToken = directMatch.groupValues[1]
+            val amt = directMatch.groupValues[2].toIntOrNull()
+            if (amt == null || amt <= 0) {
+                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+            }
+            val cleanNum = numToken.removeSuffix("R").removeSuffix("r").removeSuffix("/").trim()
+            if (!cleanNum.all { it.isDigit() }) {
+                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ပုံစံမမှန်ပါ", listOf(numToken)))
+            }
+            if (cleanNum.length < 3) {
+                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံး မပြည့်ပါ", listOf(cleanNum)))
+            }
+            if (cleanNum.length > 3) {
+                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံးထက် ပိုနေပါသည်", listOf(cleanNum)))
+            }
+            val isRound = numToken.endsWith("R", ignoreCase = true) || numToken.endsWith("/")
+            val results = mutableListOf<Pair<String, Int>>()
+            results.add(cleanNum to amt)
+            if (isRound) {
+                NumberGenerator.permutations(cleanNum).forEach { perm ->
+                    if (perm != cleanNum) results.add(perm to amt)
+                }
+            }
+            return LineParseResult.Success(results)
+        }
+
+        val delimIdx = if (line.contains('=')) line.lastIndexOf('=') else line.lastIndexOf(':')
+        val partLeft = line.substring(0, delimIdx).trim()
+        val partRight = line.substring(delimIdx + 1).trim()
+
+        if (partLeft.isBlank()) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
+        }
+        if (partRight.isBlank()) {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+        }
+
+        // Check if Left is Amount and Right is Numbers: e.g. "1000 = 123 456"
+        val leftClean = partLeft.replace(Regex("""\s*(?:ဖိုး|ks|ကျပ်)\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        val leftAsAmount = leftClean.toIntOrNull()
+        val isLeftExplicitAmount = (leftAsAmount != null && leftAsAmount >= 1000 && !partLeft.contains(Regex("""[\s\-.,_+]"""))) ||
+                partLeft.endsWith("ဖိုး") || partLeft.endsWith("ks", ignoreCase = true) || partLeft.endsWith("ကျပ်")
+
+        val rightClean = partRight.replace(Regex("""\s*(?:ks|ကျပ်)\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        val rightAmountMatch = Regex("""^(\d+)(?:\s*[Rr/]\s*(\d+))?$""").matchEntire(rightClean)
+
+        if (isLeftExplicitAmount && rightAmountMatch == null && leftAsAmount != null && leftAsAmount > 0) {
+            return parseNumbersWithExplicitAmount(partRight, leftAsAmount, null, lineNumber, raw)
+        }
+
+        if (rightAmountMatch != null) {
+            val amt = rightAmountMatch.groupValues[1].toIntOrNull()
+            if (amt == null || amt <= 0) {
+                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+            }
+            val rAmt = rightAmountMatch.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull()
+            return parseNumbersWithExplicitAmount(partLeft, amt, rAmt, lineNumber, raw)
+        } else {
+            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+        }
+    }
+
+    // 5. Lines without '=' or ':'.
+    // Step 1: collapse spaces around plain separators (NOT / -- handled below)
+    var text = line.replace(SEPARATOR_SPACES_REGEX, "$1")
+    // Step 2: normalise R, r, AND / -> "R"
+    text = text.replace(ROUND_MARKERS_REGEX, "R")
+
+    val tailAmountRegex = Regex("""(?:[\s\-]|(?<=\d)R)\s*(\d+)(?:\s*R\s*(\d+))?$""")
+    val tailMatch = tailAmountRegex.find(text)
+
+    if (tailMatch != null) {
+        val candidateAmtStr = tailMatch.groupValues[1]
+        val candidateAmt = candidateAmtStr.toIntOrNull()
+        val candidateRAmt = tailMatch.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull()
+        val prefixText = text.substring(0, tailMatch.range.first).trim()
+
+        // PROTECTION RULE:
+        // A 3-digit candidate amount without currency suffix ('Ks', 'ကျပ်') is AMBIGUOUS with a 3D bet number (e.g. "123 456 789").
+        // Therefore:
+        // If candidate amount is 3 digits (or fewer), it is ONLY accepted as an amount IF:
+        // 1) hadCurrencySuffix is true (e.g. "123 500 Ks")
+        // 2) OR it has a round amount (e.g. "123 500r100")
+        // 3) OR it is 1-2 digits (e.g. 50 Ks)
+        // Otherwise, it could be a betting number (e.g. 789 in "123 456 789"), so we reject as missing amount!
+        val isConfirmedAmount = hasCurrencySuffix || 
+                                (candidateAmtStr.length >= 4) || 
+                                (candidateRAmt != null) ||
+                                (candidateAmt != null && candidateAmt < 100)
+
+        if (isConfirmedAmount && candidateAmt != null && candidateAmt > 0 && prefixText.isNotBlank()) {
+            return parseNumbersWithExplicitAmount(prefixText, candidateAmt, candidateRAmt, lineNumber, raw)
+        }
+    }
+
+    // If we reached here, there is NO valid explicit amount!
+    return LineParseResult.Error(
+        BetLineParseError(
+            lineNumber = lineNumber,
+            rawLine = raw,
+            reason = "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ (ထိုးကြေးကို = ဖြင့် ထည့်ပေးပါ)"
+        )
+    )
+}
+
 // Validates the entire pasted text block. If ANY line has errors, declines the WHOLE paste.
 fun validatePastedText(text: String): PasteValidationResult {
     val lines = text.lines()
@@ -375,6 +452,7 @@ fun BettingScreen(
     var tempNumber   by remember { mutableStateOf("") }
     var tempAmount   by remember { mutableStateOf("1000") }
     var tempRemark   by remember { mutableStateOf("") }
+    var showManualKeypad by remember { mutableStateOf(true) }
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -648,7 +726,7 @@ fun BettingScreen(
                         OutlinedTextField(
                             value = pasteText,
                             onValueChange = { pasteText = it },
-                            modifier = Modifier.fillMaxWidth().height(240.dp),
+                            modifier = Modifier.fillMaxWidth().height(210.dp),
                             enabled = !isParsing,
                             placeholder = {
                                 Text(
@@ -658,6 +736,54 @@ fun BettingScreen(
                                 )
                             }
                         )
+
+                        // Live Validation Feedback for Quick Bet
+                        if (pasteText.isNotBlank() && !isParsing) {
+                            val liveValidation = remember(pasteText) { validatePastedText(pasteText) }
+                            if (liveValidation.isValid && liveValidation.validBets.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFECFDF5),
+                                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            "✅ ${liveValidation.validBets.size} ကွက် စစ်ဆေးပြီး",
+                                            color = Color(0xFF047857),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                        Text(
+                                            "= %,d Ks".format(liveValidation.validBets.sumOf { it.second }),
+                                            color = Color(0xFF065F46),
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 12.5.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            } else if (!liveValidation.isValid) {
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFFEF2F2),
+                                    border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        "⚠️ အမှား ${liveValidation.errors.size} ခု တွေ့ရှိပါသည် (ထိုးကြေးကို = ဖြင့် သေချာ ထည့်ပေးပါ)",
+                                        color = Color(0xFFB91C1C),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.5.sp,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         // Progress / status
                         if (isParsing) {
@@ -973,7 +1099,7 @@ fun BettingScreen(
 
         Column(
             modifier = Modifier
-                .weight(1f)
+                .weight(if (showManualKeypad) 2f else 1f)
                 .padding(horizontal = 8.dp)
                 .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                 .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
@@ -1248,46 +1374,46 @@ fun BettingScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 3.dp),
-            shape = RoundedCornerShape(14.dp),
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surface,
-            shadowElevation = 3.dp,
+            shadowElevation = 2.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (rDimens.isCompact) 6.dp else 8.dp, vertical = 5.dp),
+                    .padding(horizontal = if (rDimens.isCompact) 6.dp else 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 // Left: Summary Badge (Scales cleanly for all number places)
                 Surface(
                     modifier = Modifier.weight(1f, fill = false),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(9.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Column(
                         modifier = Modifier.padding(
-                            horizontal = if (rDimens.isCompact) 7.dp else 10.dp,
-                            vertical = if (rDimens.isCompact) 3.dp else 4.dp
+                            horizontal = if (rDimens.isCompact) 7.dp else 9.dp,
+                            vertical = if (rDimens.isCompact) 2.dp else 3.dp
                         ),
                         verticalArrangement = Arrangement.Center
                     ) {
                         Text(
                             "${pendingBets.size} ကွက်",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                            fontSize = if (rDimens.isCompact) 10.5.sp else 11.5.sp,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             softWrap = false
                         )
                         val amountFontSize = when {
-                            totalAmount >= 100_000_000 -> if (rDimens.isCompact) 10.5.sp else 11.5.sp
-                            totalAmount >= 10_000_000  -> if (rDimens.isCompact) 11.sp   else 12.sp
-                            totalAmount >= 1_000_000   -> if (rDimens.isCompact) 12.sp   else 13.sp
-                            else                       -> if (rDimens.isCompact) 13.sp   else 14.5.sp
+                            totalAmount >= 100_000_000 -> if (rDimens.isCompact) 10.sp else 11.sp
+                            totalAmount >= 10_000_000  -> if (rDimens.isCompact) 10.5.sp else 11.5.sp
+                            totalAmount >= 1_000_000   -> if (rDimens.isCompact) 11.5.sp else 12.5.sp
+                            else                       -> if (rDimens.isCompact) 12.5.sp else 13.5.sp
                         }
                         Text(
                             "= %,d Ks".format(totalAmount),
@@ -1301,11 +1427,11 @@ fun BettingScreen(
                     }
                 }
 
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(5.dp))
 
-                // Right: Quick Bet (အမြန်ထိုး) & ထိုးမည် (Single-line guaranteed)
+                // Right: Quick Bet (အမြန်ထိုး), Keypad Toggle (⌨️), & ထိုးမည်
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(if (rDimens.isCompact) 5.dp else 7.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledTonalButton(
@@ -1314,18 +1440,44 @@ fun BettingScreen(
                             pasteText = ""
                             showPasteDialog = true
                         },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(9.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 8.dp else 11.dp,
+                            horizontal = if (rDimens.isCompact) 7.dp else 9.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 36.dp else 39.dp)
+                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 36.dp)
                     ) {
-                        Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(3.dp))
+                        Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(2.dp))
                         Text(
                             "အမြန်ထိုး",
-                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                            fontSize = if (rDimens.isCompact) 11.sp else 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
+                    // Keypad Toggle: easily collapse keypad to inspect bets, or open for quick manual edits
+                    FilledTonalButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            showManualKeypad = !showManualKeypad
+                        },
+                        shape = RoundedCornerShape(9.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = if (rDimens.isCompact) 6.dp else 8.dp,
+                            vertical = 2.dp
+                        ),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (showManualKeypad) primaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = if (showManualKeypad) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 36.dp)
+                    ) {
+                        Text(
+                            if (showManualKeypad) "⌨️ ဝှက်" else "⌨️ ကီးပက်",
+                            fontSize = if (rDimens.isCompact) 10.5.sp else 11.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false
@@ -1341,19 +1493,19 @@ fun BettingScreen(
                             containerColor = if (pendingBets.isNotEmpty()) EmeraldPrimary else MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = if (pendingBets.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                         ),
-                        shape = RoundedCornerShape(10.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = if (pendingBets.isNotEmpty()) 3.dp else 0.dp),
+                        shape = RoundedCornerShape(9.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = if (pendingBets.isNotEmpty()) 2.dp else 0.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 10.dp else 14.dp,
+                            horizontal = if (rDimens.isCompact) 9.dp else 12.dp,
                             vertical = 2.dp
                         ),
-                        modifier = Modifier.height(if (rDimens.isCompact) 36.dp else 39.dp)
+                        modifier = Modifier.height(if (rDimens.isCompact) 34.dp else 36.dp)
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(3.dp))
                         Text(
                             "ထိုးမည်",
-                            fontSize = if (rDimens.isCompact) 13.sp else 14.sp,
+                            fontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp,
                             fontWeight = FontWeight.Black,
                             maxLines = 1,
                             softWrap = false
@@ -1363,305 +1515,285 @@ fun BettingScreen(
             }
         }
 
-        // --- INPUT ROW: Number | BetType | Amount ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            val isNumFocused = focusedField == FocusField.NUMBER
-            Box(
+        // ── RED-LINED MANUAL BETTING SECTION (Exactly 1/3 of the screen when shown) ──
+        if (showManualKeypad) {
+            Column(
                 modifier = Modifier
-                    .weight(1.1f)
-                    .height(if (rDimens.isCompact) 42.dp else 46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (isNumFocused) EmeraldLight.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface)
-                .border(
-                    width = if (isNumFocused) 2.5.dp else 1.dp,
-                    color = if (isNumFocused) KeypadFocusRing else borderColor,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .clickable {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    focusedField = FocusField.NUMBER
-                },
-                contentAlignment = Alignment.Center
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .navigationBarsPadding(),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Text(
-                    text = if (tempNumber.isEmpty()) "ဂဏန်းရိုက်ပါ" else tempNumber,
-                    color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.outline else EmeraldPrimary,
-                    fontSize = if (tempNumber.isEmpty()) (if (rDimens.isCompact) 11.5.sp else 13.sp) else (if (rDimens.isCompact) 19.sp else 22.sp),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = if (tempNumber.isEmpty()) 0.sp else 2.sp,
-                    maxLines = 1
-                )
-            }
-
-            // Interactive Bet Type Toggle Box
-            Box(
-                modifier = Modifier
-                    .weight(0.9f)
-                    .height(if (rDimens.isCompact) 42.dp else 46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f))
-                    .border(
-                        width = 1.5.dp,
-                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        val cycleList = listOf("ဒဲ့", "ထွိုင်", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
-                        val nextIdx = (cycleList.indexOf(currentBetType) + 1) % cycleList.size
-                        currentBetType = cycleList[nextIdx]
-                    },
-                contentAlignment = Alignment.Center
-            ) {
+                // --- INPUT ROW: Number | BetType | Amount ---
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(34.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        text = currentBetType,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        fontSize = if (rDimens.isCompact) 15.sp else 17.sp,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Icon(
-                        Icons.Default.ArrowDropDown,
-                        contentDescription = "Cycle Bet Type",
-                        tint = MaterialTheme.colorScheme.secondary,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            // Amount Input Box
-            val isAmtFocused = focusedField == FocusField.AMOUNT
-            Box(
-                modifier = Modifier
-                    .weight(1.2f)
-                    .height(if (rDimens.isCompact) 42.dp else 46.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (isAmtFocused) GoldContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface)
-                    .border(
-                        width = if (isAmtFocused) 2.5.dp else 1.dp,
-                        color = if (isAmtFocused) GoldAccent else borderColor,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        focusedField = FocusField.AMOUNT
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = tempAmount,
-                        color = if (isAmtFocused) GoldDark else MaterialTheme.colorScheme.onSurface,
-                        fontSize = if (tempAmount.length > 5) (if (rDimens.isCompact) 14.sp else 16.sp) else (if (rDimens.isCompact) 17.sp else 20.sp),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.width(3.dp))
-                    Text(
-                        "Ks",
-                        fontSize = if (rDimens.isCompact) 10.sp else 12.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-        }
-
-        // --- မှတ်ချက် (Remark) row ---
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp)
-                .height(36.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-                .padding(horizontal = 10.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            if (tempRemark.isEmpty()) {
-                Text(
-                    "မှတ်ချက် (မထည့်လည်းရသည်)",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            }
-            androidx.compose.foundation.text.BasicTextField(
-                value = tempRemark,
-                onValueChange = { tempRemark = it },
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Medium
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        // --- QUICK AMOUNTS (Ergonomic Thumb Pills) ---
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            items(listOf("100", "300", "500", "1000", "2000", "3000", "5000", "10000")) { amt ->
-                val isSel = tempAmount == amt
-                Surface(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        tempAmount = amt
-                        focusedField = FocusField.AMOUNT
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    color = if (isSel) GoldAccent else MaterialTheme.colorScheme.surface,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) GoldDark else borderColor),
-                    shadowElevation = if (isSel) 2.dp else 1.dp,
-                    modifier = Modifier.height(34.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 12.dp)) {
+                    val isNumFocused = focusedField == FocusField.NUMBER
+                    Box(
+                        modifier = Modifier
+                            .weight(1.1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isNumFocused) EmeraldLight.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface)
+                            .border(
+                                width = if (isNumFocused) 2.dp else 1.dp,
+                                color = if (isNumFocused) KeypadFocusRing else borderColor,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                focusedField = FocusField.NUMBER
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            amt,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSel) FontWeight.Black else FontWeight.SemiBold,
-                            color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
-                            fontFamily = FontFamily.Monospace
+                            text = if (tempNumber.isEmpty()) "ဂဏန်းရိုက်ပါ" else tempNumber,
+                            color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.outline else EmeraldPrimary,
+                            fontSize = if (tempNumber.isEmpty()) 11.5.sp else 17.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontFamily = FontFamily.Monospace,
+                            letterSpacing = if (tempNumber.isEmpty()) 0.sp else 1.5.sp,
+                            maxLines = 1
                         )
+                    }
+
+                    // Interactive Bet Type Toggle Box
+                    Box(
+                        modifier = Modifier
+                            .weight(0.9f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f))
+                            .border(
+                                width = 1.2.dp,
+                                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f),
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                val cycleList = listOf("ဒဲ့", "ထွိုင်", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
+                                val nextIdx = (cycleList.indexOf(currentBetType) + 1) % cycleList.size
+                                currentBetType = cycleList[nextIdx]
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = currentBetType,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1
+                            )
+                            Icon(
+                                Icons.Default.ArrowDropDown,
+                                contentDescription = "Cycle Bet Type",
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+
+                    // Amount Input Box
+                    val isAmtFocused = focusedField == FocusField.AMOUNT
+                    Box(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isAmtFocused) GoldContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface)
+                            .border(
+                                width = if (isAmtFocused) 2.dp else 1.dp,
+                                color = if (isAmtFocused) GoldAccent else borderColor,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                focusedField = FocusField.AMOUNT
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = tempAmount,
+                                color = if (isAmtFocused) GoldDark else MaterialTheme.colorScheme.onSurface,
+                                fontSize = if (tempAmount.length > 5) 13.sp else 16.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontFamily = FontFamily.Monospace,
+                                maxLines = 1
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                "Ks",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.outline,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // --- COMBINED COMPACT PILLS: Quick Amounts & Shortcuts ---
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(26.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Quick Amounts
+                    items(listOf("100", "300", "500", "1000", "2000", "3000", "5000", "10000")) { amt ->
+                        val isSel = tempAmount == amt
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                tempAmount = amt
+                                focusedField = FocusField.AMOUNT
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isSel) GoldAccent else MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, if (isSel) GoldDark else borderColor.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxHeight()
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 8.dp)) {
+                                Text(
+                                    amt,
+                                    fontSize = 11.5.sp,
+                                    fontWeight = if (isSel) FontWeight.Black else FontWeight.SemiBold,
+                                    color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+
+                    // Divider dot
+                    item {
+                        Text("•", color = borderColor, fontSize = 12.sp)
+                    }
+
+                    // Shortcuts
+                    val shortcuts = listOf(
+                        Triple("ဒဲ့",         true,  { currentBetType = "ဒဲ့" }),
+                        Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
+                        Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
+                        Triple("လယ်",         true,  { currentBetType = "လယ်" }),
+                        Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
+                        Triple("အပါ",         true,  { currentBetType = "အပါ" }),
+                        Triple("ရှေ့စီးရီး",  false, { handleSpecial("ရှေ့စီးရီး") }),
+                        Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),
+                        Triple("နောက်စီးရီး", false, { handleSpecial("နောက်စီးရီး") }),
+                        Triple("ဘရိတ်",       false, { handleSpecial("ဘရိတ်") }),
+                        Triple("ရှေ့ပူး",      false, { handleSpecial("ရှေ့ပူး") }),
+                        Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
+                        Triple("အခွ",          false, { handleSpecial("အခွ") })
+                    )
+                    items(shortcuts.size) { i ->
+                        val (label, isBetTypeChip, action) = shortcuts[i]
+                        val isSelected = isBetTypeChip && currentBetType == label
+                        Surface(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                action()
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, if (isSelected) primaryBlue else borderColor.copy(alpha = 0.5f)),
+                            modifier = Modifier.fillMaxHeight()
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 9.dp)) {
+                                Text(
+                                    label,
+                                    fontSize = 11.sp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // --- 4x4 TACTILE KEYPAD (Proportionally weighted inside 1/3 section) ---
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.5.dp)
+                ) {
+                    // Row 1: 1, 2, 3, R (ပတ်လည်)
+                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                        TactileKeypadButton("1", modifier = Modifier.weight(1f)) { appendText("1") }
+                        TactileKeypadButton("2", modifier = Modifier.weight(1f)) { appendText("2") }
+                        TactileKeypadButton("3", modifier = Modifier.weight(1f)) { appendText("3") }
+                        TactileKeypadButton(
+                            text = "R",
+                            subtitle = "ပတ်လည်",
+                            bgColor = KeypadActionEmerald,
+                            bevelColor = Color(0xFF065F46),
+                            modifier = Modifier.weight(1f)
+                        ) { handleSpecial("R") }
+                    }
+
+                    // Row 2: 4, 5, 6, ထွိုင် (၃ပူး)
+                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                        TactileKeypadButton("4", modifier = Modifier.weight(1f)) { appendText("4") }
+                        TactileKeypadButton("5", modifier = Modifier.weight(1f)) { appendText("5") }
+                        TactileKeypadButton("6", modifier = Modifier.weight(1f)) { appendText("6") }
+                        TactileKeypadButton(
+                            text = "ထွိုင်",
+                            subtitle = "အပူး",
+                            bgColor = KeypadActionTeal,
+                            bevelColor = Color(0xFF115E59),
+                            modifier = Modifier.weight(1f)
+                        ) { handleSpecial("ထွိုင်") }
+                    }
+
+                    // Row 3: 7, 8, 9, ⌫ (ဖျက်)
+                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                        TactileKeypadButton("7", modifier = Modifier.weight(1f)) { appendText("7") }
+                        TactileKeypadButton("8", modifier = Modifier.weight(1f)) { appendText("8") }
+                        TactileKeypadButton("9", modifier = Modifier.weight(1f)) { appendText("9") }
+                        TactileKeypadButton(
+                            text = "⌫",
+                            subtitle = "ဖျက်",
+                            icon = Icons.AutoMirrored.Filled.Backspace,
+                            bgColor = KeypadBackspaceRed,
+                            bevelColor = Color(0xFF991B1B),
+                            modifier = Modifier.weight(1f)
+                        ) { backspace() }
+                    }
+
+                    // Row 4: ရှင်း (Clear), 0, 00, OK (ထည့်)
+                    Row(modifier = Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.spacedBy(2.5.dp)) {
+                        TactileKeypadButton(
+                            text = "ရှင်း",
+                            subtitle = "Clear",
+                            bgColor = KeypadClearAmber,
+                            bevelColor = Color(0xFF92400E),
+                            modifier = Modifier.weight(1f)
+                        ) { clearAll() }
+                        TactileKeypadButton("0", modifier = Modifier.weight(1f)) { appendText("0") }
+                        TactileKeypadButton("00", modifier = Modifier.weight(1f)) { appendText("00") }
+                        TactileKeypadButton(
+                            text = "OK",
+                            subtitle = "ထည့်မည်",
+                            bgColor = KeypadSubmitBg,
+                            bevelColor = Color(0xFF022C22),
+                            modifier = Modifier.weight(1f)
+                        ) { submit() }
                     }
                 }
             }
+        } else {
+            Spacer(modifier = Modifier.height(4.dp).navigationBarsPadding())
         }
-
-        // --- SCROLLABLE SHORTCUT CHIPS ---
-        val shortcuts = listOf(
-            Triple("ဒဲ့",         true,  { currentBetType = "ဒဲ့" }),
-            Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
-            Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
-            Triple("လယ်",         true,  { currentBetType = "လယ်" }),
-            Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
-            Triple("အပါ",         true,  { currentBetType = "အပါ" }),
-            Triple("ရှေ့စီးရီး",  false, { handleSpecial("ရှေ့စီးရီး") }),
-            Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),
-            Triple("နောက်စီးရီး", false, { handleSpecial("နောက်စီးရီး") }),
-            Triple("ဘရိတ်",       false, { handleSpecial("ဘရိတ်") }),
-            Triple("ရှေ့ပူး",      false, { handleSpecial("ရှေ့ပူး") }),
-            Triple("နောက်ပူး",     false, { handleSpecial("နောက်ပူး") }),
-            Triple("အခွ",          false, { handleSpecial("အခွ") })
-        )
-        LazyRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
-        ) {
-            items(shortcuts.size) { i ->
-                val (label, isBetTypeChip, action) = shortcuts[i]
-                val isSelected = isBetTypeChip && currentBetType == label
-                Surface(
-                    onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        action()
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (isSelected) primaryBlue else MaterialTheme.colorScheme.surfaceVariant,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) primaryBlue else borderColor.copy(alpha = 0.5f)),
-                    shadowElevation = if (isSelected) 2.dp else 0.dp,
-                    modifier = Modifier.height(30.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 11.dp)) {
-                        Text(
-                            label,
-                            fontSize = 12.sp,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
-
-        // --- 4x4 TACTILE KEYPAD ---
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 6.dp, vertical = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            // Row 1: 1, 2, 3, R (ပတ်လည်)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                TactileKeypadButton("1", modifier = Modifier.weight(1f)) { appendText("1") }
-                TactileKeypadButton("2", modifier = Modifier.weight(1f)) { appendText("2") }
-                TactileKeypadButton("3", modifier = Modifier.weight(1f)) { appendText("3") }
-                TactileKeypadButton(
-                    text = "R",
-                    subtitle = "ပတ်လည်",
-                    bgColor = KeypadActionEmerald,
-                    bevelColor = Color(0xFF065F46),
-                    modifier = Modifier.weight(1f)
-                ) { handleSpecial("R") }
-            }
-
-            // Row 2: 4, 5, 6, ထွိုင် (၃ပူး)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                TactileKeypadButton("4", modifier = Modifier.weight(1f)) { appendText("4") }
-                TactileKeypadButton("5", modifier = Modifier.weight(1f)) { appendText("5") }
-                TactileKeypadButton("6", modifier = Modifier.weight(1f)) { appendText("6") }
-                TactileKeypadButton(
-                    text = "ထွိုင်",
-                    subtitle = "အပူး",
-                    bgColor = KeypadActionTeal,
-                    bevelColor = Color(0xFF115E59),
-                    modifier = Modifier.weight(1f)
-                ) { handleSpecial("ထွိုင်") }
-            }
-
-            // Row 3: 7, 8, 9, ⌫ (ဖျက်)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                TactileKeypadButton("7", modifier = Modifier.weight(1f)) { appendText("7") }
-                TactileKeypadButton("8", modifier = Modifier.weight(1f)) { appendText("8") }
-                TactileKeypadButton("9", modifier = Modifier.weight(1f)) { appendText("9") }
-                TactileKeypadButton(
-                    text = "⌫",
-                    subtitle = "ဖျက်",
-                    icon = Icons.AutoMirrored.Filled.Backspace,
-                    bgColor = KeypadBackspaceRed,
-                    bevelColor = Color(0xFF991B1B),
-                    modifier = Modifier.weight(1f)
-                ) { backspace() }
-            }
-
-            // Row 4: ရှင်း (Clear), 0, 00, OK (ထည့်)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                TactileKeypadButton(
-                    text = "ရှင်း",
-                    subtitle = "Clear",
-                    bgColor = KeypadClearAmber,
-                    bevelColor = Color(0xFF92400E),
-                    modifier = Modifier.weight(1f)
-                ) { clearAll() }
-                TactileKeypadButton("0", modifier = Modifier.weight(1f)) { appendText("0") }
-                TactileKeypadButton("00", modifier = Modifier.weight(1f)) { appendText("00") }
-                TactileKeypadButton(
-                    text = "OK",
-                    subtitle = "ထည့်မည်",
-                    bgColor = KeypadSubmitBg,
-                    bevelColor = Color(0xFF022C22),
-                    modifier = Modifier.weight(1f)
-                ) { submit() }
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp).navigationBarsPadding())
     }
 }
 
@@ -1681,17 +1813,17 @@ fun TactileKeypadButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    val offsetY = if (isPressed) 2.dp else 0.dp
-    val elevation = if (isPressed) 1.dp else 3.dp
+    val offsetY = if (isPressed) 1.5.dp else 0.dp
+    val elevation = if (isPressed) 1.dp else 2.dp
 
     Box(
         modifier = modifier
-            .heightIn(min = 40.dp, max = 58.dp)
-            .aspectRatio(1.5f)
-            .padding(horizontal = 1.dp, vertical = 1.dp)
+            .defaultMinSize(minHeight = 32.dp)
+            .fillMaxHeight()
+            .padding(horizontal = 1.dp, vertical = 0.5.dp)
             .offset(y = offsetY)
-            .shadow(elevation, RoundedCornerShape(10.dp))
-            .clip(RoundedCornerShape(10.dp))
+            .shadow(elevation, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
@@ -1704,11 +1836,11 @@ fun TactileKeypadButton(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = if (isPressed) 0.1f else 0.5f),
-                        Color.Black.copy(alpha = 0.18f)
+                        Color.White.copy(alpha = if (isPressed) 0.1f else 0.45f),
+                        Color.Black.copy(alpha = 0.16f)
                     )
                 ),
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(8.dp)
             )
             .clickable(
                 interactionSource = interactionSource,
@@ -1729,12 +1861,12 @@ fun TactileKeypadButton(
                     imageVector = icon,
                     contentDescription = text,
                     tint = contentColor,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(17.dp)
                 )
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         color = contentColor.copy(alpha = 0.85f)
                     )
@@ -1743,7 +1875,7 @@ fun TactileKeypadButton(
                 val rDimens = rememberResponsiveDimens()
                 Text(
                     text = text,
-                    fontSize = if (text.length > 2) (if (rDimens.isCompact) 13.sp else 15.sp) else (if (rDimens.isCompact) 18.sp else 21.sp),
+                    fontSize = if (text.length > 2) (if (rDimens.isCompact) 11.5.sp else 13.sp) else (if (rDimens.isCompact) 15.sp else 18.sp),
                     fontWeight = FontWeight.Black,
                     color = contentColor,
                     fontFamily = if (text.all { it.isDigit() }) FontFamily.Monospace else FontFamily.Default,
@@ -1752,7 +1884,7 @@ fun TactileKeypadButton(
                 if (subtitle != null) {
                     Text(
                         text = subtitle,
-                        fontSize = if (rDimens.isCompact) 8.sp else 9.sp,
+                        fontSize = if (rDimens.isCompact) 7.5.sp else 8.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = contentColor.copy(alpha = 0.85f)
                     )

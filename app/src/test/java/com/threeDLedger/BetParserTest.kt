@@ -305,4 +305,58 @@ class BetParserTest {
         assertEquals("123" to 1000, result.validBets[0])
         assertEquals("456" to 2000, result.validBets[1])
     }
+
+    @Test
+    fun testPreventMistakenAmountsAndNumbers() {
+        // 1. Without explicit delimiter or currency suffix, a list of 3-digit numbers MUST NOT assume the last number is an amount!
+        val r1 = validateAndParseLine("123 456 789", 1)
+        assertTrue("Lines with only 3D numbers and no explicit amount delimiter must fail", r1 is LineParseResult.Error)
+        assertTrue((r1 as LineParseResult.Error).error.reason.contains("ထိုးကြေး မပါရှိပါ"))
+
+        val r2 = validateAndParseLine("123, 456, 789", 2)
+        assertTrue(r2 is LineParseResult.Error)
+
+        val r3 = validateAndParseLine("123-456-789", 3)
+        assertTrue(r3 is LineParseResult.Error)
+
+        // 2. Explicit prefix amount with 'ဖိုး' or 'ks'
+        val rPrefix = validateAndParseLine("1000ဖိုး 123 456", 4)
+        assertTrue(rPrefix is LineParseResult.Success)
+        val betsPrefix = (rPrefix as LineParseResult.Success).bets
+        assertEquals(2, betsPrefix.size)
+        assertEquals("123" to 1000, betsPrefix[0])
+        assertEquals("456" to 1000, betsPrefix[1])
+
+        // 3. Amount on left side of '='
+        val rLeftAmount = validateAndParseLine("1000 = 123 456", 5)
+        assertTrue(rLeftAmount is LineParseResult.Success)
+        val betsLeft = (rLeftAmount as LineParseResult.Success).bets
+        assertEquals(2, betsLeft.size)
+        assertEquals("123" to 1000, betsLeft[0])
+        assertEquals("456" to 1000, betsLeft[1])
+
+        // 4. Amount on right side of '='
+        val rRightAmount = validateAndParseLine("123 456 = 1000", 6)
+        assertTrue(rRightAmount is LineParseResult.Success)
+        val betsRight = (rRightAmount as LineParseResult.Success).bets
+        assertEquals(2, betsRight.size)
+        assertEquals("123" to 1000, betsRight[0])
+        assertEquals("456" to 1000, betsRight[1])
+
+        // 5. 3-digit amount with explicit 'Ks' or 'ကျပ်'
+        val rCurrency = validateAndParseLine("123 456 500 Ks", 7)
+        assertTrue(rCurrency is LineParseResult.Success)
+        val betsCurrency = (rCurrency as LineParseResult.Success).bets
+        assertEquals(2, betsCurrency.size)
+        assertEquals("123" to 500, betsCurrency[0])
+        assertEquals("456" to 500, betsCurrency[1])
+
+        // 6. 4-digit amount without delimiter (cannot be 3D number)
+        val r4Digit = validateAndParseLine("123 456 1000", 8)
+        assertTrue(r4Digit is LineParseResult.Success)
+        val bets4Digit = (r4Digit as LineParseResult.Success).bets
+        assertEquals(2, bets4Digit.size)
+        assertEquals("123" to 1000, bets4Digit[0])
+        assertEquals("456" to 1000, bets4Digit[1])
+    }
 }
