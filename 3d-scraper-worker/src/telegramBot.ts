@@ -1264,6 +1264,16 @@ export async function approveLicenseKey(env: Env, cdKey: string): Promise<{ ok: 
       await recordResellerActivationDue(env, updatedRecord);
     }
 
+    if (updatedRecord.device_fingerprint && updatedRecord.device_fingerprint !== 'approved_by_admin') {
+      try {
+        await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${updatedRecord.device_fingerprint}.json`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active_cd_key: cdKey, updated_at: now })
+        });
+      } catch (_) {}
+    }
+
     return { ok: patchRes.ok, record: updatedRecord };
   } catch (_) {
     return { ok: false };

@@ -231,6 +231,11 @@ export default {
       } catch (_) {}
     }
 
+    // License Restore endpoint (auto-restore on app reinstall without entering key)
+    if (url.pathname === '/restore' || url.pathname === '/api/license/restore') {
+      return handleLicenseRestore(request, env);
+    }
+
     // License Status Checking endpoint (for pending polling)
     if (url.pathname === '/check-status' || url.pathname === '/api/license/check-status') {
       return handleLicenseCheckStatus(request, env);
@@ -827,6 +832,13 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
           exp: expSec
         };
         const appToken = await signLicenseJwt(jwtPayload);
+        try {
+          await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${device_fingerprint}.json`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active_cd_key: cd_key, updated_at: Date.now() })
+          });
+        } catch (_) {}
         return new Response(JSON.stringify({
           status: 'activated',
           token: appToken,
@@ -937,6 +949,14 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
           approved_by: isTrial ? 'free_trial' : 'auto'
         })
       });
+
+      try {
+        await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${device_fingerprint}.json`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ active_cd_key: cd_key, updated_at: now })
+        });
+      } catch (_) {}
 
       const jwtPayload: Record<string, unknown> = {
         cd_key,
@@ -1164,4 +1184,153 @@ export async function handleLicenseVerify(request: Request, env: Env): Promise<R
     return new Response(JSON.stringify({ valid: false, reason: 'error' }), { headers: corsHeaders });
   }
 }
+
+export async function handleLicenseRestore(request: Request, env: Env): Promise<Response> {
+  const corsHeaders = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+
+  try {
+    const body = await request.json() as { device_fingerprint?: string; device_model?: string };
+    const device_fingerprint = (body.device_fingerprint || '').trim();
+    if (!device_fingerprint) {
+      return new Response(JSON.stringify({ status: 'none', message: 'Device fingerprint required' }), {
+        status: 400, headers: corsHeaders
+      });
+    }
+
+    if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) {
+      return new Response(JSON.stringify({ status: 'none', message: 'Service account unconfigured' }), {
+        headers: corsHeaders
+      });
+    }
+
+    const token = await getFirebaseToken(env);
+
+    // 1. Direct device mapping lookup in /3d_licenses/devices/${device_fingerprint}.json
+    let boundKey: string | null = null;
+    try {
+      const devRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${device_fingerprint}.json`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (devRes.ok) {
+        const devData = await devRes.json() as any;
+        if (devData && devData.active_cd_key) {
+          boundKey = devData.active_cd_key;
+        }
+      }
+    } catch (_) {}
+
+    let keyData: any = null;
+    let cd_key = boundKey;
+
+    if (cd_key) {
+      try {
+        const keyRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys/${cd_key}.json`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (keyRes.ok) {
+          keyData = await keyRes.json();
+        }
+      } catch (_) {}
+    }
+
+    const now = Date.now();
+
+    // 2. If no direct match, scan /3d_licenses/keys.json for active key matching this device
+    if (!keyData || keyData.device_fingerprint !== device_fingerprint || keyData.status !== 'active' || (keyData.expires_at && now >= keyData.expires_at)) {
+      try {
+        const allKeysRes = await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/keys.json`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (allKeysRes.ok) {
+          const allKeys = await allKeysRes.json() as Record<string, any> || {};
+          let bestKey: string | null = null;
+          let bestData: any = null;
+
+          for (const [k, v] of Object.entries(allKeys)) {
+            if (v && v.device_fingerprint === device_fingerprint && v.status === 'active') {
+              if (!v.expires_at || v.expires_at > now) {
+                // Pick the longest valid key if multiple exist
+                if (!bestData || (v.expires_at || Infinity) > (bestData.expires_at || Infinity)) {
+                  bestKey = k;
+                  bestData = v;
+                }
+              }
+            }
+          }
+
+          if (bestKey && bestData) {
+            cd_key = bestKey;
+            keyData = bestData;
+            // Cache in /devices for fast O(1) lookups
+            try {
+              await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${device_fingerprint}.json`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ active_cd_key: bestKey, updated_at: now })
+              });
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (!keyData || !cd_key) {
+      return new Response(JSON.stringify({
+        status: 'none',
+        message: 'ဤဖုန်းအတွက် အသက်ဝင်နေသော လိုင်စင် မတွေ့ရှိပါ'
+      }), { headers: corsHeaders });
+    }
+
+    if (keyData.status === 'revoked') {
+      return new Response(JSON.stringify({
+        status: 'revoked',
+        message: 'ဤလိုင်စင်ကုတ်အား Admin မှ ပိတ်သိမ်းထားပါသည် (Revoked)'
+      }), { headers: corsHeaders });
+    }
+
+    if (keyData.expires_at && now >= keyData.expires_at) {
+      return new Response(JSON.stringify({
+        status: 'expired',
+        message: 'လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ'
+      }), { headers: corsHeaders });
+    }
+
+    if (keyData.status !== 'active' || keyData.device_fingerprint !== device_fingerprint) {
+      return new Response(JSON.stringify({
+        status: 'none',
+        message: 'ဤဖုန်းအတွက် အသက်ဝင်နေသော လိုင်စင် မတွေ့ရှိပါ'
+      }), { headers: corsHeaders });
+    }
+
+    // 3. Generate fresh JWT token
+    const nowSec = Math.floor(now / 1000);
+    let expSec: number | undefined = undefined;
+    if (keyData.expires_at) {
+      expSec = Math.floor(keyData.expires_at / 1000);
+    }
+    const jwtPayload: Record<string, unknown> = {
+      cd_key,
+      device_fingerprint,
+      iat: nowSec,
+      exp: expSec
+    };
+    const appToken = await signLicenseJwt(jwtPayload);
+
+    return new Response(JSON.stringify({
+      status: 'activated',
+      token: appToken,
+      cd_key: cd_key,
+      expires_at: keyData.expires_at || null,
+      message: 'လိုင်စင် အလိုအလျောက် ပြန်လည် ချိတ်ဆက်ပြီးပါပြီ'
+    }), { headers: corsHeaders });
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+  }
+}
+
 

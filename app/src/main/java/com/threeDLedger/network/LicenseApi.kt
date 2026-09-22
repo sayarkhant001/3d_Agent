@@ -52,6 +52,22 @@ data class VerifyLicenseResponse(
     val expires_at: Long? = null
 )
 
+@JsonClass(generateAdapter = true)
+data class RestoreLicenseRequest(
+    val device_fingerprint: String,
+    val device_model: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class RestoreLicenseResponse(
+    val status: String? = null,
+    val token: String? = null,
+    val cd_key: String? = null,
+    val expires_at: Long? = null,
+    val message: String? = null,
+    val error: String? = null
+)
+
 interface LicenseApi {
     @POST("/activate")
     suspend fun activateLicense(@Body request: ActivationRequest): Response<ActivationResponse>
@@ -61,4 +77,7 @@ interface LicenseApi {
 
     @POST("/verify")
     suspend fun verifyLicense(@Body request: VerifyLicenseRequest): Response<VerifyLicenseResponse>
+
+    @POST("/restore")
+    suspend fun restoreLicense(@Body request: RestoreLicenseRequest): Response<RestoreLicenseResponse>
 }

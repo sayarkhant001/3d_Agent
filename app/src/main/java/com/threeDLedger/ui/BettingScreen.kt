@@ -425,21 +425,51 @@ fun BettingScreen(
             AlertDialog(
                 onDismissRequest = { if (!isParsing) { showPasteDialog = false } },
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("⚡ အမြန်ထိုး စာရင်းထည့်သွင်းခြင်း", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                        if (lineCount > 0)
-                            Surface(shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
-                                Text("%,d မျဉ်း".format(lineCount),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                    fontSize = 11.sp, color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("⚡ အမြန်ထိုး စာရင်းထည့်သွင်းခြင်း", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            if (lineCount > 0) {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        "%,d မျဉ်း".format(lineCount),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
+                        }
+                        IconButton(
+                            onClick = {
+                                if (!isParsing) {
+                                    showPasteDialog = false
+                                    pasteText = ""
+                                }
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 text = {
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -447,21 +477,18 @@ fun BettingScreen(
                         ) {
                             Text(
                                 "စာကြောင်းအလိုက် အမြန်ထိုး / တင်ကွက် ဘောင်ချာ",
-                                fontSize = 11.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary
                             )
-                            FilledTonalButton(
-                                onClick = {
-                                    val clip = clipboardManager.getText()?.text
-                                    if (!clip.isNullOrBlank()) {
-                                        pasteText = clip
-                                    }
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                modifier = Modifier.height(28.dp)
-                            ) {
-                                Text("📋 Clipboard ကူးယူမည်", fontSize = 11.sp)
+                            if (pasteText.isNotBlank()) {
+                                TextButton(
+                                    onClick = { pasteText = "" },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    Text("စာသား ပြန်ရှင်းမည်", fontSize = 11.sp, color = Color(0xFFEF4444))
+                                }
                             }
                         }
 
@@ -473,9 +500,9 @@ fun BettingScreen(
                             enabled = !isParsing,
                             placeholder = {
                                 Text(
-                                    "ဤနေရာတွင် အမြန်ထိုး စာရင်း ကူးထည့်ပါ...",
+                                    "အောက်ပါ 'စာသား ကူးထည့်မည် (PASTE)' ခလုတ်ကို နှိပ်ပါ သို့မဟုတ် စာရင်း ရိုက်ထည့်ပါ...",
                                     fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
                         )
@@ -489,12 +516,12 @@ fun BettingScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(parseStatus, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                    fontWeight = FontWeight.SemiBold)
                             }
                         } else if (parseStatus.isNotEmpty()) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(14.dp), tint = Color(0xFF43AA8B))
-                                Text(parseStatus, fontSize = 12.sp, color = Color(0xFF43AA8B), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                                Text(parseStatus, fontSize = 12.sp, color = Color(0xFF43AA8B), fontWeight = FontWeight.SemiBold)
                             }
                         }
 
@@ -502,23 +529,79 @@ fun BettingScreen(
                             Text(
                                 "⚡ ${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် ပေါက်သီး DB သိမ်းမည်",
                                 fontSize = 11.sp, color = Color(0xFFFF9800),
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold
                             )
                     }
                 },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            addBetsFromPasteAsync(pasteText)
-                            showPasteDialog = false
-                            pasteText = ""
-                        },
-                        enabled = pasteText.isNotBlank() && !isParsing,
-                        colors = ButtonDefaults.buttonColors(containerColor = primaryBlue)
-                    ) { Text(if (isParsing) "ပြင်ဆင်နေသည်..." else "ထည့်မည်") }
+                    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                    if (pasteText.isBlank()) {
+                        // Prominent Paste button positioned in place of Cancel & ထည့်မည်
+                        Button(
+                            onClick = {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    pasteText = clip
+                                } else {
+                                    android.widget.Toast.makeText(context, "Clipboard တွင် ကူးယူထားသော စာသား မတွေ့ပါ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = primaryBlue)
+                        ) {
+                            Icon(
+                                Icons.Default.ContentPaste,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "📋 စာသား ကူးထည့်မည် (PASTE)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    } else {
+                        // After pasting numbers: Confirm & Add Bets button appears
+                        Button(
+                            onClick = {
+                                addBetsFromPasteAsync(pasteText)
+                                showPasteDialog = false
+                                pasteText = ""
+                            },
+                            enabled = !isParsing,
+                            modifier = Modifier.height(42.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = primaryBlue)
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                if (isParsing) "ပြင်ဆင်နေသည်..." else "ထည့်မည်",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 },
                 dismissButton = {
-                    TextButton(onClick = { if (!isParsing) { showPasteDialog = false; pasteText = "" } }) { Text("မလုပ်တော့") }
+                    if (pasteText.isNotBlank()) {
+                        // After pasting numbers: Cancel button appears alongside ထည့်မည်
+                        OutlinedButton(
+                            onClick = {
+                                if (!isParsing) {
+                                    showPasteDialog = false
+                                    pasteText = ""
+                                }
+                            },
+                            modifier = Modifier.height(42.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("မလုပ်တော့")
+                        }
+                    }
                 }
             )
         }

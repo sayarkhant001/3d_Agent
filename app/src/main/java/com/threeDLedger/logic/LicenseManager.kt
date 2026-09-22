@@ -377,4 +377,78 @@ class LicenseManager(private val context: Context) {
             isActivated()
         }
     }
+
+    suspend fun autoRestoreLicense(): Boolean = withContext(Dispatchers.IO) {
+        if (isActivated()) return@withContext true
+        val deviceFingerprint = getDeviceFingerprint()
+        val deviceModel = getDeviceModel()
+
+        // 1. Try Retrofit with Moshi
+        try {
+            val request = RestoreLicenseRequest(
+                device_fingerprint = deviceFingerprint,
+                device_model = deviceModel
+            )
+            val response = NetworkClient.licenseApi.restoreLicense(request)
+            if (response.isSuccessful && response.body() != null) {
+                val body = response.body()!!
+                if (body.status == "activated" && !body.token.isNullOrBlank()) {
+                    if (verifyToken(body.token)) {
+                        prefs.edit()
+                            .putString("jwt_token", body.token)
+                            .putString("active_cd_key", body.cd_key ?: "")
+                            .remove("pending_cd_key")
+                            .remove("expired_warning")
+                            .apply()
+                        return@withContext true
+                    }
+                } else if (body.status == "expired") {
+                    prefs.edit()
+                        .putString("expired_warning", body.message ?: "လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ")
+                        .apply()
+                }
+            }
+        } catch (_: Exception) {
+            // Fallback to direct OkHttp
+        }
+
+        // 2. Direct OkHttp + JSONObject fallback
+        try {
+            val jsonPayload = JSONObject().apply {
+                put("device_fingerprint", deviceFingerprint)
+                put("device_model", deviceModel)
+            }.toString()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            val req = okhttp3.Request.Builder()
+                .url("${NetworkClient.BASE_URL}/restore")
+                .header("User-Agent", "3DLedger-App/1.0")
+                .post(jsonPayload.toRequestBody(mediaType))
+                .build()
+            val resp = NetworkClient.okHttpClient.newCall(req).execute()
+            val respBody = resp.body?.string().orEmpty()
+            if (resp.isSuccessful && respBody.isNotBlank()) {
+                val json = JSONObject(respBody)
+                if (json.optString("status") == "activated") {
+                    val token = json.optString("token")
+                    val cdKey = json.optString("cd_key")
+                    if (token.isNotBlank() && verifyToken(token)) {
+                        prefs.edit()
+                            .putString("jwt_token", token)
+                            .putString("active_cd_key", cdKey)
+                            .remove("pending_cd_key")
+                            .remove("expired_warning")
+                            .apply()
+                        return@withContext true
+                    }
+                } else if (json.optString("status") == "expired") {
+                    prefs.edit()
+                        .putString("expired_warning", json.optString("message", "လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"))
+                        .apply()
+                }
+            }
+        } catch (_: Exception) {}
+
+        false
+    }
 }
+

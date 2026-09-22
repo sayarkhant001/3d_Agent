@@ -972,6 +972,32 @@ describe("3D Scraper & Telegram Bot Worker", () => {
 		await waitOnExecutionContext(ctx5);
 		expect(res5.status).toBe(200);
 	});
+
+	it("handles /restore endpoint gracefully when no key or active key is found", async () => {
+		// Test /restore with missing fingerprint
+		const missingReq = new IncomingRequest("http://example.com/restore", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({})
+		});
+		const ctx1 = createExecutionContext();
+		const res1 = await worker.fetch(missingReq, env, ctx1);
+		await waitOnExecutionContext(ctx1);
+		expect(res1.status).toBe(400);
+
+		// Test /restore with non-existent device fingerprint
+		const noneReq = new IncomingRequest("http://example.com/restore", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ device_fingerprint: "non_existent_device_123" })
+		});
+		const ctx2 = createExecutionContext();
+		const res2 = await worker.fetch(noneReq, env, ctx2);
+		await waitOnExecutionContext(ctx2);
+		expect(res2.status).toBe(200);
+		const data2 = await res2.json() as any;
+		expect(data2.status).toBe("none");
+	});
 });
 
 

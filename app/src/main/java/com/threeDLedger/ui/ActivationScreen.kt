@@ -50,10 +50,23 @@ fun ActivationScreen(
     val expiredWarning by remember { mutableStateOf(licenseManager.getExpiredWarning()) }
     var migrationNotice by remember { mutableStateOf<String?>(null) }
 
+    var isCheckingAutoRestore by remember { mutableStateOf(!licenseManager.isActivated()) }
+
     LaunchedEffect(Unit) {
         if (licenseManager.isActivated()) {
             onActivated()
+            return@LaunchedEffect
         }
+        // Attempt cloud auto-restore for previously activated device
+        try {
+            val restored = licenseManager.autoRestoreLicense()
+            if (restored) {
+                licenseManager.clearExpiredWarning()
+                onActivated()
+                return@LaunchedEffect
+            }
+        } catch (_: Exception) {}
+        isCheckingAutoRestore = false
     }
 
     // Polling while waiting for Admin's Telegram approval
@@ -82,6 +95,44 @@ fun ActivationScreen(
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
+        if (isCheckingAutoRestore) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth(if (dimens.isCompact) 0.88f else 0.75f)
+                    .widthIn(max = 380.dp)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(44.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp
+                    )
+                    Text(
+                        "လိုင်စင် အခြေအနေ စစ်ဆေးနေပါသည်...",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "ဤဖုန်းတွင် ယခင် အသုံးပြုခဲ့သော လိုင်စင် အသက်ဝင်နေမှုအား အလိုအလျောက် ပြန်လည် ချိတ်ဆက်နေပါသည်",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+                }
+            }
+        } else {
         Card(
             modifier = Modifier
                 .fillMaxWidth(if (dimens.isCompact) 0.96f else 0.92f)
@@ -595,8 +646,40 @@ fun ActivationScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    TextButton(
+                        onClick = {
+                            isLoading = true
+                            errorMessage = null
+                            coroutineScope.launch {
+                                val restored = licenseManager.autoRestoreLicense()
+                                isLoading = false
+                                if (restored) {
+                                    licenseManager.clearExpiredWarning()
+                                    onActivated()
+                                } else {
+                                    errorMessage = licenseManager.getExpiredWarning() ?: "ဤဖုန်းအတွက် အသက်ဝင်နေသော လိုင်စင် မတွေ့ရှိပါ"
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoading
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "🔄 ယခင် လိုင်စင် အလိုအလျောက် ပြန်လည်ရှာဖွေမည်",
+                            fontSize = dimens.responsiveSp(11.5.sp, 12.sp, 13.sp),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
             }
         }
     }
 }
+}
+
