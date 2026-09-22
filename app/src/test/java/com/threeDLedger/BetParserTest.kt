@@ -407,6 +407,54 @@ class BetParserTest {
         // 7. Strict enforcement: more than 3 digits in Myanmar numbers must be declined
         val rMore = validateAndParseLine("၁၂၃၄ = ၁၀၀၀", 7)
         assertTrue("More than 3 digits must be declined", rMore is LineParseResult.Error)
+
+        // 8. Myanmar numbers with thousand separator commas in amount
+        val rCommaAmt = validateAndParseLine("၁၂၃ = ၁၀,၀၀၀", 8)
+        assertTrue(rCommaAmt is LineParseResult.Success)
+        val betsCommaAmt = (rCommaAmt as LineParseResult.Success).bets
+        assertEquals(listOf("123" to 10000), betsCommaAmt)
+
+        // 9. Burmese direct bet term 'ဒဲ့'
+        val rDirect = validateAndParseLine("၁၂၃ ဒဲ့ = ၁၀၀၀", 9)
+        assertTrue(rDirect is LineParseResult.Success)
+        val betsDirect = (rDirect as LineParseResult.Success).bets
+        assertEquals(listOf("123" to 1000), betsDirect)
+
+        // 10. Burmese direct + round together: "၁၂၃ ဒဲ့ ၁၀၀၀ ပတ် ၅၀၀"
+        val rDirectAndRound = validateAndParseLine("၁၂၃ ဒဲ့ ၁၀၀၀ ပတ် ၅၀၀", 10)
+        assertTrue(rDirectAndRound is LineParseResult.Success)
+        val betsDR = (rDirectAndRound as LineParseResult.Success).bets
+        assertEquals(6, betsDR.size)
+        assertEquals("123" to 1000, betsDR[0])
+        assertTrue(betsDR.drop(1).all { it.second == 500 })
+
+        // 11. Alternate round spellings 'ပါတ်' and 'အာပတ်'
+        val rPat = validateAndParseLine("၁၂၃ ပါတ် = ၁၀၀၀", 11)
+        assertTrue(rPat is LineParseResult.Success)
+        assertEquals(6, (rPat as LineParseResult.Success).bets.size)
+
+        val rArPat = validateAndParseLine("၁၂၃ အာပတ် = ၁၀၀၀", 12)
+        assertTrue(rArPat is LineParseResult.Success)
+        assertEquals(6, (rArPat as LineParseResult.Success).bets.size)
+
+        // 12. Ignore Burmese voucher footer metadata: 'ကျသင့်ငွေ = ၅၀၀၀၀' and 'ကော်မရှင် = ၅၀၀၀'
+        val rTotal = validateAndParseLine("ကျသင့်ငွေ = ၅၀၀၀၀", 13)
+        assertTrue(rTotal is LineParseResult.Ignored)
+
+        val rComm = validateAndParseLine("ကော်မရှင် = ၅၀၀၀", 14)
+        assertTrue(rComm is LineParseResult.Ignored)
+
+        // 13. Whole paste with Myanmar numbers and commas
+        val pasteBlock = """
+            ၁။ ၁၂၃ = ၁၀၀၀
+            ၂။ ၄၅၆ ဒဲ့ ၁၀၀၀ ပတ် ၅၀၀
+            ၃။ ဝ၁၂ = ၅,၀၀၀
+            စုစုပေါင်း = ၅၀၀၀၀
+        """.trimIndent()
+        val pasteRes = validatePastedText(pasteBlock)
+        assertTrue("Paste result must be valid", pasteRes.isValid)
+        assertTrue("Must parse valid bets", pasteRes.validBets.isNotEmpty())
+        assertEquals(0, pasteRes.errors.size)
     }
 }
 

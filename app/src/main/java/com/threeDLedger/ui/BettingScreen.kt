@@ -47,7 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Myanmar digit to English digit converter, supporting digit zero (၀), consonant Wa (ဝ), and Burmese round terms
+// Myanmar digit to English digit converter, supporting digit zero (၀), consonant Wa (ဝ), Burmese round terms, and direct bet terms
 fun String.myanmarToEnglish(): String {
     val myanmarDigits = "၀၁၂၃၄၅၆၇၈၉"
     val englishDigits = "0123456789"
@@ -59,8 +59,10 @@ fun String.myanmarToEnglish(): String {
         }
     }.joinToString("")
 
-    // Normalize Burmese round terms (ပတ်လည် / ပတ်) to 'R'
-    res = res.replace(Regex("""(?:\s*\(?(?:ပတ်လည်|ပတ်)\)?\s*)"""), "R")
+    // Normalize Burmese round terms (ပတ်လည် / ပတ် / ပါတ်လည် / ပါတ် / အာပတ်) to 'R'
+    res = res.replace(Regex("""(?:\s*\(?(?:အာပတ်|ပတ်လည်|ပါတ်လည်|ပတ်|ပါတ်)\)?\s*)"""), "R")
+    // Normalize Burmese direct terms (ဒဲ့) to space/separator so it doesn't break number or amount parsing
+    res = res.replace(Regex("""(?:\s*\(?ဒဲ့\)?\s*)"""), " ")
     return res
 }
 
@@ -104,6 +106,8 @@ fun isVoucherMetadataLine(raw: String): Boolean {
         lower.contains("အကြိမ်") || 
         lower.contains("အချိန်") || 
         lower.contains("စုစုပေါင်း") || 
+        lower.contains("ကျသင့်ငွေ") || 
+        lower.contains("ကော်မရှင်") || 
         lower.contains("အထက်ဒိုင်") || 
         lower.contains("ရက်စွဲ") || 
         lower.contains("voucher") || 
@@ -256,10 +260,10 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
     line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d)"""), "").trim()
     if (line.isBlank()) return LineParseResult.Ignored
 
-    // 3. Prefix amount pattern e.g. "1000ဖိုး 123 456" or "1000 ks : 123 456" or "500ကျပ် = 123"
-    val prefixMatch = Regex("""^(\d+)\s*(?:ဖိုး|ks|ကျပ်)\s*[:=\-]?\s*(.+)$""", RegexOption.IGNORE_CASE).matchEntire(line)
+    // 3. Prefix amount pattern e.g. "1000ဖိုး 123 456" or "1,000 ks : 123 456" or "500ကျပ် = 123"
+    val prefixMatch = Regex("""^([\d,]+)\s*(?:ဖိုး|ks|ကျပ်)\s*[:=\-]?\s*(.+)$""", RegexOption.IGNORE_CASE).matchEntire(line)
     if (prefixMatch != null) {
-        val amt = prefixMatch.groupValues[1].toIntOrNull()
+        val amt = prefixMatch.groupValues[1].replace(",", "").toIntOrNull()
         val numPart = prefixMatch.groupValues[2].trim()
         if (amt == null || amt <= 0) {
             return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
@@ -269,11 +273,11 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
 
     // 4. Check for explicit '=' or ':' delimiter
     if (line.contains('=') || line.contains(':')) {
-        // Direct single bet format check e.g. "108 = 50", "108=50", "108:50"
-        val directMatch = Regex("""^([^\s=:.,_+\-]+)\s*[=:]\s*(\d+)$""").matchEntire(line)
+        // Direct single bet format check e.g. "108 = 50", "108=50", "108:50", "108=1,000"
+        val directMatch = Regex("""^([^\s=:.,_+\-]+)\s*[=:]\s*([\d,]+)$""").matchEntire(line)
         if (directMatch != null) {
             val numToken = directMatch.groupValues[1]
-            val amt = directMatch.groupValues[2].toIntOrNull()
+            val amt = directMatch.groupValues[2].replace(",", "").toIntOrNull()
             if (amt == null || amt <= 0) {
                 return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
             }
@@ -309,13 +313,13 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
             return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
         }
 
-        // Check if Left is Amount and Right is Numbers: e.g. "1000 = 123 456"
-        val leftClean = partLeft.replace(Regex("""\s*(?:ဖိုး|ks|ကျပ်)\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        // Check if Left is Amount and Right is Numbers: e.g. "1000 = 123 456" or "10,000 = 123 456"
+        val leftClean = partLeft.replace(Regex("""\s*(?:ဖိုး|ks|ကျပ်)\s*$""", RegexOption.IGNORE_CASE), "").replace(",", "").trim()
         val leftAsAmount = leftClean.toIntOrNull()
         val isLeftExplicitAmount = (leftAsAmount != null && leftAsAmount >= 1000 && !partLeft.contains(Regex("""[\s\-.,_+]"""))) ||
                 partLeft.endsWith("ဖိုး") || partLeft.endsWith("ks", ignoreCase = true) || partLeft.endsWith("ကျပ်")
 
-        val rightClean = partRight.replace(Regex("""\s*(?:ks|ကျပ်)\s*$""", RegexOption.IGNORE_CASE), "").trim()
+        val rightClean = partRight.replace(Regex("""\s*(?:ks|ကျပ်)\s*$""", RegexOption.IGNORE_CASE), "").replace(",", "").trim()
         val rightAmountMatch = Regex("""^(\d+)(?:\s*[Rr/]\s*(\d+))?$""").matchEntire(rightClean)
 
         if (isLeftExplicitAmount && rightAmountMatch == null && leftAsAmount != null && leftAsAmount > 0) {
@@ -340,13 +344,13 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
     // Step 2: normalise R, r, AND / -> "R"
     text = text.replace(ROUND_MARKERS_REGEX, "R")
 
-    val tailAmountRegex = Regex("""(?:[\s\-]|(?<=\d)R)\s*(\d+)(?:\s*R\s*(\d+))?$""")
+    val tailAmountRegex = Regex("""(?:[\s\-]|(?<=\d)R)\s*([\d,]+)(?:\s*R\s*([\d,]+))?$""")
     val tailMatch = tailAmountRegex.find(text)
 
     if (tailMatch != null) {
-        val candidateAmtStr = tailMatch.groupValues[1]
+        val candidateAmtStr = tailMatch.groupValues[1].replace(",", "")
         val candidateAmt = candidateAmtStr.toIntOrNull()
-        val candidateRAmt = tailMatch.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull()
+        val candidateRAmt = tailMatch.groupValues[2].takeIf { it.isNotEmpty() }?.replace(",", "")?.toIntOrNull()
         val prefixText = text.substring(0, tailMatch.range.first).trim()
 
         // PROTECTION RULE:
@@ -633,7 +637,11 @@ fun BettingScreen(
                 if (pendingBets.isNotEmpty()) {
                     showClearConfirmDialog = true
                 } else {
+                    val hadInput = tempNumber.isNotEmpty() || tempAmount != "1000"
                     clearAll()
+                    if (!hadInput) {
+                        android.widget.Toast.makeText(context, "ရှင်းရန် စာရင်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -1909,7 +1917,11 @@ fun BettingScreen(
                             if (pendingBets.isNotEmpty()) {
                                 showClearConfirmDialog = true
                             } else {
+                                val hadInput = tempNumber.isNotEmpty() || tempAmount != "1000"
                                 clearAll()
+                                if (!hadInput) {
+                                    android.widget.Toast.makeText(context, "ရှင်းရန် စာရင်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             }
                         }
                         TactileKeypadButton("0", modifier = Modifier.weight(1f)) { appendText("0") }
