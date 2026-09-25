@@ -142,7 +142,19 @@ function App() {
   // Auth state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+      if (u) {
+        const email = u.email?.toLowerCase().trim();
+        if (email === 'khaingkhantkyaw001@gmail.com') {
+          setUser(u);
+          setLoginError('');
+        } else {
+          signOut(auth);
+          setUser(null);
+          setLoginError('Access Denied: Only authorized administrator (khaingkhantkyaw001@gmail.com) is permitted.');
+        }
+      } else {
+        setUser(null);
+      }
       setLoading(false);
     });
     return unsubscribe;
@@ -213,37 +225,30 @@ function App() {
     e.preventDefault();
     setLoginError('');
     setLoggingIn(true);
-    const email = e.target.email?.value || 'admin@3d-ledger.com';
-    const password = e.target.password?.value || 'admin123456';
+    let email = (e.target.email?.value || '').trim();
+    if (email && !email.includes('@')) {
+      email = email + '@gmail.com';
+    } else if (email.endsWith('@gmail')) {
+      email = email + '.com';
+    }
+    const password = e.target.password?.value || '';
+
+    if (email.toLowerCase() !== 'khaingkhantkyaw001@gmail.com') {
+      setLoginError('Access Denied: Only authorized administrator (khaingkhantkyaw001@gmail.com) is permitted.');
+      setLoggingIn(false);
+      return;
+    }
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      if (userCredential.user.email?.toLowerCase() !== 'khaingkhantkyaw001@gmail.com') {
+        await signOut(auth);
+        setUser(null);
+        setLoginError('Access Denied: Unauthorized account.');
+      }
     } catch (err) {
       console.warn('Sign-in error:', err);
-      setLoginError('Invalid credentials. You can tap "1-Tap Admin Login" to enter automatically.');
-    }
-    setLoggingIn(false);
-  };
-
-  const quickLoginAdmin = async () => {
-    setLoginError('');
-    setLoggingIn(true);
-    try {
-      await signInWithEmailAndPassword(auth, 'admin@3d-ledger.com', 'admin123456');
-    } catch (err) {
-      console.warn('Direct sign-in fallback:', err);
-      setUser({ email: 'admin@3d-ledger.com', isDemo: true });
-    }
-    setLoggingIn(false);
-  };
-
-  const enterGuestMode = async () => {
-    setLoginError('');
-    setLoggingIn(true);
-    try {
-      await signInWithEmailAndPassword(auth, 'admin@3d-ledger.com', 'admin123456');
-    } catch (err) {
-      setUser({ email: 'admin@3d-ledger.com', isDemo: true });
+      setLoginError('Sign-in failed: Invalid credentials. Only authorized account is permitted.');
     }
     setLoggingIn(false);
   };
@@ -938,44 +943,16 @@ function App() {
       <div className="login-container">
         <div className="login-card">
           <div style={{ textAlign: 'center', marginBottom: 12 }}>
-            <span className="login-badge-pill">
-              <span className="live-pulse-dot"></span> Cloudflare Pages Live &bull; v2.4 PRO
+            <span className="login-badge-pill" style={{ borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}>
+              🔒 Restricted &bull; Authorized Admin Only
             </span>
           </div>
           <img src="/app_logo.jpg" alt="3D စာရင်း" className="app-logo-large" />
           <h1>3D Lottery Admin</h1>
           <p className="burmese-subtitle">3D စာရင်း PRO စီမံခန့်ခွဲမှုစနစ်</p>
-          <p className="subtitle">Sign in to manage your 3D Ledger system, keys & GLO results</p>
+          <p className="subtitle">Sign in with your authorized administrator credentials</p>
 
-          {loginError && <div className="login-error">{loginError}</div>}
-
-          {/* 1-Tap Quick Login Button */}
-          <div style={{ marginBottom: 20 }}>
-            <button
-              type="button"
-              className="btn btn-primary btn-full quick-login-btn"
-              onClick={quickLoginAdmin}
-              disabled={loggingIn}
-              style={{
-                background: 'linear-gradient(135deg, #4f46e5 0%, #059669 100%)',
-                boxShadow: '0 4px 18px rgba(79, 70, 229, 0.45)',
-                padding: '14px 18px',
-                fontSize: '15px',
-                fontWeight: '800',
-                letterSpacing: '0.2px',
-                borderRadius: '12px'
-              }}
-            >
-              {loggingIn ? '⏳ Logging in as Admin...' : '🚀 1-Tap Admin Login (တိုက်ရိုက် ဝင်မည်)'}
-            </button>
-            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-              အပေါ်ပါခလုတ်ကို ၁ ချက်နှိပ်ရုံဖြင့် Dashboard သို့ တိုက်ရိုက် ရောက်ရှိပါမည်
-            </div>
-          </div>
-
-          <div className="login-divider">
-            <span>OR SIGN IN WITH CREDENTIALS</span>
-          </div>
+          {loginError && <div className="login-error" style={{ marginBottom: 16 }}>{loginError}</div>}
 
           <form onSubmit={handleLogin}>
             <div className="form-group">
@@ -983,8 +960,8 @@ function App() {
               <input
                 name="email"
                 type="email"
-                defaultValue="admin@3d-ledger.com"
-                placeholder="admin@3d-ledger.com"
+                placeholder="khaingkhantkyaw001@gmail.com"
+                autoComplete="username"
                 required
               />
             </div>
@@ -993,36 +970,28 @@ function App() {
               <input
                 name="password"
                 type="password"
-                defaultValue="admin123456"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
             </div>
             <button
               type="submit"
-              className="btn btn-secondary btn-full"
+              className="btn btn-primary btn-full"
               disabled={loggingIn}
-              style={{ padding: '12px', fontWeight: '700' }}
+              style={{
+                padding: '14px',
+                fontWeight: '700',
+                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+              }}
             >
-              {loggingIn ? '⏳ Signing in...' : '🔐 Sign In (အကောင့်ဖြင့် ဝင်မည်)'}
+              {loggingIn ? '⏳ Verifying credentials...' : '🔐 Sign In (အကောင့်ဖြင့် ဝင်မည်)'}
             </button>
           </form>
 
-          <div style={{ marginTop: 20, textAlign: 'center' }}>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              onClick={enterGuestMode}
-              style={{
-                fontSize: 12,
-                borderStyle: 'dashed',
-                borderColor: 'rgba(52, 211, 153, 0.5)',
-                color: 'var(--accent-success)',
-                padding: '6px 14px'
-              }}
-            >
-              👀 Guest / Demo Preview Mode (စမ်းသပ်ကြည့်ရှုမည်)
-            </button>
+          <div style={{ marginTop: 24, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+            ⚠️ Public access is strictly prohibited. All actions are authenticated and secured.
           </div>
         </div>
       </div>
