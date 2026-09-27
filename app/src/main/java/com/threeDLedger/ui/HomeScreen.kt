@@ -1,5 +1,7 @@
 package com.threeDLedger.ui
 
+import com.threeDLedger.logic.LicenseManager
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -79,6 +81,14 @@ fun HomeScreen(
     val haptic = LocalHapticFeedback.current
     val rDimens = rememberResponsiveDimens()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val licenseManager = remember { LicenseManager(context) }
+    var showLicenseDetailsDialog by remember { mutableStateOf(false) }
+    var licenseDetails by remember { mutableStateOf(licenseManager.getLicenseDetails()) }
+
+    LaunchedEffect(Unit) {
+        licenseManager.syncServerTime()
+        licenseDetails = licenseManager.getLicenseDetails()
+    }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
 
     BackHandler {
@@ -152,18 +162,10 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onBackground,
                                     letterSpacing = 0.3.sp
                                 )
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-                                ) {
-                                    Text(
-                                        text = "PRO",
-                                        fontWeight = FontWeight.ExtraBold,
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                    )
-                                }
+                                LicenseStatusBadge(
+                                    licenseDetails = licenseDetails,
+                                    onClick = { showLicenseDetailsDialog = true }
+                                )
                             }
                             Text(
                                 text = currentDate,
@@ -539,6 +541,25 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
             }
+        }
+
+        if (showLicenseDetailsDialog) {
+            LicenseDetailsDialog(
+                licenseManager = licenseManager,
+                onDismiss = {
+                    showLicenseDetailsDialog = false
+                    licenseDetails = licenseManager.getLicenseDetails()
+                }
+            )
+        }
+
+        if (licenseDetails.isClockTampered) {
+            ClockTamperedBlockDialog(
+                licenseManager = licenseManager,
+                onRestored = {
+                    licenseDetails = licenseManager.getLicenseDetails()
+                }
+            )
         }
     }
 }

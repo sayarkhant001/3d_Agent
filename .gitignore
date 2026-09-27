@@ -30,3 +30,5 @@ log*.txt
 .venv/
 venv/
 __pycache__/
+
+customHtml/

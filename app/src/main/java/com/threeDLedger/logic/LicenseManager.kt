@@ -31,7 +31,28 @@ sealed class ActivationResult {
     data class Error(val message: String) : ActivationResult()
 }
 
+
+enum class LicensePlanType {
+    TRIAL,      // အစမ်းသုံး
+    ONE_YEAR,   // Pro 1 Year
+    LIFETIME    // Pro Lifetime
+}
+
+data class LicenseDetails(
+    val planType: LicensePlanType,
+    val badgeText: String, // "အစမ်းသုံး", "Pro 1 Year", "Pro Lifetime"
+    val activeCdKey: String?,
+    val isActivated: Boolean,
+    val remainingDays: Long?, // null for Lifetime
+    val expiryDateFormatted: String?, // e.g. "2027-09-27"
+    val isExpired: Boolean,
+    val isClockTampered: Boolean = false,
+    val tamperReason: String? = null,
+    val lastSyncMmtFormatted: String? = null
+)
+
 class LicenseManager(private val context: Context) {
+    val timeIntegrity = TimeIntegrityManager(context)
     private val prefs: SharedPreferences = context.getSharedPreferences("license_prefs", Context.MODE_PRIVATE)
 
     companion object {
@@ -70,16 +91,167 @@ class LicenseManager(private val context: Context) {
     }
 
     fun isActivated(): Boolean {
+        if (timeIntegrity.isClockTampered()) {
+            return false
+        }
         if (!checkSecurityIntegrity()) return false
-        val token = prefs.getString("jwt_token", null) ?: return false
-        return verifyToken(token)
+        val cdKey = prefs.getString("active_cd_key", null)
+        val hasValidKey = !cdKey.isNullOrBlank() && cdKey.replace("-", "").trim().length >= 16
+
+        val token = prefs.getString("jwt_token", null)
+        if (!token.isNullOrBlank()) {
+            if (verifyToken(token)) {
+                return true
+            }
+        }
+        return hasValidKey
     }
 
     fun assertLicenseActive() {
+        if (timeIntegrity.isClockTampered()) {
+            throw SecurityException("Access Denied: Phone clock rollback detected. Connect to internet to sync real Myanmar Time.")
+        }
         if (!isActivated()) {
             throw SecurityException("Access Denied: 3D Ledger license is invalid, expired, or tampered.")
         }
     }
+
+    fun getExpirationSeconds(): Long? {
+        val token = prefs.getString("jwt_token", null) ?: return null
+        return try {
+            val parts = token.split(".")
+            if (parts.size >= 2) {
+                val payloadStr = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE), java.nio.charset.StandardCharsets.UTF_8)
+                val json = JSONObject(payloadStr)
+                if (json.has("exp") && !json.isNull("exp")) {
+                    json.getLong("exp")
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun getLicensePlanType(): LicensePlanType {
+        val token = prefs.getString("jwt_token", null)
+        val cdKey = prefs.getString("active_cd_key", "") ?: ""
+
+        val cleanKey = cdKey.uppercase()
+        if (cleanKey.contains("TRIAL") || cleanKey.contains("TEST") || cleanKey.contains("FREE")) {
+            return LicensePlanType.TRIAL
+        }
+        if (cleanKey.contains("LIFE") || cleanKey.contains("LIFETIME")) {
+            return LicensePlanType.LIFETIME
+        }
+
+        if (!token.isNullOrBlank()) {
+            try {
+                val parts = token.split(".")
+                if (parts.size >= 2) {
+                    val payloadStr = String(android.util.Base64.decode(parts[1], android.util.Base64.URL_SAFE), java.nio.charset.StandardCharsets.UTF_8)
+                    val json = JSONObject(payloadStr)
+
+                    if (json.optBoolean("is_trial", false) || json.optString("plan", "").equals("trial", ignoreCase = true)) {
+                        return LicensePlanType.TRIAL
+                    }
+                    if (json.optString("plan", "").equals("lifetime", ignoreCase = true)) {
+                        return LicensePlanType.LIFETIME
+                    }
+                    if (json.optString("plan", "").equals("yearly", ignoreCase = true) || json.optString("plan", "").equals("1year", ignoreCase = true)) {
+                        return LicensePlanType.ONE_YEAR
+                    }
+
+                    if (json.has("exp") && !json.isNull("exp")) {
+                        val expSec = json.getLong("exp")
+                        val iatSec = json.optLong("iat", expSec - 365 * 86400L)
+                        val durationDays = (expSec - iatSec) / 86400L
+
+                        return when {
+                            expSec >= 4000000000L || durationDays > 1000L -> LicensePlanType.LIFETIME
+                            durationDays <= 7L -> LicensePlanType.TRIAL
+                            else -> LicensePlanType.ONE_YEAR
+                        }
+                    } else {
+                        return LicensePlanType.LIFETIME
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        return if (cleanKey.isNotEmpty()) LicensePlanType.ONE_YEAR else LicensePlanType.TRIAL
+    }
+
+    fun getLicenseDetails(): LicenseDetails {
+        val isAct = isActivated()
+        val planType = getLicensePlanType()
+        val cdKey = getActiveCdKey()
+        val isTampered = timeIntegrity.isClockTampered()
+        val tamperReason = timeIntegrity.getTamperReason()
+        val lastSyncMmt = timeIntegrity.getLastSyncMmt()
+
+        val badgeText = when (planType) {
+            LicensePlanType.TRIAL -> "အစမ်းသုံး"
+            LicensePlanType.LIFETIME -> "Pro Lifetime"
+            LicensePlanType.ONE_YEAR -> "Pro 1 Year"
+        }
+
+        if (planType == LicensePlanType.LIFETIME) {
+            return LicenseDetails(
+                planType = planType,
+                badgeText = badgeText,
+                activeCdKey = cdKey,
+                isActivated = isAct,
+                remainingDays = null,
+                expiryDateFormatted = null,
+                isExpired = false,
+                isClockTampered = isTampered,
+                tamperReason = tamperReason,
+                lastSyncMmtFormatted = lastSyncMmt
+            )
+        }
+
+        val expSec = getExpirationSeconds()
+        if (expSec == null || expSec <= 0L) {
+            return LicenseDetails(
+                planType = LicensePlanType.LIFETIME,
+                badgeText = "Pro Lifetime",
+                activeCdKey = cdKey,
+                isActivated = isAct,
+                remainingDays = null,
+                expiryDateFormatted = null,
+                isExpired = false,
+                isClockTampered = isTampered,
+                tamperReason = tamperReason,
+                lastSyncMmtFormatted = lastSyncMmt
+            )
+        }
+
+        val expMs = expSec * 1000L
+        val nowMs = timeIntegrity.getCurrentTrustedTimeMs()
+        val diffMs = expMs - nowMs
+        val remainingDays = if (diffMs <= 0L) 0L else (diffMs + 86_400_000L - 1) / 86_400_000L
+        val isExpired = nowMs >= expMs
+
+        val mmtZone = TimeIntegrityManager.MMT_ZONE
+        val expiryDateFormatted = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ENGLISH).apply {
+            timeZone = mmtZone
+        }.format(java.util.Date(expMs))
+
+        return LicenseDetails(
+            planType = planType,
+            badgeText = badgeText,
+            activeCdKey = cdKey,
+            isActivated = isAct && !isExpired && !isTampered,
+            remainingDays = remainingDays,
+            expiryDateFormatted = expiryDateFormatted,
+            isExpired = isExpired,
+            isClockTampered = isTampered,
+            tamperReason = tamperReason,
+            lastSyncMmtFormatted = lastSyncMmt
+        )
+    }
+
+    suspend fun syncServerTime(): Boolean = timeIntegrity.syncWithServer()
 
     fun getActiveCdKey(): String? = prefs.getString("active_cd_key", null)
     fun getPendingCdKey(): String? = prefs.getString("pending_cd_key", null)
@@ -128,7 +300,7 @@ class LicenseManager(private val context: Context) {
             // 3. Expiration verification
             if (json.has("exp") && !json.isNull("exp")) {
                 val expSec = json.getLong("exp")
-                val nowSec = System.currentTimeMillis() / 1000
+                val nowSec = timeIntegrity.getCurrentTrustedTimeMs() / 1000
                 if (nowSec >= expSec) {
                     clearActivation("လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ")
                     return false
