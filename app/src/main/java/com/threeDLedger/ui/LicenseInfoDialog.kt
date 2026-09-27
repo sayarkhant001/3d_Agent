@@ -207,21 +207,69 @@ fun LicenseDetailsDialog(
                             )
                         }
 
-                        // CD-Key masked
+                        // CD-Key with One-Tap Copy
                         val rawKey = currentDetails.activeCdKey
                         if (!rawKey.isNullOrBlank()) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("လိုင်စင်ကုတ် :", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                val maskedKey = if (rawKey.length > 8) {
-                                    "${rawKey.take(4)}-****-****-${rawKey.takeLast(4)}"
-                                } else rawKey
-                                Text(
-                                    text = maskedKey,
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 12.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+                            val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(rawKey))
+                                    android.widget.Toast.makeText(context, "CD Key ($rawKey) ကူးယူပြီးပါပြီ။ အခြားစက်များတွင် အသုံးပြုနိုင်ပါသည်", android.widget.Toast.LENGTH_LONG).show()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                color = MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "လိုင်စင် CD-Key (ကူးယူရန် နှိပ်ပါ) :",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = rawKey,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            color = EmeraldPrimary,
+                                            letterSpacing = 0.5.sp
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = EmeraldLight.copy(alpha = 0.6f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.ContentCopy,
+                                                contentDescription = "Copy CD Key",
+                                                tint = EmeraldPrimary,
+                                                modifier = Modifier.size(13.dp)
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "ကူးယူမည်",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = EmeraldPrimary
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
 

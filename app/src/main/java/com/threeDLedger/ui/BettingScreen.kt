@@ -519,6 +519,7 @@ fun BettingScreen(
     var tempNumber   by remember { mutableStateOf("") }
     var tempAmount   by remember { mutableStateOf("1000") }
     var tempRemark   by remember { mutableStateOf("") }
+    var isFreshAmountInput by remember { mutableStateOf(true) }
     var showManualKeypad by remember { mutableStateOf(false) }
 
     val coroutineScope = rememberCoroutineScope()
@@ -526,8 +527,8 @@ fun BettingScreen(
     val quickAmounts = listOf("100", "300", "500", "1000", "2000", "5000", "10000")
 
     fun addBets(numbers: List<String>) {
-        val amount = tempAmount.toIntOrNull() ?: 0
-        if (amount <= 0) return
+        val amount = tempAmount.toIntOrNull() ?: 1000
+        if (amount <= 0 || numbers.isEmpty()) return
 
         val candidateBets = numbers.map { num -> Bet(voucherId = 0, number = num, amount = amount) }
         val pendingMap = pendingBets.groupBy { it.number }.mapValues { (_, list) -> list.sumOf { it.amount } }
@@ -541,40 +542,193 @@ fun BettingScreen(
             bannedRemovalsNotification = removals
         }
 
-        tempNumber = "" // reset temp input
+        tempNumber = ""
+        currentBetType = "ဒဲ့"
         focusedField = FocusField.NUMBER
+        isFreshAmountInput = true
     }
-    
+
     fun appendText(txt: String) {
         if (focusedField == FocusField.NUMBER) {
-            if (tempNumber.length < 3) tempNumber += txt
-        } else {
-            if (tempAmount == "0" || tempAmount.isEmpty()) {
-                tempAmount = txt
+            if (tempNumber.length < 3) {
+                tempNumber += txt
+                isFreshAmountInput = true
             } else {
-                tempAmount += txt
+                // Number has 3 digits (e.g. 345) -> auto overflow excess digits into amount field!
+                focusedField = FocusField.AMOUNT
+                tempAmount = txt
+                isFreshAmountInput = false
+            }
+        } else {
+            // Currently focused on AMOUNT
+            if (isFreshAmountInput || tempAmount == "0" || tempAmount.isEmpty()) {
+                tempAmount = txt
+                isFreshAmountInput = false
+            } else {
+                if (tempAmount.length < 9) {
+                    tempAmount += txt
+                }
             }
         }
     }
-    
+
     fun backspace() {
-        if (focusedField == FocusField.NUMBER && tempNumber.isNotEmpty()) {
-            tempNumber = tempNumber.dropLast(1)
-        } else if (focusedField == FocusField.AMOUNT && tempAmount.isNotEmpty()) {
-            tempAmount = tempAmount.dropLast(1)
+        if (focusedField == FocusField.AMOUNT) {
+            if (tempAmount.isNotEmpty()) {
+                tempAmount = tempAmount.dropLast(1)
+            } else {
+                focusedField = FocusField.NUMBER
+            }
+        } else if (focusedField == FocusField.NUMBER) {
+            if (tempNumber.isNotEmpty()) {
+                tempNumber = tempNumber.dropLast(1)
+            }
         }
     }
-    
+
     fun clearAll() {
         tempNumber = ""
         tempAmount = "1000"
+        currentBetType = "ဒဲ့"
         focusedField = FocusField.NUMBER
+        isFreshAmountInput = true
     }
-    
-    // Async paste processing — validates all bets and adds them off the main thread.
-    // Declines the whole paste if any numbers are less than 3 digits or in wrong format.
-    // For <= 500 resulting bets: adds to pendingBets (shows in list).
-    // For > 500: submits directly as a voucher so the list never lags.
+
+    fun submit() {
+        val digits = tempNumber.trim()
+        val num = digits.toIntOrNull()
+        val amt = tempAmount.toIntOrNull() ?: 1000
+        if (amt <= 0) return
+
+        var betsToAdd: List<String> = emptyList()
+
+        when (currentBetType) {
+            "ဒဲ့" -> {
+                if (digits.length == 3) betsToAdd = listOf(digits)
+            }
+            "R" -> {
+                if (digits.length == 3) betsToAdd = NumberGenerator.permutations(digits)
+            }
+            "ထွိုင်", "အပူး" -> betsToAdd = NumberGenerator.tri()
+            "ထိပ်" -> {
+                if (num != null && digits.length == 1) betsToAdd = NumberGenerator.head(num)
+            }
+            "လယ်" -> {
+                if (num != null && digits.length == 1) betsToAdd = NumberGenerator.middle(num)
+            }
+            "ပိတ်" -> {
+                if (num != null && digits.length == 1) betsToAdd = NumberGenerator.tail(num)
+            }
+            "အပါ" -> {
+                if (num != null && digits.length == 1) betsToAdd = NumberGenerator.include(num)
+            }
+            "ဘရိတ်" -> {
+                if (num != null && digits.length == 1) betsToAdd = NumberGenerator.breakNum(num)
+            }
+            "ရှေ့ပူး" -> betsToAdd = NumberGenerator.frontDouble()
+            "နောက်ပူး" -> betsToAdd = NumberGenerator.backDouble()
+            "အခွ" -> betsToAdd = NumberGenerator.cycle()
+            "ရှေ့စီးရီး" -> {
+                if (digits.length == 2) betsToAdd = NumberGenerator.frontSeries(digits[0].digitToInt(), digits[1].digitToInt())
+            }
+            "လယ်စီးရီး" -> {
+                if (digits.length == 2) betsToAdd = NumberGenerator.middleSeries(digits[0].digitToInt(), digits[1].digitToInt())
+            }
+            "နောက်စီးရီး" -> {
+                if (digits.length == 2) betsToAdd = NumberGenerator.backSeries(digits[0].digitToInt(), digits[1].digitToInt())
+            }
+            else -> {
+                if (digits.length == 3) betsToAdd = listOf(digits)
+            }
+        }
+
+        if (betsToAdd.isNotEmpty()) {
+            addBets(betsToAdd)
+        }
+    }
+
+    fun handleSpecial(cmd: String) {
+        when (cmd) {
+            "R" -> {
+                currentBetType = "R"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "ထွိုင်", "အပူး" -> {
+                currentBetType = "ထွိုင်"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "ထိပ်" -> {
+                currentBetType = "ထိပ်"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "လယ်" -> {
+                currentBetType = "လယ်"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "ပိတ်" -> {
+                currentBetType = "ပိတ်"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "အပါ" -> {
+                currentBetType = "အပါ"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "ဘရိတ်" -> {
+                currentBetType = "ဘရိတ်"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "ရှေ့ပူး" -> {
+                currentBetType = "ရှေ့ပူး"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "နောက်ပူး" -> {
+                currentBetType = "နောက်ပူး"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "အခွ" -> {
+                currentBetType = "အခွ"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "ရှေ့စီးရီး" -> {
+                currentBetType = "ရှေ့စီးရီး"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "လယ်စီးရီး" -> {
+                currentBetType = "လယ်စီးရီး"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "နောက်စီးရီး" -> {
+                currentBetType = "နောက်စီးရီး"
+                focusedField = FocusField.AMOUNT
+                isFreshAmountInput = true
+            }
+            "/", "ဖျက်" -> backspace()
+            "ရှင်းပါ" -> {
+                if (pendingBets.isNotEmpty()) {
+                    showClearConfirmDialog = true
+                } else {
+                    val hadInput = tempNumber.isNotEmpty() || tempAmount != "1000" || currentBetType != "ဒဲ့"
+                    clearAll()
+                    if (!hadInput) {
+                        android.widget.Toast.makeText(context, "ရှင်းရန် စာရင်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+    }
+
     fun addBetsFromPasteAsync(text: String) {
         val validation = validatePastedText(text)
         if (!validation.isValid) {
@@ -622,50 +776,6 @@ fun BettingScreen(
         }
     }
 
-
-    fun submit() {
-        val num = tempNumber.toIntOrNull()
-        val digits = tempNumber
-
-        if (tempNumber.isEmpty()) return
-
-        when (currentBetType) {
-            "ဒဲ့" -> if (digits.length == 3) addBets(listOf(digits))
-            "ထိပ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.head(num))
-            "လယ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.middle(num))
-            "ပိတ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.tail(num))
-            "အပါ" -> if (num != null && digits.length == 1) addBets(NumberGenerator.include(num))
-        }
-    }
-
-    fun handleSpecial(cmd: String) {
-        val num = tempNumber.toIntOrNull()
-        val digits = tempNumber
-        when (cmd) {
-            "ရှေ့စီးရီး" -> if (digits.length == 2) addBets(NumberGenerator.frontSeries(digits[0].digitToInt(), digits[1].digitToInt()))
-            "လယ်စီးရီး" -> if (digits.length == 2) addBets(NumberGenerator.middleSeries(digits[0].digitToInt(), digits[1].digitToInt()))
-            "နောက်စီးရီး" -> if (digits.length == 2) addBets(NumberGenerator.backSeries(digits[0].digitToInt(), digits[1].digitToInt()))
-            "ဘရိတ်" -> if (num != null && digits.length == 1) addBets(NumberGenerator.breakNum(num))
-            "ထွိုင်" -> addBets(NumberGenerator.tri())
-            "ရှေ့ပူး" -> addBets(NumberGenerator.frontDouble())
-            "နောက်ပူး" -> addBets(NumberGenerator.backDouble())
-            "အခွ" -> addBets(NumberGenerator.cycle())
-            "R" -> if (digits.length == 3) addBets(NumberGenerator.permutations(digits))
-            "/" -> backspace()
-            "ဖျက်" -> backspace()
-            "ရှင်းပါ" -> {
-                if (pendingBets.isNotEmpty()) {
-                    showClearConfirmDialog = true
-                } else {
-                    val hadInput = tempNumber.isNotEmpty() || tempAmount != "1000"
-                    clearAll()
-                    if (!hadInput) {
-                        android.widget.Toast.makeText(context, "ရှင်းရန် စာရင်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
-        }
-    }
 
     fun submitVoucher() {
         if (selectedCustomer == null) {
@@ -1868,6 +1978,7 @@ fun BettingScreen(
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 focusedField = FocusField.AMOUNT
+                            isFreshAmountInput = true
                             },
                         contentAlignment = Alignment.Center
                     ) {
