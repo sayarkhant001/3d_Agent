@@ -184,8 +184,8 @@ fun OverflowScreen(
                 appendLine(" ${idx + 1}. $num = $amt")
             }
             appendLine("------------------------")
-            appendLine(" စုစုပေါင်း : ${snapshot.total} Ks")
-            appendLine("   * အထက်ဒိုင် တင်ကွက် *  ")
+            appendLine(" စုစုပေါင်း : %,d ကျပ်".format(snapshot.total))
+            appendLine("    * တင်ကွက် *    ")
         }
 
         Dialog(
@@ -290,7 +290,7 @@ fun OverflowScreen(
                                     textAlign = TextAlign.Center
                                 )
                                 Text(
-                                    "$amt Ks",
+                                    "$amt ကျပ်",
                                     fontSize = 16.sp,
                                     color = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.weight(1f),
@@ -312,7 +312,7 @@ fun OverflowScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("စုစုပေါင်း", color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
-                        Text("${snapshot.total} Ks", color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
+                        Text("%,d ကျပ်".format(snapshot.total), color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(Modifier.height(12.dp))
@@ -336,7 +336,7 @@ fun OverflowScreen(
                                             customerName = "အထက်ဒိုင် (တင်ကွက်)",
                                             bets = snapshot.items,
                                             totalAmount = snapshot.total,
-                                            footerText = "*** အထက်ဒိုင် တင်ကွက် ***"
+                                            footerText = "*** တင်ကွက် ***"
                                         )
                                         val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
                                         com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)

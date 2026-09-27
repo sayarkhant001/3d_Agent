@@ -343,7 +343,7 @@ fun WinnerScreen(
                                 color = Color.White
                             )
                             Text(
-                                "${results.size} ကြိမ် ပေါက် — %,.0f Ks".format(grandTotal),
+                                "${results.size} ကြိမ် ပေါက် — %,.0f ကျပ်".format(grandTotal),
                                 fontSize = 11.5.sp,
                                 color = Color.White.copy(alpha = 0.9f)
                             )
@@ -559,6 +559,46 @@ fun WinnerScreen(
     }
 }
 
+
+data class DrawScheduleInfo(
+    val isDrawDay: Boolean,
+    val isAfterDrawTime: Boolean,
+    val nextDrawDateStr: String,
+    val statusBannerText: String
+)
+
+fun getNext3DDrawInfo(): DrawScheduleInfo {
+    val cal = java.util.Calendar.getInstance()
+    val day = cal.get(java.util.Calendar.DAY_OF_MONTH)
+    val month = cal.get(java.util.Calendar.MONTH)
+    val year = cal.get(java.util.Calendar.YEAR)
+    val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+    val min = cal.get(java.util.Calendar.MINUTE)
+
+    val monthNames = arrayOf("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
+    val burmeseMonths = arrayOf("ဇန်နဝါရီ", "ဖေဖော်ဝါရီ", "မတ်", "ဧပြီ", "မေ", "ဇွန်", "ဇူလိုင်", "ဩဂုတ်", "စက်တင်ဘာ", "အောက်တိုဘာ", "နိုဝင်ဘာ", "ဒီဇင်ဘာ")
+
+    val isDrawDay = (day == 1 || day == 16)
+    val isAfterDrawTime = (hour > 15 || (hour == 15 && min >= 30))
+
+    val (nextDay, nextMonthName, nextYear) = when {
+        day == 1 && !isAfterDrawTime -> Triple(1, burmeseMonths[month], year)
+        day < 16 && !(day == 1 && isAfterDrawTime) -> Triple(16, burmeseMonths[month], year)
+        day == 16 && !isAfterDrawTime -> Triple(16, burmeseMonths[month], year)
+        else -> {
+            val nextCal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, 1) }
+            Triple(1, burmeseMonths[nextCal.get(java.util.Calendar.MONTH)], nextCal.get(java.util.Calendar.YEAR))
+        }
+    }
+    val nextDrawStr = "$nextDay ရက် $nextMonthName $nextYear (ညနေ ၃:၃၀)"
+    val statusBanner = when {
+        isDrawDay && isAfterDrawTime -> "🟢 ယနေ့ ပေါက်ဂဏန်း ထွက်ရှိပြီးပါပြီ"
+        isDrawDay -> "⏳ ယနေ့ ပေါက်ဂဏန်း ထွက်မည့်ရက် ဖြစ်ပါသည် (ညနေ ၃:၃၀)"
+        else -> "📅 နောက်တစ်ကြိမ် ထွက်မည့်ရက်: $nextDrawStr"
+    }
+    return DrawScheduleInfo(isDrawDay, isAfterDrawTime, nextDrawStr, statusBanner)
+}
+
 // ── Input card ────────────────────────────────────────────────────────────────
 
 @Composable
@@ -582,12 +622,39 @@ private fun InputCard(
                 leadingIcon = { Icon(Icons.Default.Numbers, null) },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
 
+            val drawSchedule = remember { getNext3DDrawInfo() }
+
+            // 3D Draw Schedule Banner
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                    Text(
+                        text = drawSchedule.statusBannerText,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
             // GLO Recommendation Pill (if fetched and not applied)
             if (!fetchedGloNumber.isNullOrEmpty() && winningNumber != fetchedGloNumber) {
+                val isPastResult = !(drawSchedule.isDrawDay && drawSchedule.isAfterDrawTime)
                 Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
+                    color = if (isPastResult) Color(0xFFFEF3C7) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.45f),
                     shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f))
+                    border = BorderStroke(1.dp, if (isPastResult) Color(0xFFFDE68A) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.25f))
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
@@ -595,17 +662,30 @@ private fun InputCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "🇹🇭 GLO ထွက်ဂဏန်း: $fetchedGloNumber",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (isPastResult) Color(0xFF92400E) else MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                if (isPastResult) {
+                                    Text(
+                                        "(ယခင်အကြိမ်)",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFB45309)
+                                    )
+                                }
+                            }
                             Text(
-                                "🇹🇭 GLO ထွက်ဂဏန်း: $fetchedGloNumber",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                            Text(
-                                if (!fetchedGloDate.isNullOrEmpty()) "ရက်စွဲ: $fetchedGloDate (ယခင်အကြိမ် ဖြစ်နိုင်ပါသည်)"
-                                else "ယခင်အကြိမ် ထွက်ဂဏန်း ဖြစ်နိုင်ပါသည်",
+                                if (isPastResult) "ရက်စွဲ: ${fetchedGloDate ?: ""} (ယခင်အကြိမ် ပြီးဆုံးပြီး ဖြစ်ပါသည်)"
+                                else "ရက်စွဲ: ${fetchedGloDate ?: ""} (ယနေ့ ထွက်ရှိပြီး)",
                                 fontSize = 10.5.sp,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                color = if (isPastResult) Color(0xFFB45309) else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Spacer(Modifier.width(8.dp))
@@ -673,10 +753,10 @@ private fun InputCard(
                     contentColor   = Color.White
                 )
             ) {
-                Icon(Icons.Default.Verified, null, Modifier.size(18.dp))
+                Icon(Icons.Default.Calculate, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    "🚨 ပေါက်သီး အတည်ပြု ကြေညာသည်",
+                    "ပေါက်သီးတွက်ချက်ရန် နှိပ်ပါ",
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
@@ -890,7 +970,7 @@ private fun PendingBatchBanner(
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "လက်ရှိ ထိုးငွေ စုစုပေါင်း: %,d Ks (${voucherCount} ဘောင်ချာ)".format(totalBets),
+                    "လက်ရှိ ထိုးငွေ စုစုပေါင်း: %,d ကျပ် (${voucherCount} ဘောင်ချာ)".format(totalBets),
                     fontSize = 11.sp,
                     color = Color(0xFFB45309)
                 )
@@ -976,7 +1056,7 @@ private fun GrandTotalBar(
             ) {
                 Text("အောက်ဒိုင်သို့ လျော်ရန်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    "- %,.0f Ks".format(grandTotal),
+                    "- %,.0f ကျပ်".format(grandTotal),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp,
                     fontFamily = FontFamily.Monospace,
@@ -994,7 +1074,7 @@ private fun GrandTotalBar(
                 ) {
                     Text("အထက်ဒိုင်မှ ရရန် (တင်ကွက်)", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(
-                        "+ %,.0f Ks".format(overflowWonTotal),
+                        "+ %,.0f ကျပ်".format(overflowWonTotal),
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 15.sp,
                         fontFamily = FontFamily.Monospace,
@@ -1015,7 +1095,7 @@ private fun GrandTotalBar(
                 val netColor = if (netBalance >= 0) Color(0xFF059669) else Color(0xFFDC2626)
                 Text(netLabel, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    "%,.0f Ks".format(netBalance),
+                    "%,.0f ကျပ်".format(netBalance),
                     fontWeight = FontWeight.Black,
                     fontSize = 16.sp,
                     fontFamily = FontFamily.Monospace,
@@ -1073,16 +1153,16 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (agent.totalPayout > 0) {
-                        Text("%,.0f Ks".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
+                        Text("%,.0f ကျပ်".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp, fontFamily = FontFamily.Monospace,
                             color = Color(0xFFDC2626))  // Red for payout to give
                     } else {
-                        Text("0 Ks", fontWeight = FontWeight.Bold,
+                        Text("၀ ကျပ်", fontWeight = FontWeight.Bold,
                             fontSize = 15.sp, fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text(
-                        "${agent.vouchers.size} ဘောင်ချာ  •  ထိုးငွေ %,d Ks".format(agent.totalBet),
+                        "${agent.vouchers.size} ဘောင်ချာ  •  ထိုးငွေ %,d ကျပ်".format(agent.totalBet),
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1148,7 +1228,7 @@ private fun OverflowWinCard(item: OverflowWinResult) {
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "တင်ငွေ: %,d Ks".format(item.amount),
+                    "တင်ငွေ: %,d ကျပ်".format(item.amount),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontFamily = FontFamily.Monospace
@@ -1162,7 +1242,7 @@ private fun OverflowWinCard(item: OverflowWinResult) {
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    "+%,.0f Ks".format(item.payoutAmount),
+                    "+%,.0f ကျပ်".format(item.payoutAmount),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     fontFamily = FontFamily.Monospace,
@@ -1198,17 +1278,17 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (vs.totalPayout > 0) {
-                        Text("%,.0f Ks".format(vs.totalPayout), fontWeight = FontWeight.Bold,
+                        Text("%,.0f ကျပ်".format(vs.totalPayout), fontWeight = FontWeight.Bold,
                             fontSize = 13.sp, fontFamily = FontFamily.Monospace,
                             color = Color(0xFFDC2626),
                             modifier = Modifier.padding(end = 4.dp))
                     } else {
-                        Text("0 Ks", fontWeight = FontWeight.SemiBold,
+                        Text("၀ ကျပ်", fontWeight = FontWeight.SemiBold,
                             fontSize = 13.sp, fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(end = 4.dp))
                     }
-                    Text("ထိုးငွေ: %,d Ks".format(vs.totalBetAmount),
+                    Text("ထိုးငွေ: %,d ကျပ်".format(vs.totalBetAmount),
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -1250,9 +1330,9 @@ private fun BetResultRow(result: WinnerResult) {
         WinTypeBadge(label, color)
         Spacer(Modifier.weight(1f))
         Column(horizontalAlignment = Alignment.End) {
-            Text("%,d Ks".format(result.betAmount), fontSize = 11.sp,
+            Text("%,d ကျပ်".format(result.betAmount), fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
-            Text("→ %,.0f Ks".format(result.payoutAmount), fontWeight = FontWeight.Bold,
+            Text("→ %,.0f ကျပ်".format(result.payoutAmount), fontWeight = FontWeight.Bold,
                 fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = color)
         }
     }
@@ -1421,4 +1501,5 @@ private fun tryRayriffyApi(): Pair<String, String>? {
         null
     }
 }
+
 

@@ -408,35 +408,20 @@ fun CustomerCard(
                     }
                 }
 
-                // Action 1: "ထိုးမည်" (Quick Bet shortcut)
+                // Action 1: "+ ထိုးမည်" (Enlarged and isolated to avoid accidental touch)
                 FilledTonalButton(
                     onClick = onAddBetTap,
                     shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.primary
                     ),
-                    modifier = Modifier.height(32.dp)
+                    modifier = Modifier.height(36.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(Modifier.width(2.dp))
-                    Text("ထိုးမည်", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(Modifier.width(4.dp))
-
-                // Action 2: Edit customer
-                IconButton(
-                    onClick = onEditTap,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "ပြင်ဆင်မည်",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.size(17.dp)
-                    )
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("+ ထိုးမည်", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
 
@@ -465,12 +450,13 @@ fun CustomerCard(
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "%,d Ks".format(totalAmount),
+                        "%,d ကျပ်".format(totalAmount),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         fontFamily = FontFamily.Monospace,
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -484,16 +470,19 @@ fun CustomerCard(
                         "ကော်မရှင်",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "%,d Ks".format(commCut),
+                        "%,d ကျပ်".format(commCut),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = GoldAccent,
                         fontFamily = FontFamily.Monospace,
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -507,16 +496,19 @@ fun CustomerCard(
                         "နုတ်ပြီးငွေ",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "%,d Ks".format(netAmount),
+                        "%,d ကျပ်".format(netAmount),
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary,
                         fontFamily = FontFamily.Monospace,
                         maxLines = 1,
+                        softWrap = false,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -548,7 +540,7 @@ fun CustomerCard(
                     if (customer.paidAmount > 0) {
                         Text("•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outlineVariant)
                         Text(
-                            "ပေးငွေ : %,d Ks".format(customer.paidAmount.toInt()),
+                            "ပေးငွေ : %,d ကျပ်".format(customer.paidAmount.toInt()),
                             fontSize = 11.5.sp,
                             color = MaterialTheme.colorScheme.secondary,
                             fontWeight = FontWeight.SemiBold
@@ -556,23 +548,58 @@ fun CustomerCard(
                     }
                 }
 
-                // Right: Clear navigation cue
+                // Right: Clear navigation cue + Safe Edit customer button in footer
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        "ဘောင်ချာများ ကြည့်ရန်",
-                        fontSize = 11.5.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
+                    Surface(
+                        onClick = onEditTap,
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.height(26.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "ပြင်ဆင်မည်",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "ပြင်မည်",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            "ဘောင်ချာများ ကြည့်ရန်",
+                            fontSize = 11.5.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
             }
         }
