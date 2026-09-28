@@ -41,7 +41,7 @@ fun ArchiveScreen(
                     Column {
                         Text("မှတ်တမ်းဟောင်းများ", fontWeight = FontWeight.Bold, fontSize = 18.sp,
                             color = MaterialTheme.colorScheme.onPrimary)
-                        Text("${batches.size} batch archived", fontSize = 11.sp,
+                        Text("${batches.size} ကြိမ် မှတ်တမ်းတင်ထားသည်", fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
                     }
                 },
@@ -67,9 +67,9 @@ fun ArchiveScreen(
                     Icon(Icons.Default.Inbox, contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                    Text("Archive မရှိသေးပါ", fontSize = 16.sp,
+                    Text("မှတ်တမ်းဟောင်း မရှိသေးပါ", fontSize = 16.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                    Text("Reset လုပ်သောအခါ ဤနေရာတွင် သိမ်းမည်", fontSize = 12.sp,
+                    Text("အသစ်ပြန်စသောအခါ ဤနေရာတွင် သိမ်းဆည်းပါမည်", fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
                 }
             }
@@ -114,11 +114,11 @@ private fun ArchiveTotalsBar(batches: List<ArchiveBatchSummary>) {
             modifier = Modifier.padding(16.dp).fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            TotalStat(label = "Batch",   value = "${batches.size}",       icon = Icons.Default.Archive)
+            TotalStat(label = "အကြိမ်",   value = "${batches.size}",       icon = Icons.Default.Archive)
             VerticalDividerLine()
-            TotalStat(label = "Voucher", value = "$totalVouchers",         icon = Icons.Default.Receipt)
+            TotalStat(label = "ဘောင်ချာ", value = "$totalVouchers",         icon = Icons.Default.Receipt)
             VerticalDividerLine()
-            TotalStat(label = "Amount",  value = "${"%,d".format(grandTotal)} Ks", icon = Icons.Default.Payments)
+            TotalStat(label = "ငွေပမာဏ",  value = "${"%,d".format(grandTotal)} Ks", icon = Icons.Default.Payments)
         }
     }
 }
@@ -176,7 +176,7 @@ private fun ArchiveBatchCard(
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Batch ${batch.batchNumber}", fontWeight = FontWeight.Bold,
+                    Text("အကြိမ် ${batch.batchNumber}", fontWeight = FontWeight.Bold,
                         fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                     val dateLabel = if (batch.minDate == batch.maxDate) batch.minDate
                                     else "${batch.minDate} – ${batch.maxDate}"

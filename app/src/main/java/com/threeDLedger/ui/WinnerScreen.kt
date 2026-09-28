@@ -3,6 +3,7 @@ package com.threeDLedger.ui
 import androidx.activity.compose.BackHandler
 import com.threeDLedger.ui.theme.*
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
@@ -23,6 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -30,7 +35,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.data.Dine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -38,6 +46,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -82,6 +91,17 @@ data class OverflowWinResult(
     val winType: WinType
 )
 
+data class DrawScheduleInfo(
+    val isDrawDay: Boolean,
+    val isAfterDrawTime: Boolean,
+    val nextDrawStr: String,
+    val statusBannerText: String,
+    val targetDay: Int,
+    val targetMonth: Int,
+    val targetYear: Int,
+    val targetDateIso: String
+)
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -103,11 +123,18 @@ fun WinnerScreen(
     var fetchedGloDate   by remember { mutableStateOf<String?>(null) }
     var isDeclared     by remember { mutableStateOf(false) }
     var showClearDialog by remember { mutableStateOf(false) }
-    var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher, 2=Overflow
+    var showLiveDialog by remember { mutableStateOf(false) }
+    var selectedTab    by remember { mutableIntStateOf(0) }  // 0=Agent, 1=Voucher, 2=Overflow, 3=DineSettlement
+
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val coroutineScope = rememberCoroutineScope()
 
     BackHandler {
         if (showClearDialog) {
             showClearDialog = false
+        } else if (showLiveDialog) {
+            showLiveDialog = false
         } else {
             onNavigateBack()
         }
@@ -117,9 +144,10 @@ fun WinnerScreen(
     val allVWB           by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
     val allCustomers     by viewModel.customers.collectAsStateWithLifecycle()
     val allExportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
+    val allDines         by viewModel.allDines.collectAsStateWithLifecycle()
+
     var results          by remember { mutableStateOf<List<WinnerResult>>(emptyList()) }
     var overflowResults  by remember { mutableStateOf<List<OverflowWinResult>>(emptyList()) }
-    val coroutineScope   = rememberCoroutineScope()
 
     fun runCalc() {
         if (winningNumber.length != 3) return
@@ -133,7 +161,7 @@ fun WinnerScreen(
         val eM = exactMult.toDoubleOrNull() ?: 0.0
         val tM = tuwtMult.toDoubleOrNull()  ?: 0.0
 
-        // Lower-agent winnings (strictly excluding overflow vouchers and overflow customers)
+        // Lower-agent winnings (excluding overflow)
         results = allBets.mapNotNull { bet ->
             val vWB = allVWB.find { it.voucher.id == bet.voucherId } ?: return@mapNotNull null
             if (vWB.voucher.batchNumber != batchInt) return@mapNotNull null
@@ -153,7 +181,7 @@ fun WinnerScreen(
             WinnerResult(customer.name, customer.id, bet.voucherId, bet.number, bet.amount, win, wt)
         }.sortedWith(compareBy({ it.customerName }, { it.voucherId }))
 
-        // Upper-agent / Overflow winnings (winnings recovered from upper bookmaker)
+        // Upper-agent / Overflow winnings
         overflowResults = allExportRecords
             .filter { it.record.batchNumber == batchInt }
             .flatMap { exp ->
@@ -168,7 +196,7 @@ fun WinnerScreen(
                 }
             }
 
-        // Persist winning number and multipliers specifically for this batch
+        // Persist winning number and multipliers
         viewModel.saveWinningNumber(winningNumber, batchInt)
         viewModel.saveMultipliers(eM, tM, tM, batchInt)
         isDeclared = true
@@ -193,7 +221,7 @@ fun WinnerScreen(
         }
     }
 
-    // Background GLO fetch on open for reference without auto-overwriting active undeclared batch
+    // Background GLO fetch on open for reference
     LaunchedEffect(Unit) {
         fetchWinningNumber(
             onStart  = { isFetching = true; fetchStatus = "checking" },
@@ -216,8 +244,6 @@ fun WinnerScreen(
         )
     }
 
-    // Derived grouped data — include ALL commissioners who placed bets in this batch
-    // Derived grouped data — include ALL commissioners whether they won or not
     val batchInt = targetBatch.toIntOrNull() ?: currentBatch
     val eligibleCustomers = remember(allCustomers) {
         allCustomers.filter {
@@ -292,6 +318,11 @@ fun WinnerScreen(
             )
     }
 
+    // Dine Settlements calculation
+    val dineSettlements = remember(allExportRecords, winningNumber, targetBatch, allDines) {
+        viewModel.getDineSettlementsForBatch(batchInt)
+    }
+
     val grandTotal = results.sumOf { it.payoutAmount }
 
     if (showClearDialog) {
@@ -327,6 +358,19 @@ fun WinnerScreen(
                     Text("မဖျက်ပါ")
                 }
             }
+        )
+    }
+
+    // ── 3D Realtime Live View Dialog ─────────────────────────────────────────
+    if (showLiveDialog) {
+        ThreeDRealtimeLiveDialog(
+            targetBatch = batchInt,
+            onSelectNumber = { num ->
+                winningNumber = num
+                showLiveDialog = false
+                android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း ($num) ထည့်သွင်းပြီးပါပြီ။ 'ပေါက်သီးတွက်ချက်ရန် နှိပ်ပါ' ကိုနှိပ်ပါ", android.widget.Toast.LENGTH_LONG).show()
+            },
+            onDismiss = { showLiveDialog = false }
         )
     }
 
@@ -366,7 +410,7 @@ fun WinnerScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            "Back",
+                            "နောက်သို့",
                             tint = if (isDeclared) Color.White else MaterialTheme.colorScheme.onPrimary
                         )
                     }
@@ -398,25 +442,19 @@ fun WinnerScreen(
                         targetBatch = targetBatch,
                         onBatchChange = { targetBatch = it },
                         winningNumber = winningNumber,
-                        onNumberChange = { v ->
-                            if (v.length <= 3 && v.all { it.isDigit() }) {
-                                winningNumber = v
-                                fetchStatus = ""
-                            }
-                        },
+                        onNumberChange = { if (it.length <= 3 && it.all { c -> c.isDigit() }) winningNumber = it },
                         exactMult = exactMult,
-                        onExactChange = { exactMult = it },
-                        tuwtMult  = tuwtMult,
-                        onTuwtChange  = { tuwtMult  = it },
+                        onExactChange = { exactMult = it.filter { c -> c.isDigit() } },
+                        tuwtMult = tuwtMult,
+                        onTuwtChange = { tuwtMult = it.filter { c -> c.isDigit() } },
                         fetchStatus = fetchStatus,
                         isFinalResult = isFinalResult,
                         resultSession = resultSession,
                         isFetching = isFetching,
                         fetchedGloNumber = fetchedGloNumber,
                         fetchedGloDate = fetchedGloDate,
-                        onApplyGloNumber = { chosen ->
-                            winningNumber = chosen
-                        },
+                        onApplyGloNumber = { winningNumber = it },
+                        onOpenLiveView = { showLiveDialog = true },
                         onFetch = {
                             coroutineScope.launch {
                                 fetchWinningNumber(
@@ -460,7 +498,7 @@ fun WinnerScreen(
                     )
                 }
 
-                // If no one won anything, show informational banner
+                // If no one won anything
                 if (results.isEmpty() && overflowResults.isEmpty()) {
                     item {
                         Card(
@@ -484,26 +522,40 @@ fun WinnerScreen(
                     }
                 }
 
-                // ── Tab bar ────────────────────────────────────────────────────
+                // ── Tab bar (Agent, Voucher, Overflow, Dine Settlement) ─────────
                 item {
                     TabRow(selectedTabIndex = selectedTab, containerColor = MaterialTheme.colorScheme.surface) {
-                        Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 },
-                            text = { Text("ကိုယ်စားလှယ် (${agentSummaries.size})", fontSize = 12.sp) },
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            text = { Text("ကိုယ်စားလှယ် (${agentSummaries.size})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.Group, null, Modifier.size(16.dp)) }
                         )
-                        Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 },
-                            text = { Text("ဘောင်ချာ (${agentSummaries.sumOf { it.vouchers.size }})", fontSize = 12.sp) },
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            text = { Text("ဘောင်ချာ (${agentSummaries.sumOf { it.vouchers.size }})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.Receipt, null, Modifier.size(16.dp)) }
                         )
-                        Tab(selected = selectedTab == 2, onClick = { selectedTab = 2 },
-                            text = { Text("တင်ကွက် (${overflowResults.size})", fontSize = 12.sp) },
+                        Tab(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            text = { Text("တင်ကွက် (${overflowResults.size})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.Payment, null, Modifier.size(16.dp)) }
+                        )
+                        Tab(
+                            selected = selectedTab == 3,
+                            onClick = { selectedTab = 3 },
+                            text = { Text("ဒိုင်ရှင်းတမ်း (${dineSettlements.size})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
+                            icon = { Icon(Icons.Default.AccountBalance, null, Modifier.size(16.dp)) }
                         )
                     }
                 }
 
                 // ── Grand total bar ────────────────────────────────────────────
-                item { GrandTotalBar(results, grandTotal, overflowResults, overflowWonTotal) }
+                if (selectedTab != 3) {
+                    item { GrandTotalBar(results, grandTotal, overflowResults, overflowWonTotal) }
+                }
 
                 when (selectedTab) {
                     0 -> {
@@ -552,20 +604,509 @@ fun WinnerScreen(
                             }
                         }
                     }
+                    3 -> {
+                        // ── Dine Settlements Tab (ဒိုင်ရှင်းတမ်း) ─────────────────────
+                        if (dineSettlements.isEmpty()) {
+                            item {
+                                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Text("ဤ အကြိမ်တွင် ဒိုင်တင်ကွက် မှတ်တမ်း မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        } else {
+                            val totalExp = dineSettlements.sumOf { it.totalExported.toLong() }
+                            val totalComm = dineSettlements.sumOf { it.commissionAmount.toLong() }
+                            val totalDineNetPay = dineSettlements.sumOf { it.netCost.toLong() }
+                            val totalWonPayout = dineSettlements.sumOf { it.winningPayout }
+                            val overallDineBalance = dineSettlements.sumOf { it.netBalance }
+
+                            item {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                    border = BorderStroke(1.dp, Color(0xFF047857).copy(alpha = 0.4f)),
+                                    elevation = CardDefaults.cardElevation(2.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(
+                                            "ဒိုင်များ အားလုံး စုစည်းရှင်းတမ်း",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = Color(0xFF047857)
+                                        )
+                                        HorizontalDivider(thickness = 0.5.dp)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("စုစုပေါင်း တင်ငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("%,d ကျပ်".format(totalExp), fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("ကော်မရှင် (မိမိရရှိငွေ)", fontSize = 12.sp, color = Color(0xFFD97706))
+                                            Text("%,d ကျပ်".format(totalComm), fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFFD97706))
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("ဒိုင်သို့ ပေးချေရန်ကျန်ငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Text("%,d ကျပ်".format(totalDineNetPay), fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                        }
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text("ဒိုင်ထံမှ ပေါက်သီးရငွေ", fontSize = 12.sp, color = Color(0xFF10B981))
+                                            Text("%,d ကျပ်".format(totalWonPayout), fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF10B981))
+                                        }
+                                        HorizontalDivider(thickness = 0.5.dp)
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = if (overallDineBalance > 0) "🟢 စုစုပေါင်း ဒိုင်များထံမှ ရရန်:" else if (overallDineBalance < 0) "🔴 စုစုပေါင်း ဒိုင်များသို့ ပေးရန်:" else "⚪ စုစုပေါင်း ကျေအေး:",
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 13.sp,
+                                                color = if (overallDineBalance > 0) Color(0xFF10B981) else if (overallDineBalance < 0) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = if (overallDineBalance > 0) "+%,d ကျပ်".format(overallDineBalance) else if (overallDineBalance < 0) "%,d ကျပ်".format(-overallDineBalance) else "၀ ကျပ်",
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 14.5.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = if (overallDineBalance > 0) Color(0xFF10B981) else if (overallDineBalance < 0) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            items(dineSettlements, key = { "dine_${it.dineId}_${it.dineName}" }) { settlement ->
+                                DineSettlementCard(
+                                    settlement = settlement,
+                                    batchNumber = batchInt,
+                                    winningNumber = winningNumber
+                                )
+                            }
+                        }
+                    }
                 }
             }
-            item { Spacer(Modifier.height(16.dp)) }
         }
     }
 }
 
+// ── Dine Settlement Card Composable ──────────────────────────────────────────
 
-data class DrawScheduleInfo(
-    val isDrawDay: Boolean,
-    val isAfterDrawTime: Boolean,
-    val nextDrawDateStr: String,
-    val statusBannerText: String
-)
+@Composable
+fun DineSettlementCard(
+    settlement: DineSettlement,
+    batchNumber: Int,
+    winningNumber: String
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        border = BorderStroke(1.dp, Color(0xFF047857).copy(alpha = 0.3f))
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Dine Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF047857).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = settlement.dineName.take(1),
+                            color = Color(0xFF047857),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = settlement.dineName,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "ကော်မရှင် ${settlement.commissionRate}% • ဒဲ့ ${settlement.exactMultiplier}ဆ / တွတ် ${settlement.tuwtMultiplier}ဆ",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Copy Settlement Button
+                OutlinedButton(
+                    onClick = {
+                        val text = buildString {
+                            appendLine("===== ဒိုင်ရှင်းတမ်း =====")
+                            appendLine("ဒိုင်: ${settlement.dineName}")
+                            appendLine("အကြိမ်: $batchNumber")
+                            appendLine("ပေါက်ဂဏန်း: $winningNumber")
+                            appendLine("------------------------")
+                            appendLine("စုစုပေါင်း တင်ငွေ : %,d ကျပ်".format(settlement.totalExported))
+                            appendLine("ကော်မရှင် (${settlement.commissionRate}%) : %,d ကျပ်".format(settlement.commissionAmount))
+                            appendLine("ဒိုင်သို့ ပေးချေရန် : %,d ကျပ်".format(settlement.netCost))
+                            appendLine("ပေါက်သီး (ဒဲ့) : %,d ကျပ်".format(settlement.exactPayout))
+                            appendLine("တွတ် (အလှည့်) : %,d ကျပ်".format(settlement.tuwtPayout))
+                            appendLine("စုစုပေါင်း အလျော်ရငွေ: %,d ကျပ်".format(settlement.winningPayout))
+                            appendLine("------------------------")
+                            if (settlement.netBalance > 0) {
+                                appendLine("ရလဒ် : ဒိုင်မှ ပေးရန် +%,d ကျပ်".format(settlement.netBalance))
+                            } else if (settlement.netBalance < 0) {
+                                appendLine("ရလဒ် : ဒိုင်သို့ ပေးရန် %,d ကျပ်".format(-settlement.netBalance))
+                            } else {
+                                appendLine("ရလဒ် : ကျေအေး")
+                            }
+                        }
+                        clipboardManager.setText(AnnotatedString(text))
+                        android.widget.Toast.makeText(context, "${settlement.dineName} ရှင်းတမ်း ကော်ပီကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp),
+                    border = BorderStroke(1.dp, Color(0xFF047857))
+                ) {
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(13.dp), tint = Color(0xFF047857))
+                    Spacer(Modifier.width(4.dp))
+                    Text("ရှင်းတမ်း ကော်ပီ", fontSize = 11.sp, color = Color(0xFF047857), fontWeight = FontWeight.Bold)
+                }
+            }
+
+            HorizontalDivider(thickness = 0.5.dp)
+
+            // Details Breakdown
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("စုစုပေါင်း တင်ငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("%,d ကျပ်".format(settlement.totalExported), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("ကော်မရှင် (${settlement.commissionRate}%) မိမိရငွေ", fontSize = 12.sp, color = Color(0xFFD97706))
+                Text("%,d ကျပ်".format(settlement.commissionAmount), fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFD97706), fontFamily = FontFamily.Monospace)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("ဒိုင်သို့ ပေးရန် ထိုးငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("%,d ကျပ်".format(settlement.netCost), fontWeight = FontWeight.SemiBold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            }
+
+            // Payout breakdown
+            if (settlement.exactWinBets.isNotEmpty() || settlement.tuwtWinBets.isNotEmpty()) {
+                Surface(
+                    color = Color(0xFFECFDF5),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (settlement.exactWinBets.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("ပေါက်သီး (ဒဲ့) အလျော်", fontSize = 11.5.sp, color = Color(0xFF047857), fontWeight = FontWeight.Medium)
+                                Text("+%,d ကျပ်".format(settlement.exactPayout), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857), fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                        if (settlement.tuwtWinBets.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("တွတ် အလျော်", fontSize = 11.5.sp, color = Color(0xFF4338CA), fontWeight = FontWeight.Medium)
+                                Text("+%,d ကျပ်".format(settlement.tuwtPayout), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4338CA), fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("စုစုပေါင်း အလျော်ရငွေ", fontSize = 11.5.sp, color = Color(0xFF047857), fontWeight = FontWeight.Bold)
+                            Text("+%,d ကျပ်".format(settlement.winningPayout), fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF047857), fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("ပေါက်သီး အလျော်ရငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("၀ ကျပ်", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                }
+            }
+
+            HorizontalDivider(thickness = 0.5.dp)
+
+            // Net Balance
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (settlement.netBalance > 0) "🟢 ဒိုင်မှ မိမိသို့ ပေးရန်:"
+                           else if (settlement.netBalance < 0) "🔴 မိမိမှ ဒိုင်သို့ ပေးရန်:"
+                           else "⚪ ကျေအေး:",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = if (settlement.netBalance > 0) Color(0xFF10B981)
+                            else if (settlement.netBalance < 0) Color(0xFFEF4444)
+                            else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (settlement.netBalance > 0) "+%,d ကျပ်".format(settlement.netBalance)
+                           else if (settlement.netBalance < 0) "%,d ကျပ်".format(-settlement.netBalance)
+                           else "၀ ကျပ်",
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp,
+                    fontFamily = FontFamily.Monospace,
+                    color = if (settlement.netBalance > 0) Color(0xFF10B981)
+                            else if (settlement.netBalance < 0) Color(0xFFEF4444)
+                            else MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+// ── 3D Realtime Live View Dialog Composable ───────────────────────────────────
+
+@Composable
+fun ThreeDRealtimeLiveDialog(
+    targetBatch: Int,
+    onSelectNumber: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val drawSchedule = remember { getNext3DDrawInfo() }
+    var fetchedNumber by remember { mutableStateOf<String?>(null) }
+    var fetchedDate by remember { mutableStateOf<String?>(null) }
+    var isChecking by remember { mutableStateOf(true) }
+    var isCurrentRoundDeclared by remember { mutableStateOf(false) }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pulseTransition")
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseScale"
+    )
+
+    // Polling logic: fetch on launch, and refresh every 15s if near draw time
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            isChecking = true
+            val result = withContext(Dispatchers.IO) {
+                tryGloApi() ?: tryRayriffyApi()
+            }
+            if (result != null) {
+                val (num, dateStr) = result
+                fetchedNumber = num
+                fetchedDate = dateStr
+                // Check if result corresponds to target draw date
+                val isDeclaredForCurrentRound = if (drawSchedule.isDrawDay && drawSchedule.isAfterDrawTime) {
+                    true
+                } else {
+                    // Check if dateStr contains the target date or if month/day match
+                    dateStr.contains("${drawSchedule.targetDay}") || dateStr.contains(drawSchedule.targetDateIso)
+                }
+                isCurrentRoundDeclared = isDeclaredForCurrentRound
+            } else {
+                fetchedNumber = null
+                isCurrentRoundDeclared = false
+            }
+            isChecking = false
+            delay(15000) // Poll every 15 seconds to prevent server overload
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(18.dp),
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .graphicsLayer {
+                                scaleX = pulseScale
+                                scaleY = pulseScale
+                            }
+                            .clip(CircleShape)
+                            .background(Color(0xFFDC2626))
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "ထိုင်း 3D တိုက်ရိုက် ကြည့်ရှုမှု",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Color(0xFFFEE2E2)
+                ) {
+                    Text(
+                        "● LIVE",
+                        color = Color(0xFFDC2626),
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Schedule Banner
+                Surface(
+                    color = Color(0xFFECFDF5),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, null, tint = Color(0xFF047857), modifier = Modifier.size(18.dp))
+                        Text(
+                            text = drawSchedule.statusBannerText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF065F46),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                if (isChecking && fetchedNumber == null) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(color = Color(0xFF047857), modifier = Modifier.size(36.dp))
+                        Spacer(Modifier.height(10.dp))
+                        Text("ရလဒ် စစ်ဆေးနေပါသည်...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                } else if (!isCurrentRoundDeclared) {
+                    // Current round NOT yet declared
+                    Surface(
+                        color = Color(0xFFFFFBEB),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(Icons.Default.HourglassTop, null, tint = Color(0xFFD97706), modifier = Modifier.size(32.dp))
+                            Text(
+                                "ထွက်ဂဏန်း မထွက်သေးပါ",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                color = Color(0xFF92400E)
+                            )
+                            Text(
+                                "${drawSchedule.nextDrawStr} အတွက် ထွက်ဂဏန်း စောင့်ဆိုင်းနေပါသည်...",
+                                fontSize = 12.5.sp,
+                                color = Color(0xFFB45309),
+                                textAlign = TextAlign.Center
+                            )
+                            if (!fetchedNumber.isNullOrEmpty()) {
+                                Text(
+                                    "(ယခင်အကြိမ် ထွက်ဂဏန်း: $fetchedNumber - ရက်စွဲ: ${fetchedDate ?: ""})",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFB45309).copy(alpha = 0.8f),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Current round IS declared!
+                    val num = fetchedNumber ?: ""
+                    Surface(
+                        color = Color(0xFFECFDF5),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "အတည်ပြု ပေါက်ဂဏန်း",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF047857)
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                num.forEach { digit ->
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = Color.White,
+                                        border = BorderStroke(1.5.dp, Color(0xFF10B981)),
+                                        shadowElevation = 3.dp
+                                    ) {
+                                        Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+                                            Text(
+                                                digit.toString(),
+                                                fontSize = 32.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = Color(0xFF065F46),
+                                                fontFamily = FontFamily.Monospace
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "ရက်စွဲ: ${fetchedDate ?: ""}",
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (isCurrentRoundDeclared && !fetchedNumber.isNullOrEmpty()) {
+                Button(
+                    onClick = {
+                        fetchedNumber?.let { onSelectNumber(it) }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857))
+                ) {
+                    Text("ဂဏန်းအကွက်ထဲ ထည့်မည်", fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("ပိတ်မည်")
+            }
+        }
+    )
+}
+
+// ── Next 3D Draw Date Helper ──────────────────────────────────────────────────
 
 fun getNext3DDrawInfo(): DrawScheduleInfo {
     val cal = java.util.Calendar.getInstance()
@@ -575,28 +1116,29 @@ fun getNext3DDrawInfo(): DrawScheduleInfo {
     val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
     val min = cal.get(java.util.Calendar.MINUTE)
 
-    val monthNames = arrayOf("1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月")
     val burmeseMonths = arrayOf("ဇန်နဝါရီ", "ဖေဖော်ဝါရီ", "မတ်", "ဧပြီ", "မေ", "ဇွန်", "ဇူလိုင်", "ဩဂုတ်", "စက်တင်ဘာ", "အောက်တိုဘာ", "နိုဝင်ဘာ", "ဒီဇင်ဘာ")
 
     val isDrawDay = (day == 1 || day == 16)
     val isAfterDrawTime = (hour > 15 || (hour == 15 && min >= 30))
 
-    val (nextDay, nextMonthName, nextYear) = when {
-        day == 1 && !isAfterDrawTime -> Triple(1, burmeseMonths[month], year)
-        day < 16 && !(day == 1 && isAfterDrawTime) -> Triple(16, burmeseMonths[month], year)
-        day == 16 && !isAfterDrawTime -> Triple(16, burmeseMonths[month], year)
+    val (targetDay, targetMonth, targetYear) = when {
+        day == 1 && !isAfterDrawTime -> Triple(1, month, year)
+        day < 16 && !(day == 1 && isAfterDrawTime) -> Triple(16, month, year)
+        day == 16 && !isAfterDrawTime -> Triple(16, month, year)
         else -> {
             val nextCal = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, 1) }
-            Triple(1, burmeseMonths[nextCal.get(java.util.Calendar.MONTH)], nextCal.get(java.util.Calendar.YEAR))
+            Triple(1, nextCal.get(java.util.Calendar.MONTH), nextCal.get(java.util.Calendar.YEAR))
         }
     }
-    val nextDrawStr = "$nextDay ရက် $nextMonthName $nextYear (ညနေ ၃:၃၀)"
+
+    val targetDateIso = String.format(Locale.US, "%04d-%02d-%02d", targetYear, targetMonth + 1, targetDay)
+    val nextDrawStr = "$targetDay ရက် ${burmeseMonths[targetMonth]} $targetYear (ညနေ ၃:၃၀)"
     val statusBanner = when {
         isDrawDay && isAfterDrawTime -> "🟢 ယနေ့ ပေါက်ဂဏန်း ထွက်ရှိပြီးပါပြီ"
         isDrawDay -> "⏳ ယနေ့ ပေါက်ဂဏန်း ထွက်မည့်ရက် ဖြစ်ပါသည် (ညနေ ၃:၃၀)"
         else -> "📅 နောက်တစ်ကြိမ် ထွက်မည့်ရက်: $nextDrawStr"
     }
-    return DrawScheduleInfo(isDrawDay, isAfterDrawTime, nextDrawStr, statusBanner)
+    return DrawScheduleInfo(isDrawDay, isAfterDrawTime, nextDrawStr, statusBanner, targetDay, targetMonth, targetYear, targetDateIso)
 }
 
 // ── Input card ────────────────────────────────────────────────────────────────
@@ -609,6 +1151,7 @@ private fun InputCard(
     tuwtMult: String,  onTuwtChange:  (String) -> Unit,
     fetchStatus: String, isFinalResult: Boolean, resultSession: String, isFetching: Boolean,
     fetchedGloNumber: String?, fetchedGloDate: String?, onApplyGloNumber: (String) -> Unit,
+    onOpenLiveView: () -> Unit,
     onFetch: () -> Unit, onRecalc: () -> Unit
 ) {
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
@@ -624,27 +1167,48 @@ private fun InputCard(
 
             val drawSchedule = remember { getNext3DDrawInfo() }
 
-            // 3D Draw Schedule Banner
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            // 3D Draw Schedule Banner & Live Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
-                    Text(
-                        text = drawSchedule.statusBannerText,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                        Text(
+                            text = drawSchedule.statusBannerText,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Live View Button
+                FilledTonalButton(
+                    onClick = onOpenLiveView,
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = Color(0xFFFEE2E2),
+                        contentColor = Color(0xFFDC2626)
+                    ),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Text("တိုက်ရိုက် 🔴", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -749,7 +1313,7 @@ private fun InputCard(
                 shape = RoundedCornerShape(12.dp),
                 enabled = winningNumber.length == 3,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF047857),   // Emerald verified color
+                    containerColor = Color(0xFF047857),
                     contentColor   = Color.White
                 )
             ) {
@@ -906,7 +1470,7 @@ private fun DeclaredHeroCard(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Spacer(Modifier.height(12.dp))
 
-                // Prominent remove/undeclare winning number button
+                // Undeclare button
                 Button(
                     onClick = onUndeclareClick,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
@@ -1008,7 +1572,7 @@ private fun PendingPlaceholderCard(batchNumber: Int) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                "ထိုင်းထီ ပေါက်ဂဏန်း ၃ လုံး ထည့်သွင်းပြီး \"ပေါက်သီး အတည်ပြု ကြေညာသည်\" ကို နှိပ်ပါက ကိုယ်စားလှယ်များ၊ ဘောင်ချာများနှင့် တင်ကွက် အလျော်အစား စာရင်းများ ပေါ်ထွက်လာပါမည်။",
+                "ထိုင်းထီ ပေါက်ဂဏန်း ၃ လုံး ထည့်သွင်းပြီး 'ပေါက်သီးတွက်ချက်ရန် နှိပ်ပါ' ကို နှိပ်ပါက ကိုယ်စားလှယ်များ၊ ဘောင်ချာများ၊ တင်ကွက်နှင့် ဒိုင်ရှင်းတမ်း အလျော်အစား စာရင်းများ ပေါ်ထွက်လာပါမည်။",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.outline,
                 textAlign = TextAlign.Center,
@@ -1032,7 +1596,7 @@ private fun GrandTotalBar(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(3.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+        border = BorderStroke(1.dp, CardBorderSubtle)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -1123,10 +1687,8 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp)) {
         Column {
-            // Header row — tap to expand
             Row(modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                // Avatar
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center) {
@@ -1155,7 +1717,7 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                     if (agent.totalPayout > 0) {
                         Text("%,.0f ကျပ်".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
                             fontSize = 15.sp, fontFamily = FontFamily.Monospace,
-                            color = Color(0xFFDC2626))  // Red for payout to give
+                            color = Color(0xFFDC2626))
                     } else {
                         Text("၀ ကျပ်", fontWeight = FontWeight.Bold,
                             fontSize = 15.sp, fontFamily = FontFamily.Monospace,
@@ -1171,7 +1733,6 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            // Expanded voucher list
             AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp).padding(bottom = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1196,7 +1757,7 @@ private fun OverflowWinCard(item: OverflowWinResult) {
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+        border = BorderStroke(1.dp, CardBorderSubtle)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -1246,7 +1807,7 @@ private fun OverflowWinCard(item: OverflowWinResult) {
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     fontFamily = FontFamily.Monospace,
-                    color = Color(0xFF059669)  // Green for receive
+                    color = Color(0xFF059669)
                 )
             }
         }
@@ -1263,7 +1824,6 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
         tonalElevation = if (compact) 0.dp else 2.dp,
         modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
-            // Voucher header
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.weight(1f).padding(end = 8.dp)) {
@@ -1294,7 +1854,6 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                 }
             }
             Spacer(Modifier.height(8.dp))
-            // Bet rows or no win notice
             if (vs.bets.isNotEmpty()) {
                 vs.bets.forEach { r -> BetResultRow(r) }
             } else {
@@ -1319,7 +1878,6 @@ private fun BetResultRow(result: WinnerResult) {
     }
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        // Number badge
         Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center) {
@@ -1355,20 +1913,14 @@ private fun MultiplierField(label: String, value: String, accent: Color, modifie
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = accent, focusedLabelColor = accent))
 }
 
-// ── Thai Lottery API fetch (GLO official primary → Rayriffy fallback) ────────
-//
-// 3D winning number = LAST 3 DIGITS of the Thai lottery first prize (6-digit number)
-// Draws are held on the 1st and 16th of each month at ~16:00 ICT.
-//
-// Primary : https://www.glo.or.th/api/lottery/getLatestLottery  (POST, official GLO)
-// Fallback: https://lotto.api.rayriffy.com/latest               (GET,  community)
+// ── Thai Lottery API fetch ───────────────────────────────────────────────────
 
 private suspend fun fetchWinningNumber(
     onStart:  () -> Unit,
     onResult: (String?, Boolean, String) -> Unit,
     onError:  () -> Unit
 ) {
-    onStart()  // called on Main dispatcher (LaunchedEffect is on Main)
+    onStart()
 
     val result = withContext(Dispatchers.IO) {
         tryGloApi() ?: tryRayriffyApi()
@@ -1376,14 +1928,12 @@ private suspend fun fetchWinningNumber(
 
     if (result != null) {
         val (num3d, date) = result
-        // Both APIs publish only after results are finalized — isFinal always true
         onResult(num3d, true, date)
     } else {
         onError()
     }
 }
 
-/** GLO official API — returns (last3digits, drawDate) or null on any failure */
 private fun tryGloApi(): Pair<String, String>? {
     return try {
         val client = OkHttpClient.Builder()
@@ -1406,12 +1956,10 @@ private fun tryGloApi(): Pair<String, String>? {
         val json = JSONObject(raw)
         val resp = json.optJSONObject("response") ?: return null
 
-        // Draw date
         val date = resp.optString("date", "").ifEmpty {
             resp.optJSONObject("period")?.optString("date", "") ?: ""
         }
 
-        // Check official GLO modern structure: response.data.first.number[0].value
         var firstPrizeNum: String? = null
         val dataObj = resp.optJSONObject("data")
         val firstObj = dataObj?.optJSONObject("first")
@@ -1420,7 +1968,6 @@ private fun tryGloApi(): Pair<String, String>? {
             firstPrizeNum = numberArr.getJSONObject(0).optString("value", "").trim()
         }
 
-        // If not found in data.first, check n3.straight3
         if (firstPrizeNum.isNullOrEmpty()) {
             val straight3 = resp.optJSONObject("n3")?.optJSONObject("straight3")?.optJSONArray("number")
             if (straight3 != null && straight3.length() > 0) {
@@ -1431,7 +1978,6 @@ private fun tryGloApi(): Pair<String, String>? {
             }
         }
 
-        // Fallback: Check prizes array if present
         if (firstPrizeNum.isNullOrEmpty()) {
             val prizes = resp.optJSONArray("prizes")
             if (prizes != null) {
@@ -1461,7 +2007,6 @@ private fun tryGloApi(): Pair<String, String>? {
     }
 }
 
-/** Rayriffy community API — returns (last3digits, drawDate) or null on any failure */
 private fun tryRayriffyApi(): Pair<String, String>? {
     return try {
         val client = OkHttpClient.Builder()
@@ -1501,5 +2046,3 @@ private fun tryRayriffyApi(): Pair<String, String>? {
         null
     }
 }
-
-

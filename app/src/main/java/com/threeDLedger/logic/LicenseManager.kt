@@ -40,7 +40,7 @@ enum class LicensePlanType {
 
 data class LicenseDetails(
     val planType: LicensePlanType,
-    val badgeText: String, // "အစမ်းသုံး", "Pro 1 Year", "Pro Lifetime"
+    val badgeText: String, // "အစမ်းသုံး", "၁ နှစ်စာ", "တစ်သက်တာ"
     val activeCdKey: String?,
     val isActivated: Boolean,
     val remainingDays: Long?, // null for Lifetime
@@ -191,8 +191,8 @@ class LicenseManager(private val context: Context) {
 
         val badgeText = when (planType) {
             LicensePlanType.TRIAL -> "အစမ်းသုံး"
-            LicensePlanType.LIFETIME -> "Pro Lifetime"
-            LicensePlanType.ONE_YEAR -> "Pro 1 Year"
+            LicensePlanType.LIFETIME -> "တစ်သက်တာ"
+            LicensePlanType.ONE_YEAR -> "၁ နှစ်စာ"
         }
 
         if (planType == LicensePlanType.LIFETIME) {
@@ -214,7 +214,7 @@ class LicenseManager(private val context: Context) {
         if (expSec == null || expSec <= 0L) {
             return LicenseDetails(
                 planType = LicensePlanType.LIFETIME,
-                badgeText = "Pro Lifetime",
+                badgeText = "တစ်သက်တာ",
                 activeCdKey = cdKey,
                 isActivated = isAct,
                 remainingDays = null,

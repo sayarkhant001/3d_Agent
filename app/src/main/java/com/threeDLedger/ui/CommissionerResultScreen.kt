@@ -472,7 +472,7 @@ fun CommissionerResultScreen(
                     OutlinedTextField(
                         value = editPaidText,
                         onValueChange = { editPaidText = it.filter { c -> c.isDigit() } },
-                        label = { Text("ပေးငွေ (Kyat)") },
+                        label = { Text("ပေးငွေ (Ks)") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),

@@ -78,7 +78,7 @@ fun ReceiptScreen(
                         Text("KBZ\nPay", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                     }
                     Spacer(modifier = Modifier.width(16.dp))
-                    Text("Scan ဖတ်ပြီး ငွေပေးချေပမှုကို အတည်ပြူပါ")
+                    Text("QR ဖတ်ပြီး ငွေပေးချေမှုကို အတည်ပြုပါ")
                 }
             }
             Spacer(modifier = Modifier.height(32.dp))

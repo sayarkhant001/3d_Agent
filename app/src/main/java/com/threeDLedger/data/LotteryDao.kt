@@ -1,4 +1,4 @@
-package com.threeDLedger.data
+﻿package com.threeDLedger.data
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
@@ -66,7 +66,6 @@ interface LotteryDao {
     @Query("UPDATE export_records SET isArchived = 1")
     suspend fun archiveAllExportRecords()
 
-
     @Query("DELETE FROM vouchers WHERE batchNumber <= :thresholdBatch AND isArchived = 1")
     suspend fun deleteOldArchives(thresholdBatch: Int)
     @Query("DELETE FROM export_records WHERE batchNumber <= :thresholdBatch AND isArchived = 1")
@@ -82,8 +81,17 @@ interface LotteryDao {
     @Query("DELETE FROM vouchers WHERE remark LIKE '%တင်ကွက်%' OR remark LIKE '%overflow%' OR remark LIKE '%upper%' OR remark LIKE '%အထက်ဒိုင်%'")
     suspend fun purgeOverflowVouchers()
 
+    @Query("SELECT * FROM dines ORDER BY id ASC")
+    fun getAllDines(): Flow<List<Dine>>
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDine(dine: Dine): Long
 
+    @Update
+    suspend fun updateDine(dine: Dine)
+
+    @Delete
+    suspend fun deleteDine(dine: Dine)
 
     @Update
     suspend fun updateCustomer(customer: Customer)
@@ -123,7 +131,6 @@ interface LotteryDao {
     @Query("SELECT * FROM vouchers WHERE isArchived = 0 ORDER BY timestamp DESC")
     fun getAllVouchersWithCustomer(): Flow<List<VoucherWithCustomer>>
 
-
     @Transaction
     @Query("SELECT * FROM vouchers WHERE isArchived = 0 ORDER BY timestamp DESC")
     fun getAllVouchersWithBets(): Flow<List<VoucherWithBets>>
@@ -152,4 +159,13 @@ interface LotteryDao {
     @Transaction
     @Query("SELECT * FROM export_records WHERE isArchived = 0 ORDER BY timestamp DESC")
     fun getAllExportRecords(): Flow<List<ExportRecordWithNumbers>>
+
+    @Query("SELECT * FROM three_d_winning_history ORDER BY id DESC")
+    fun get3DWinningHistory(): Flow<List<ThreeDWinningHistory>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert3DWinningHistory(items: List<ThreeDWinningHistory>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert3DWinningHistorySingle(item: ThreeDWinningHistory)
 }

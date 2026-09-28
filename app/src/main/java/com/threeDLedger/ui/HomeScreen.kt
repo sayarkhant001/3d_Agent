@@ -3,26 +3,36 @@ package com.threeDLedger.ui
 import com.threeDLedger.logic.LicenseManager
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Percent
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Settings
@@ -72,18 +82,25 @@ fun HomeScreen(
     onNavigateToReceipt: () -> Unit,
     onNavigateToArchive: () -> Unit,
     onNavigateToOverflow: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToHistory: () -> Unit = {}
 ) {
     val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault())
     val currentDate = dateFormat.format(Date())
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
+    val vouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
+    val allExportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
+    val customers by viewModel.customers.collectAsStateWithLifecycle()
+    val winningNumber by viewModel.winningNumber.collectAsStateWithLifecycle()
+
     val haptic = LocalHapticFeedback.current
     val rDimens = rememberResponsiveDimens()
     val context = androidx.compose.ui.platform.LocalContext.current
     val licenseManager = remember { LicenseManager(context) }
     var showLicenseDetailsDialog by remember { mutableStateOf(false) }
     var licenseDetails by remember { mutableStateOf(licenseManager.getLicenseDetails()) }
+    var isBatchSummaryExpanded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         licenseManager.syncServerTime()
@@ -101,18 +118,22 @@ fun HomeScreen(
         }
     }
 
-    // Strictly ordered: 4 Core Modules with cohesive, elegant FinTech accents
+    // Dynamic Financial Summary for current batch
+    val stats = remember(currentBatch, vouchersWithBets, allExportRecords, customers, winningNumber) {
+        viewModel.getBatchFinancialSummary(currentBatch)
+    }
+
     val menuItems = listOf(
         MenuItem(
             title = "ကော်မရှင်",
             subtitle = "စာရင်းသွင်းသူများ",
             icon = Icons.Default.People,
-            iconColors = listOf(Color(0xFF059669), Color(0xFF047857)),
+            iconColors = listOf(Color(0xFF0284C7), Color(0xFF0369A1)),
             onClick = onNavigateToCustomers
         ),
         MenuItem(
             title = "ဂဏန်းများ",
-            subtitle = "ပေါက်/တွတ် စစ်ဆေးချက်",
+            subtitle = "ပေါက်ဂဏန်း စစ်ဆေးချက်",
             icon = Icons.AutoMirrored.Filled.List,
             iconColors = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8)),
             onClick = onNavigateToLedger
@@ -177,6 +198,22 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    // Winning History for 1 Year
+                    IconButton(
+                        onClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onNavigateToHistory()
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = "ထွက်ဂဏန်း မှတ်တမ်း",
+                            tint = EmeraldPrimary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    // Winner Screen Button
                     Surface(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -184,7 +221,7 @@ fun HomeScreen(
                         },
                         shape = RoundedCornerShape(20.dp),
                         color = Color(0xFFFEF3C7),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFDE68A).copy(alpha = 0.8f)),
+                        border = BorderStroke(1.dp, Color(0xFFFDE68A).copy(alpha = 0.8f)),
                         modifier = Modifier.padding(end = 12.dp)
                     ) {
                         Row(
@@ -219,7 +256,8 @@ fun HomeScreen(
                     .fillMaxSize()
                     .widthIn(max = 800.dp)
                     .padding(padding)
-                    .padding(horizontal = 18.dp),
+                    .padding(horizontal = 18.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -231,7 +269,7 @@ fun HomeScreen(
                         .shadow(4.dp, RoundedCornerShape(20.dp)),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(20.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -274,7 +312,7 @@ fun HomeScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Remove,
-                                    contentDescription = "Decrease",
+                                    contentDescription = "လျှော့မည်",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -299,17 +337,13 @@ fun HomeScreen(
                                     .padding(horizontal = 6.dp),
                                 singleLine = true,
                                 textStyle = LocalTextStyle.current.copy(
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 18.sp,
                                     textAlign = TextAlign.Center,
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.primary
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
                                 ),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                                     focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
                                 ),
                                 shape = RoundedCornerShape(12.dp)
                             )
@@ -326,10 +360,175 @@ fun HomeScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Add,
-                                    contentDescription = "Increase",
+                                    contentDescription = "တိုးမည်",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // ── Tap-to-Show / Expandable Batch Financial Summary ─────────
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(2.dp, RoundedCornerShape(18.dp)),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.25f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Header: Tap to expand / collapse
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { isBatchSummaryExpanded = !isBatchSummaryExpanded }
+                                .padding(vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "📊 အကြိမ် #${currentBatch} ရှင်းတမ်း အနှစ်ချုပ်",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = EmeraldPrimary
+                                )
+                                Icon(
+                                    if (isBatchSummaryExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = null,
+                                    tint = EmeraldPrimary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                if (stats.isDeclared) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFFEE2E2),
+                                        border = BorderStroke(1.dp, Color(0xFFFCA5A5))
+                                    ) {
+                                        Text(
+                                            text = "🏆 ပေါက်: ${stats.winningNumber}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = Color(0xFFB91C1C),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                } else {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFDCFCE7),
+                                        border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                                    ) {
+                                        Text(
+                                            text = "🟢 ဖွင့်လှစ်ဆဲ",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF15803D),
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                if (!isBatchSummaryExpanded) {
+                                    Text(
+                                        text = "ကြည့်ရန် နှိပ်ပါ",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = EmeraldPrimary
+                                    )
+                                }
+                            }
+                        }
+
+                        // Collapsible Stats Grid Content
+                        AnimatedVisibility(
+                            visible = isBatchSummaryExpanded,
+                            enter = expandVertically(),
+                            exit = shrinkVertically()
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Row 1: Sales & Net Balance
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    BatchStatItem(
+                                        modifier = Modifier.weight(1f),
+                                        label = "အရောင်းကြေး",
+                                        value = "%,d Ks".format(stats.totalSales),
+                                        icon = Icons.Default.AccountBalanceWallet,
+                                        accentColor = EmeraldPrimary
+                                    )
+                                    BatchStatItem(
+                                        modifier = Modifier.weight(1f),
+                                        label = "ကျန်ရှိငွေ",
+                                        value = "%,d Ks".format(stats.netBalance),
+                                        icon = Icons.Default.AccountBalance,
+                                        accentColor = Color(0xFF059669)
+                                    )
+                                }
+
+                                // Row 2: Commission & Export / Winning Payout
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    BatchStatItem(
+                                        modifier = Modifier.weight(1f),
+                                        label = "ကော်မရှင်ခ",
+                                        value = "%,d Ks".format(stats.commissionAmount),
+                                        icon = Icons.Default.Percent,
+                                        accentColor = Color(0xFFD97706)
+                                    )
+                                    BatchStatItem(
+                                        modifier = Modifier.weight(1f),
+                                        label = if (stats.isDeclared) "ပေါက်သီး လျော်ငွေ" else "တင်ကွက်ငွေ",
+                                        value = "%,d Ks".format(if (stats.isDeclared) stats.winningPayout else stats.exportedAmount.toLong()),
+                                        icon = if (stats.isDeclared) Icons.Default.EmojiEvents else Icons.Default.Payment,
+                                        accentColor = if (stats.isDeclared) Color(0xFFDC2626) else Color(0xFF7C3AED)
+                                    )
+                                }
+
+                                // Row 3: Operational Counts
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    BatchStatItem(
+                                        modifier = Modifier.weight(1f),
+                                        label = "ဘောင်ချာများ (အားလုံး)",
+                                        value = "%,d စောင်".format(stats.voucherCount),
+                                        icon = Icons.Default.Receipt,
+                                        accentColor = Color(0xFF0891B2)
+                                    )
+                                    BatchStatItem(
+                                        modifier = Modifier.weight(1f),
+                                        label = "ထိုးသား ဦးရေ",
+                                        value = "%,d ဦး".format(stats.customerCount),
+                                        icon = Icons.Default.People,
+                                        accentColor = Color(0xFF4F46E5)
+                                    )
+                                }
                             }
                         }
                     }
@@ -430,7 +629,7 @@ fun HomeScreen(
                                 modifier = Modifier.size(36.dp).background(MaterialTheme.colorScheme.error, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Info, contentDescription = "Alert", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Info, contentDescription = "သတိပေးချက်", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(18.dp))
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
@@ -458,21 +657,57 @@ fun HomeScreen(
                 }
 
                 // ── 2x2 Grid Menu with Tactile Medallion Cards ─────────────────
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                ) {
-                    items(menuItems) { item ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
                         MenuCard(
-                            title = item.title,
-                            subtitle = item.subtitle,
-                            icon = item.icon,
-                            iconColors = item.iconColors,
+                            title = menuItems[0].title,
+                            subtitle = menuItems[0].subtitle,
+                            icon = menuItems[0].icon,
+                            iconColors = menuItems[0].iconColors,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                item.onClick()
+                                menuItems[0].onClick()
+                            }
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        MenuCard(
+                            title = menuItems[1].title,
+                            subtitle = menuItems[1].subtitle,
+                            icon = menuItems[1].icon,
+                            iconColors = menuItems[1].iconColors,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                menuItems[1].onClick()
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        MenuCard(
+                            title = menuItems[2].title,
+                            subtitle = menuItems[2].subtitle,
+                            icon = menuItems[2].icon,
+                            iconColors = menuItems[2].iconColors,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                menuItems[2].onClick()
+                            }
+                        )
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        MenuCard(
+                            title = menuItems[3].title,
+                            subtitle = menuItems[3].subtitle,
+                            icon = menuItems[3].icon,
+                            iconColors = menuItems[3].iconColors,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                menuItems[3].onClick()
                             }
                         )
                     }
@@ -491,7 +726,7 @@ fun HomeScreen(
                         .shadow(2.dp, RoundedCornerShape(18.dp)),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -510,7 +745,7 @@ fun HomeScreen(
                             ) {
                                 Icon(
                                     Icons.Default.Settings,
-                                    contentDescription = "Settings",
+                                    contentDescription = "ဆက်တင်",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -564,6 +799,64 @@ fun HomeScreen(
     }
 }
 
+// ── Financial Stat Item Component ────────────────────────────────────────────
+@Composable
+fun BatchStatItem(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    icon: ImageVector,
+    accentColor: Color
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(accentColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = label,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = value,
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Black,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
 // ── Tactile Pro Medallion Menu Card ──────────────────────────────────────────
 @Composable
 fun MenuCard(
@@ -581,7 +874,7 @@ fun MenuCard(
             .heightIn(min = if (rDimens.isCompact) 112.dp else 124.dp)
             .shadow(2.dp, RoundedCornerShape(20.dp)),
         shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
@@ -632,4 +925,3 @@ fun MenuCard(
         }
     }
 }
-

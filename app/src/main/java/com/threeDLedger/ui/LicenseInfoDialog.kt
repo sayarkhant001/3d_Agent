@@ -151,7 +151,7 @@ fun LicenseDetailsDialog(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text("3D စာရင်း လိုင်စင် အချက်အလက်", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("License Information & Renewal", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("လိုင်စင် အချက်အလက်နှင့် သက်တမ်းတိုးရန်", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -477,7 +477,7 @@ fun ClockTamperedBlockDialog(
                 )
 
                 Text(
-                    text = "ဖုန်း၏ နေ့စွဲနှင့် အချိန် နောက်ပြန်ဆုတ်ထားသည်ကို စစ်ဆေးတွေ့ရှိရပါသည် (Clock Rollback Detected)။",
+                    text = "ဖုန်း၏ နေ့စွဲနှင့် အချိန် နောက်ပြန်ဆုတ်ထားသည်ကို စစ်ဆေးတွေ့ရှိရပါသည် (အချိန် ပြန်လည်ပြင်ဆင်ထားမှု တွေ့ရှိ)။",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -485,7 +485,7 @@ fun ClockTamperedBlockDialog(
                 )
 
                 Text(
-                    text = "လိုင်စင် သက်တမ်း တိကျမှန်ကန်စေရန် အင်တာနက် ဖွင့်ထားပေးပြီး မြန်မာစံတော်ချိန် (Real MMT) ကို ပြန်လည်ချိန်ညှိပေးပါ (Please connect to internet to sync real Myanmar Time)။",
+                    text = "လိုင်စင် သက်တမ်း တိကျမှန်ကန်စေရန် အင်တာနက် ဖွင့်ထားပေးပြီး မြန်မာစံတော်ချိန်ကို ပြန်လည်ချိန်ညှိပေးပါ။",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
@@ -521,7 +521,7 @@ fun ClockTamperedBlockDialog(
                     } else {
                         Icon(Icons.Default.Sync, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("🔄 အင်တာနက်ဖြင့် အချိန် ပြန်ညှိမည် (Sync Real MMT)", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("🔄 အင်တာနက်ဖြင့် အချိန် ပြန်ညှိမည်", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                 }
             }

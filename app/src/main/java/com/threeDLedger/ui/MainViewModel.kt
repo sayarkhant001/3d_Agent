@@ -22,10 +22,48 @@ data class LedgerExposure(
     val overflowAmount: Int
 )
 
+data class DineSettlement(
+    val dineId: Int,
+    val dineName: String,
+    val commissionRate: Double,
+    val exactMultiplier: Int,
+    val tuwtMultiplier: Int,
+    val totalExported: Int,
+    val commissionAmount: Int,
+    val netCost: Int,
+    val exactWinBets: List<Pair<String, Int>>,
+    val tuwtWinBets: List<Pair<String, Int>>,
+    val exactPayout: Long,
+    val tuwtPayout: Long,
+    val winningPayout: Long,
+    val netBalance: Long
+)
+
+
+data class BatchFinancialSummary3D(
+    val totalSales: Long,
+    val netBalance: Long,
+    val commissionAmount: Long,
+    val exportedAmount: Int,
+    val winningPayout: Long,
+    val voucherCount: Int,
+    val customerCount: Int,
+    val isDeclared: Boolean,
+    val winningNumber: String
+)
+
 class MainViewModel(private val repository: LotteryRepository, private val prefs: android.content.SharedPreferences) : ViewModel() {
 
     val customers: StateFlow<List<Customer>> = repository.allCustomers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+val allDines: StateFlow<List<Dine>> = repository.allDines
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val winningHistory3D: StateFlow<List<ThreeDWinningHistory>> = repository.winningHistory3D
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val isFetchingHistory = MutableStateFlow(false)
 
     val vouchersWithCustomer: StateFlow<List<VoucherWithCustomer>> = repository.allVouchersWithCustomer
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -75,6 +113,8 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         viewModelScope.launch {
             repository.purgeOverflowArtifacts()
             ensureDefaultCustomer()
+            ensureDefaultDines()
+            ensureDefault3DHistory()
         }
     }
 
@@ -86,6 +126,34 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
                 repository.insertCustomer(Customer(name = "မိမိ (ကိုယ်တိုင်)", commissionRate = 0.0, multiplier = 600))
             }
         } catch (_: Exception) {}
+    }
+
+    private suspend fun ensureDefaultDines() {
+        try {
+            val list = repository.allDines.first()
+            if (list.isEmpty()) {
+                repository.insertDine(Dine(name = "မညစ်", commissionRate = 15.0, exactMultiplier = 600, tuwtMultiplier = 10))
+                repository.insertDine(Dine(name = "ကျော်မဲ", commissionRate = 20.0, exactMultiplier = 550, tuwtMultiplier = 10))
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun addDine(name: String, commissionRate: Double, exactMultiplier: Int = 600, tuwtMultiplier: Int = 10) {
+        viewModelScope.launch {
+            repository.insertDine(Dine(name = name, commissionRate = commissionRate, exactMultiplier = exactMultiplier, tuwtMultiplier = tuwtMultiplier))
+        }
+    }
+
+    fun updateDine(dine: Dine) {
+        viewModelScope.launch {
+            repository.updateDine(dine)
+        }
+    }
+
+    fun deleteDine(dine: Dine) {
+        viewModelScope.launch {
+            repository.deleteDine(dine)
+        }
     }
 
     fun saveWinningNumber(number: String, batch: Int = currentBatch.value) {
@@ -227,9 +295,168 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
             withContext(Dispatchers.Main) {
                 onComplete?.invoke(recordId)
             }
-            // NOTE: Do NOT insert a Voucher here — that would inflate betMap and
-            // prevent overflowAmount from clearing after export.
         }
+    }
+
+    fun exportOverflowToDine(dine: Dine, onComplete: ((recordId: Int, voucherSerial: Int) -> Unit)? = null) {
+        val currentExposures = ledgerExposures.value
+        val toExport = currentExposures.filter { it.overflowAmount > 0 }
+        if (toExport.isEmpty()) return
+
+        viewModelScope.launch {
+            val totalAmount = toExport.sumOf { it.overflowAmount }
+            // Serial number for this specific Dine in current batch
+            val existingForDine = allExportRecords.value.filter {
+                it.record.batchNumber == currentBatch.value && it.record.dineId == dine.id
+            }
+            val voucherSerial = existingForDine.size + 1
+
+            val record = ExportRecord(
+                batchNumber = currentBatch.value,
+                type = "ဘရိတ်ကျော် တင်ကွက်",
+                totalAmount = totalAmount,
+                dineId = dine.id,
+                dineName = dine.name,
+                voucherSerial = voucherSerial
+            )
+            val recordId = repository.insertExportRecord(record).toInt()
+
+            val exportNumbers = toExport.map {
+                ExportedNumber(exportRecordId = recordId, number = it.number, amount = it.overflowAmount)
+            }
+            repository.insertExportedNumbers(exportNumbers)
+            withContext(Dispatchers.Main) {
+                onComplete?.invoke(recordId, voucherSerial)
+            }
+        }
+    }
+
+    fun getDineSettlementsForBatch(batch: Int = currentBatch.value): List<DineSettlement> {
+        val batchExports = allExportRecords.value.filter { it.record.batchNumber == batch && !it.record.isArchived }
+        val winningNum = getWinningNumberForBatch(batch)
+        val dinesMap = allDines.value.associateBy { it.id }
+
+        val (savedExact, savedTuwt, _) = getMultipliersForBatch(batch)
+        val defaultExact = savedExact.toInt()
+        val defaultTuwt = savedTuwt.toInt()
+
+        val allPerms = if (winningNum.length == 3) {
+            com.threeDLedger.logic.NumberGenerator.permutations(winningNum).toSet() - setOf(winningNum)
+        } else emptySet()
+        val numInt = winningNum.toIntOrNull() ?: 0
+        val minus1 = String.format("%03d", if (numInt == 0) 999 else numInt - 1)
+        val plus1 = String.format("%03d", if (numInt == 999) 0 else numInt + 1)
+        val near = if (winningNum.length == 3) (setOf(minus1, plus1) - setOf(winningNum)) else emptySet()
+        val tuwtSet = allPerms + near
+
+        val groupedByDine = batchExports.groupBy { it.record.dineId }
+        val settlements = mutableListOf<DineSettlement>()
+
+        val allDineIds = (groupedByDine.keys + dinesMap.keys).filter { it > 0 }.distinct()
+
+        for (dId in allDineIds) {
+            val dine = dinesMap[dId] ?: Dine(id = dId, name = groupedByDine[dId]?.firstOrNull()?.record?.dineName ?: "ဒိုင် #$dId", commissionRate = 15.0, exactMultiplier = defaultExact, tuwtMultiplier = defaultTuwt)
+            val exportsForDine = groupedByDine[dId] ?: emptyList()
+
+            val totalExported = exportsForDine.sumOf { it.record.totalAmount }
+            if (totalExported <= 0 && exportsForDine.isEmpty()) continue
+
+            val commissionAmount = (totalExported * (dine.commissionRate / 100.0)).toInt()
+            val netCost = totalExported - commissionAmount
+
+            val exactWinBets = mutableListOf<Pair<String, Int>>()
+            val tuwtWinBets = mutableListOf<Pair<String, Int>>()
+            var exactWinTotal = 0
+            var tuwtWinTotal = 0
+
+            if (winningNum.length == 3) {
+                exportsForDine.forEach { exp ->
+                    exp.numbers.forEach { en ->
+                        if (en.number == winningNum) {
+                            exactWinBets.add(en.number to en.amount)
+                            exactWinTotal += en.amount
+                        } else if (en.number in tuwtSet) {
+                            tuwtWinBets.add(en.number to en.amount)
+                            tuwtWinTotal += en.amount
+                        }
+                    }
+                }
+            }
+            val exactPayout = exactWinTotal.toLong() * dine.exactMultiplier
+            val tuwtPayout = tuwtWinTotal.toLong() * dine.tuwtMultiplier
+            val winningPayout = exactPayout + tuwtPayout
+            val netBalance = winningPayout - netCost
+
+            settlements.add(
+                DineSettlement(
+                    dineId = dine.id,
+                    dineName = dine.name,
+                    commissionRate = dine.commissionRate,
+                    exactMultiplier = dine.exactMultiplier,
+                    tuwtMultiplier = dine.tuwtMultiplier,
+                    totalExported = totalExported,
+                    commissionAmount = commissionAmount,
+                    netCost = netCost,
+                    exactWinBets = exactWinBets,
+                    tuwtWinBets = tuwtWinBets,
+                    exactPayout = exactPayout,
+                    tuwtPayout = tuwtPayout,
+                    winningPayout = winningPayout,
+                    netBalance = netBalance
+                )
+            )
+        }
+
+        val unassigned = groupedByDine[0] ?: emptyList()
+        if (unassigned.isNotEmpty()) {
+            val totalExported = unassigned.sumOf { it.record.totalAmount }
+            val commissionAmount = (totalExported * 0.15).toInt()
+            val netCost = totalExported - commissionAmount
+
+            val exactWinBets = mutableListOf<Pair<String, Int>>()
+            val tuwtWinBets = mutableListOf<Pair<String, Int>>()
+            var exactWinTotal = 0
+            var tuwtWinTotal = 0
+
+            if (winningNum.length == 3) {
+                unassigned.forEach { exp ->
+                    exp.numbers.forEach { en ->
+                        if (en.number == winningNum) {
+                            exactWinBets.add(en.number to en.amount)
+                            exactWinTotal += en.amount
+                        } else if (en.number in tuwtSet) {
+                            tuwtWinBets.add(en.number to en.amount)
+                            tuwtWinTotal += en.amount
+                        }
+                    }
+                }
+            }
+            val exactPayout = exactWinTotal.toLong() * defaultExact
+            val tuwtPayout = tuwtWinTotal.toLong() * defaultTuwt
+            val winningPayout = exactPayout + tuwtPayout
+            val netBalance = winningPayout - netCost
+
+            settlements.add(
+                DineSettlement(
+                    dineId = 0,
+                    dineName = "အထွေထွေ ဒိုင်",
+                    commissionRate = 15.0,
+                    exactMultiplier = defaultExact,
+                    tuwtMultiplier = defaultTuwt,
+                    totalExported = totalExported,
+                    commissionAmount = commissionAmount,
+                    netCost = netCost,
+                    exactWinBets = exactWinBets,
+                    tuwtWinBets = tuwtWinBets,
+                    exactPayout = exactPayout,
+                    tuwtPayout = tuwtPayout,
+                    winningPayout = winningPayout,
+                    netBalance = netBalance
+                )
+            )
+        }
+
+        return settlements
     }
 
 
@@ -481,4 +708,106 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
         return bets
     }
 
+
+    private suspend fun ensureDefault3DHistory() {
+        try {
+            val list = repository.winningHistory3D.first()
+            if (list.isEmpty()) {
+                val defaultHistory = listOf(
+                    ThreeDWinningHistory(drawDate = "16/09/2026", drawDateFormatted = "၁၆ စက်တင်ဘာ ၂၀၂၆", winningNumber = "640", firstPrize6D = "360640"),
+                    ThreeDWinningHistory(drawDate = "01/09/2026", drawDateFormatted = "၁ စက်တင်ဘာ ၂၀၂၆", winningNumber = "341", firstPrize6D = "199341"),
+                    ThreeDWinningHistory(drawDate = "16/08/2026", drawDateFormatted = "၁၆ ဩဂုတ် ၂၀၂၆", winningNumber = "941", firstPrize6D = "046941"),
+                    ThreeDWinningHistory(drawDate = "01/08/2026", drawDateFormatted = "၁ ဩဂုတ် ၂၀၂၆", winningNumber = "756", firstPrize6D = "407756"),
+                    ThreeDWinningHistory(drawDate = "16/07/2026", drawDateFormatted = "၁၆ ဇူလိုင် ၂၀၂၆", winningNumber = "533", firstPrize6D = "518533"),
+                    ThreeDWinningHistory(drawDate = "01/07/2026", drawDateFormatted = "၁ ဇူလိုင် ၂၀၂၆", winningNumber = "032", firstPrize6D = "922032"),
+                    ThreeDWinningHistory(drawDate = "16/06/2026", drawDateFormatted = "၁၆ ဇွန် ၂၀၂၆", winningNumber = "092", firstPrize6D = "516092"),
+                    ThreeDWinningHistory(drawDate = "01/06/2026", drawDateFormatted = "၁ ဇွန် ၂၀၂၆", winningNumber = "593", firstPrize6D = "530593"),
+                    ThreeDWinningHistory(drawDate = "16/05/2026", drawDateFormatted = "၁၆ မေ ၂၀၂၆", winningNumber = "903", firstPrize6D = "205903"),
+                    ThreeDWinningHistory(drawDate = "02/05/2026", drawDateFormatted = "၂ မေ ၂၀၂၆", winningNumber = "884", firstPrize6D = "980884"),
+                    ThreeDWinningHistory(drawDate = "16/04/2026", drawDateFormatted = "၁၆ ဧပြီ ၂၀၂၆", winningNumber = "873", firstPrize6D = "943873"),
+                    ThreeDWinningHistory(drawDate = "01/04/2026", drawDateFormatted = "၁ ဧပြီ ၂၀၂၆", winningNumber = "720", firstPrize6D = "803720"),
+                    ThreeDWinningHistory(drawDate = "16/03/2026", drawDateFormatted = "၁၆ မတ် ၂၀၂၆", winningNumber = "503", firstPrize6D = "997503"),
+                    ThreeDWinningHistory(drawDate = "01/03/2026", drawDateFormatted = "၁ မတ် ၂၀၂၆", winningNumber = "603", firstPrize6D = "253603"),
+                    ThreeDWinningHistory(drawDate = "16/02/2026", drawDateFormatted = "၁၆ ဖေဖော်ဝါရီ ၂၀၂၆", winningNumber = "395", firstPrize6D = "094395"),
+                    ThreeDWinningHistory(drawDate = "01/02/2026", drawDateFormatted = "၁ ဖေဖော်ဝါရီ ၂၀၂၆", winningNumber = "063", firstPrize6D = "607063"),
+                    ThreeDWinningHistory(drawDate = "17/01/2026", drawDateFormatted = "၁၇ ဇန်နဝါရီ ၂၀၂၆", winningNumber = "979", firstPrize6D = "105979"),
+                    ThreeDWinningHistory(drawDate = "30/12/2025", drawDateFormatted = "၃၀ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "955", firstPrize6D = "444955"),
+                    ThreeDWinningHistory(drawDate = "16/12/2025", drawDateFormatted = "၁၆ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "757", firstPrize6D = "356757"),
+                    ThreeDWinningHistory(drawDate = "01/12/2025", drawDateFormatted = "၁ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "097", firstPrize6D = "843097"),
+                    ThreeDWinningHistory(drawDate = "16/11/2025", drawDateFormatted = "၁၆ နိုဝင်ဘာ ၂၀၂၅", winningNumber = "361", firstPrize6D = "187361"),
+                    ThreeDWinningHistory(drawDate = "01/11/2025", drawDateFormatted = "၁ နိုဝင်ဘာ ၂၀၂၅", winningNumber = "444", firstPrize6D = "741444"),
+                    ThreeDWinningHistory(drawDate = "16/10/2025", drawDateFormatted = "၁၆ အောက်တိုဘာ ၂၀၂၅", winningNumber = "286", firstPrize6D = "429286"),
+                    ThreeDWinningHistory(drawDate = "01/10/2025", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၅", winningNumber = "202", firstPrize6D = "880202")
+                )
+                repository.insert3DWinningHistory(defaultHistory)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun getBatchFinancialSummary(batch: Int = currentBatch.value): BatchFinancialSummary3D {
+        val batchVouchers = vouchersWithBets.value.filter { it.voucher.batchNumber == batch && !it.voucher.isArchived }
+        val totalSales = batchVouchers.sumOf { it.voucher.totalAmount.toLong() }
+        val custMap = customers.value.associateBy { it.id }
+        val commTotal = batchVouchers.sumOf { vwb ->
+            val cust = custMap[vwb.voucher.customerId]
+            val rate = cust?.commissionRate ?: 0.0
+            (vwb.voucher.totalAmount * (rate / 100.0)).toLong()
+        }
+        val batchExports = allExportRecords.value.filter { it.record.batchNumber == batch && !it.record.isArchived }
+        val exportedAmt = batchExports.sumOf { it.record.totalAmount }
+        val wonDeclared = isBatchDeclared(batch)
+        val winningNum = getWinningNumberForBatch(batch)
+        val (exactM, tuwtM, _) = getMultipliersForBatch(batch)
+
+        var payoutTotal = 0L
+        if (wonDeclared && winningNum.length == 3) {
+            val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(winningNum).toSet() - setOf(winningNum)
+            val numInt = winningNum.toIntOrNull() ?: 0
+            val minus1 = String.format("%03d", if (numInt == 0) 999 else numInt - 1)
+            val plus1 = String.format("%03d", if (numInt == 999) 0 else numInt + 1)
+            val near = setOf(minus1, plus1) - setOf(winningNum)
+            val tuwtSet = allPerms + near
+
+            batchVouchers.forEach { vwb ->
+                vwb.bets.forEach { bet ->
+                    if (bet.number == winningNum) {
+                        payoutTotal += (bet.amount * exactM).toLong()
+                    } else if (bet.number in tuwtSet) {
+                        payoutTotal += (bet.amount * tuwtM).toLong()
+                    }
+                }
+            }
+        }
+
+        val netBal = if (wonDeclared) {
+            totalSales - commTotal - payoutTotal
+        } else {
+            totalSales - commTotal - exportedAmt
+        }
+
+        val custCount = batchVouchers.map { it.voucher.customerId }.distinct().size
+
+        return BatchFinancialSummary3D(
+            totalSales = totalSales,
+            netBalance = netBal,
+            commissionAmount = commTotal,
+            exportedAmount = exportedAmt,
+            winningPayout = payoutTotal,
+            voucherCount = batchVouchers.size,
+            customerCount = custCount,
+            isDeclared = wonDeclared,
+            winningNumber = winningNum
+        )
+    }
+
+    fun fetch3DHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                isFetchingHistory.value = true
+                ensureDefault3DHistory()
+            } finally {
+                isFetchingHistory.value = false
+            }
+        }
+    }
 }

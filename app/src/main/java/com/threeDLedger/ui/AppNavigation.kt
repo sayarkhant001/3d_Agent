@@ -27,6 +27,7 @@ import kotlinx.serialization.Serializable
 @Serializable object ArchiveRoute
 @Serializable object ExportHistoryRoute
 @Serializable object SettingsRoute
+@Serializable object WinningHistoryRoute
 @Serializable data class CommissionerResultRoute(val batchNumber: Int)
 
 @Composable
@@ -103,7 +104,8 @@ fun AppNavigation(
                 onNavigateToReceipt = { navController.navigate(ReceiptRoute) },
                 onNavigateToArchive = { navController.navigate(ArchiveRoute) },
                 onNavigateToOverflow = { navController.navigate(OverflowRoute) },
-                onNavigateToSettings = { navController.navigate(SettingsRoute) }
+                onNavigateToSettings = { navController.navigate(SettingsRoute) },
+                onNavigateToHistory = { navController.navigate(WinningHistoryRoute) }
             )
         }
         composable<CustomersRoute> {
@@ -180,6 +182,12 @@ fun AppNavigation(
         }
         composable<ExportHistoryRoute> {
             ExportHistoryScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable<WinningHistoryRoute> {
+            WinningHistoryScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )

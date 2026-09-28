@@ -162,13 +162,13 @@ fun UpdateDialogHandler(owner: String, repo: String) {
             icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
             title = {
                 Text(
-                    "Update ဗားရှင်း အသစ် ရှိနေပါသည်",
+                    "ဗားရှင်း အသစ် ရရှိနိုင်ပါသည်",
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Version: ${info.version}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("ဗားရှင်း: ${info.version}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                     if (info.releaseNotes.isNotBlank()) {
                         Text(
                             info.releaseNotes.take(200).let { if (info.releaseNotes.length > 200) "$it…" else it },
@@ -194,7 +194,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                             startDownloadAndInstall(info)
                         }
                     ) {
-                        Text("တိုက်ရိုက် Update လုပ်မည်")
+                        Text("တိုက်ရိုက် ဒေါင်းလုဒ်လုပ်မည်")
                     }
                     OutlinedButton(
                         modifier = Modifier.fillMaxWidth(),
@@ -246,7 +246,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                         showUpdateDialog = true
                     }
                 }) {
-                    Text("Settings ဖွင့်မည်")
+                    Text("ဆက်တင် ဖွင့်မည်")
                 }
             },
             dismissButton = {

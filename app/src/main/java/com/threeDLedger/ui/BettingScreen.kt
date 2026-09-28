@@ -2168,7 +2168,7 @@ fun BettingScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         TactileKeypadButton(
                             text = "ရှင်း",
-                            subtitle = "Clear",
+                            subtitle = "ဖျက်မည်",
                             bgColor = KeypadClearAmber,
                             bevelColor = Color(0xFF92400E),
                             modifier = Modifier.weight(1f)
@@ -2186,7 +2186,7 @@ fun BettingScreen(
                         TactileKeypadButton("0", modifier = Modifier.weight(1f)) { appendText("0") }
                         TactileKeypadButton("00", modifier = Modifier.weight(1f)) { appendText("00") }
                         TactileKeypadButton(
-                            text = "OK",
+                            text = "သေချာပါသည်",
                             subtitle = "ထည့်မည်",
                             bgColor = KeypadSubmitBg,
                             bevelColor = Color(0xFF022C22),
@@ -2467,7 +2467,7 @@ fun BannedRemovalNotificationDialog(
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("အိုကေ (OK)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text("နားလည်ပါပြီ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
         }
     )

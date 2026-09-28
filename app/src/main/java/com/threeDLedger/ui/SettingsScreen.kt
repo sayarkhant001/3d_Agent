@@ -84,7 +84,7 @@ fun SettingsScreen(
                     Column {
                         Text("ဆက်တင်", fontWeight = FontWeight.Bold, fontSize = 18.sp,
                             color = MaterialTheme.colorScheme.onPrimary)
-                        Text("3D Ledger App", fontSize = 11.sp,
+                        Text("3D စာရင်း စနစ်", fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
                     }
                 },
@@ -211,10 +211,10 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { showManualUpdateDialog = false },
             icon = { Icon(Icons.Default.SystemUpdate, null, tint = primaryColor) },
-            title = { Text("Update ${info.version} ရှိနေပါသည်", fontWeight = FontWeight.Bold) },
+            title = { Text("ဗားရှင်းအသစ် ${info.version} ရရှိနိုင်ပါသည်", fontWeight = FontWeight.Bold) },
             text  = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("ယခု Download လုပ်ပြီး Install လုပ်မည်လား?")
+                    Text("ယခု ဒေါင်းလုဒ်လုပ်ပြီး ထည့်သွင်းမည်လား?")
                     if (info.releaseNotes.isNotBlank()) {
                         Text(info.releaseNotes.take(150), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -255,7 +255,7 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                    ) { Text("Install လုပ်မည်") }
+                    ) { Text("ထည့်သွင်းမည်") }
                 }
             },
             dismissButton = { TextButton(onClick = { showManualUpdateDialog = false }) { Text("နောက်မှ") } }
@@ -266,7 +266,7 @@ fun SettingsScreen(
         val animatedProgress by animateFloatAsState(targetValue = downloadProgress / 100f, label = "dl")
         AlertDialog(
             onDismissRequest = {},
-            title = { Text(if (isInstalling) "Install လုပ်နေသည်…" else "Download လုပ်နေသည်…", fontWeight = FontWeight.Bold) },
+            title = { Text(if (isInstalling) "ထည့်သွင်းနေသည်…" else "ဒေါင်းလုဒ်လုပ်နေသည်…", fontWeight = FontWeight.Bold) },
             text = {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -275,7 +275,7 @@ fun SettingsScreen(
                         Button(onClick = { showDownloadDialog = false; downloadError = null }, Modifier.fillMaxWidth()) { Text("ပိတ်မည်") }
                     } else if (isInstalling) {
                         CircularProgressIndicator(Modifier.size(48.dp), color = primaryColor)
-                        Text("Installer ဖွင့်နေသည်…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("ထည့်သွင်းမှု စတင်နေသည်…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     } else {
                         LinearProgressIndicator({ animatedProgress }, Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                             color = primaryColor, trackColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -349,8 +349,8 @@ private fun UpdateCard(currentVersion: String, updateCheckStatus: String, onChec
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("Update စစ်ဆေးရန်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text("လက်ရှိ Version : $currentVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("ဗားရှင်းအသစ် စစ်ဆေးရန်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text("လက်ရှိ ဗားရှင်း : $currentVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (updateCheckStatus.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -540,7 +540,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("OK", fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) { Text("အတည်ပြုသည်", fontWeight = FontWeight.Bold) }
         }
     )
 
@@ -695,7 +695,7 @@ fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                         modifier = Modifier.size(20.dp))
                                     Spacer(Modifier.width(10.dp))
                                     Column {
-                                        Text(device.name ?: "Unknown", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text(device.name ?: "အမည်မသိ ကိရိယာ", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                                         Text(device.address, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     if (sel) { Spacer(Modifier.weight(1f)); Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) }

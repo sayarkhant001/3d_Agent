@@ -1,4 +1,4 @@
-package com.threeDLedger.data
+﻿package com.threeDLedger.data
 
 import kotlinx.coroutines.flow.Flow
 
@@ -13,9 +13,22 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
     val numberExposures: Flow<List<NumberExposure>> = lotteryDao.getNumberExposures()
     val allBannedNumbers: Flow<List<BannedNumber>> = lotteryDao.getAllBannedNumbers()
     val allExportRecords: Flow<List<ExportRecordWithNumbers>> = lotteryDao.getAllExportRecords()
+    val allDines: Flow<List<Dine>> = lotteryDao.getAllDines()
 
     fun getVouchersWithBetsByBatch(batchNumber: Int): Flow<List<VoucherWithBets>> =
         lotteryDao.getVouchersWithBetsByBatch(batchNumber)
+
+    suspend fun insertDine(dine: Dine): Long {
+        return lotteryDao.insertDine(dine)
+    }
+
+    suspend fun updateDine(dine: Dine) {
+        lotteryDao.updateDine(dine)
+    }
+
+    suspend fun deleteDine(dine: Dine) {
+        lotteryDao.deleteDine(dine)
+    }
 
     suspend fun updateCustomer(customer: Customer) {
         lotteryDao.updateCustomer(customer)
@@ -74,5 +87,15 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
         lotteryDao.purgeOverflowCustomers()
         lotteryDao.purgeOverflowVouchers()
         lotteryDao.deleteOrphanedBets()
+    }
+
+    val winningHistory3D: Flow<List<ThreeDWinningHistory>> = lotteryDao.get3DWinningHistory()
+
+    suspend fun insert3DWinningHistory(items: List<ThreeDWinningHistory>) {
+        lotteryDao.insert3DWinningHistory(items)
+    }
+
+    suspend fun insert3DWinningHistorySingle(item: ThreeDWinningHistory) {
+        lotteryDao.insert3DWinningHistorySingle(item)
     }
 }
