@@ -89,8 +89,23 @@ fun HomeScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToHistory: () -> Unit = {}
 ) {
-    val dateFormat = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault())
-    val currentDate = dateFormat.format(Date())
+    val todayDayOfWeek = remember {
+        val cal = java.util.Calendar.getInstance()
+        when (cal.get(java.util.Calendar.DAY_OF_WEEK)) {
+            java.util.Calendar.SUNDAY -> "တနင်္ဂနွေ"
+            java.util.Calendar.MONDAY -> "တနင်္လာ"
+            java.util.Calendar.TUESDAY -> "အင်္ဂါ"
+            java.util.Calendar.WEDNESDAY -> "ဗုဒ္ဓဟူး"
+            java.util.Calendar.THURSDAY -> "ကြာသပတေး"
+            java.util.Calendar.FRIDAY -> "သောကြာ"
+            java.util.Calendar.SATURDAY -> "စနေ"
+            else -> ""
+        }
+    }
+    val currentDate = remember {
+        val d = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        "$d ($todayDayOfWeek)"
+    }
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     val bannedNumbers by viewModel.bannedNumbers.collectAsStateWithLifecycle()
     val vouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
