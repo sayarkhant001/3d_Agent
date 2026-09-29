@@ -924,7 +924,7 @@ fun OverflowScreen(
                         Text("စုစုပေါင်း", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
                         Text("%,d".format(totalBraked), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = emeraldPrimary)
                     }
-                    // Action Buttons under Left Table (In 3D: No ရက်ချုပ်, + သိမ်းမည် and 📋 ကော်ပီ)
+                    // Action Buttons under Left Table (In 3D: No ရက်ချုပ်, + သိမ်းမည် and  ကော်ပီ)
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)

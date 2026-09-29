@@ -946,16 +946,28 @@ fun ThreeDRealtimeLiveDialog(
                     )
                 }
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0xFFFEE2E2)
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color(0xFFFEE2E2),
+                    border = BorderStroke(1.dp, Color(0xFFFECACA))
                 ) {
-                    Text(
-                        "● LIVE",
-                        color = Color(0xFFDC2626),
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFDC2626))
+                        )
+                        Text(
+                            "LIVE",
+                            color = Color(0xFFDC2626),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 10.5.sp
+                        )
+                    }
                 }
             }
         },
@@ -965,28 +977,36 @@ fun ThreeDRealtimeLiveDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Schedule Banner
+                // Schedule Banner (Full Date prominently visible without truncation)
                 Surface(
                     color = Color(0xFFECFDF5),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.CalendarMonth, null, tint = Color(0xFF047857), modifier = Modifier.size(18.dp))
-                        Text(
-                            text = drawSchedule.statusBannerText,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF065F46),
-                            maxLines = 1,
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Icon(Icons.Default.CalendarMonth, null, tint = Color(0xFF047857), modifier = Modifier.size(22.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (drawSchedule.isDrawDay) "ထိုင်း 3D ပေါက်ဂဏန်း ထွက်မည့်ရက်" else "နောက်တစ်ကြိမ် ထွက်မည့်ရက်",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF047857).copy(alpha = 0.85f),
+                                maxLines = 1
+                            )
+                            Text(
+                                text = if (drawSchedule.isDrawDay && drawSchedule.isAfterDrawTime) "ယနေ့ ထွက်ရှိပြီးပါပြီ (ညနေ ၃:၃၀)" else drawSchedule.nextDrawStr,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF065F46),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
 
@@ -1092,9 +1112,11 @@ fun ThreeDRealtimeLiveDialog(
                     onClick = {
                         fetchedNumber?.let { onSelectNumber(it) }
                     },
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857))
                 ) {
-                    Text("ဂဏန်းအကွက်ထဲ ထည့်မည်", fontWeight = FontWeight.Bold)
+                    Text("ဂဏန်းအကွက်ထဲ ထည့်မည်", fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
             }
         },

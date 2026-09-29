@@ -499,10 +499,23 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("မရဂဏန်းများ (ပိတ်ဂဏန်း / ကန့်သတ်ငွေ)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFFEE2E2)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                }
+                Column {
+                    Text("ပိတ်ဂဏန်း / ကန့်သတ်ငွေ", fontWeight = FontWeight.Bold, fontSize = 15.5.sp, maxLines = 1, softWrap = false)
+                    Text("မရောင်းချလိုသော ဂဏန်းများ သတ်မှတ်ရန်", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
             }
         },
         text = {
@@ -521,7 +534,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         value = newNumber,
                         onValueChange = { newNumber = it.filter { c -> c.isDigit() || c == ',' || c == ' ' } },
                         modifier = Modifier.weight(1.1f),
-                        label = { Text("ဂဏန်း (၃ လုံး)", fontSize = 11.sp) },
+                        label = { Text("ဂဏန်း", fontSize = 11.sp, maxLines = 1, softWrap = false) },
                         placeholder = { Text("123", fontSize = 11.sp) },
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
@@ -531,7 +544,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         value = newLimit,
                         onValueChange = { newLimit = it.filter { c -> c.isDigit() } },
                         modifier = Modifier.weight(1.3f),
-                        label = { Text("ကန့်သတ်ငွေ (ကျပ်)", fontSize = 11.sp) },
+                        label = { Text("ကန့်သတ်ငွေ", fontSize = 11.sp, maxLines = 1, softWrap = false) },
                         placeholder = { Text("၀ = လုံးဝပိတ်", fontSize = 10.sp) },
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
@@ -553,9 +566,10 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                        modifier = Modifier.height(52.dp)
                     ) {
-                        Text("ထည့်", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("ထည့်", fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, softWrap = false)
                     }
                 }
 
@@ -649,7 +663,14 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("အတည်ပြုသည်", fontWeight = FontWeight.Bold) }
+            Button(
+                onClick = onDismiss,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+            ) {
+                Text("အတည်ပြုသည်", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, maxLines = 1, softWrap = false)
+            }
         }
     )
 

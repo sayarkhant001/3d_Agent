@@ -94,7 +94,7 @@ val KeypadShadowLight    = Color(0xFF9CA3AF)  // Bottom key drop bevel
 
 val KeypadActionEmerald  = Color(0xFF047857)  // R (Permutation) key
 val KeypadActionTeal     = Color(0xFF0D9488)  // Triples (ထွိုင်) key
-val KeypadBackspaceRed   = Color(0xFFDC2626)  // ⌫ Backspace key
+val KeypadBackspaceRed   = Color(0xFFDC2626)  // Backspace Backspace key
 val KeypadClearAmber     = Color(0xFFD97706)  // ရှင်း Clear key
 val KeypadSubmitGold     = Color(0xFFEAB308)  // OK / Enter key
 val KeypadSubmitBg       = Color(0xFF046A4E)  // Rich Emerald Submit

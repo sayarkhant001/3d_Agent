@@ -2149,13 +2149,13 @@ fun BettingScreen(
                         ) { handleSpecial("ထွိုင်") }
                     }
 
-                    // Row 3: 7, 8, 9, ⌫ (ဖျက်)
+                    // Row 3: 7, 8, 9, Backspace (ဖျက်)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         TactileKeypadButton("7", modifier = Modifier.weight(1f)) { appendText("7") }
                         TactileKeypadButton("8", modifier = Modifier.weight(1f)) { appendText("8") }
                         TactileKeypadButton("9", modifier = Modifier.weight(1f)) { appendText("9") }
                         TactileKeypadButton(
-                            text = "⌫",
+                            text = "ဖျက်",
                             subtitle = "ဖျက်",
                             icon = Icons.AutoMirrored.Filled.Backspace,
                             bgColor = KeypadBackspaceRed,
