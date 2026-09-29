@@ -1054,7 +1054,7 @@ fun WinBreakdownDialog(
                 OutlinedButton(
                     onClick = {
                         val textToCopy = buildString {
-                            appendLine("ℹ️ $title - $agentName")
+                            appendLine("$title - $agentName")
                             appendLine("အကြိမ် $batchNumber (ထွက်: $winningNumber) [×${multiplier.toInt()} ဆ]")
                             appendLine("------------------------")
                             details.forEach {

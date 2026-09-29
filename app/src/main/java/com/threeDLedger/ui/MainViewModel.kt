@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -48,11 +49,24 @@ data class BatchFinancialSummary3D(
     val winningPayout: Long,
     val voucherCount: Int,
     val customerCount: Int,
+    val commissionCustomerCount: Int = 0,
+    val directBettorCount: Int = 0,
     val isDeclared: Boolean,
     val winningNumber: String
 )
 
 class MainViewModel(private val repository: LotteryRepository, private val prefs: android.content.SharedPreferences) : ViewModel() {
+
+    val fontScales = listOf(0.85f, 1.0f, 1.15f, 1.30f)
+    private val _fontScaleIndex = MutableStateFlow(prefs.getInt("font_scale_index", 0).coerceIn(0, 3))
+    val fontScaleIndex: StateFlow<Int> = _fontScaleIndex.asStateFlow()
+
+    fun setFontScaleIndex(index: Int) {
+        val safeIndex = index.coerceIn(0, 3)
+        _fontScaleIndex.value = safeIndex
+        prefs.edit().putInt("font_scale_index", safeIndex).apply()
+    }
+
 
     val customers: StateFlow<List<Customer>> = repository.allCustomers
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -90,6 +104,7 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         
     var currentBatch = MutableStateFlow(prefs.getInt("currentBatch", 1))
+    fun selectBatch(batch: Int) { currentBatch.value = batch }
 
     val appPassword = MutableStateFlow("")
     val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
@@ -785,7 +800,10 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
             totalSales - commTotal - exportedAmt
         }
 
-        val custCount = batchVouchers.map { it.voucher.customerId }.distinct().size
+        val distinctCustIds = batchVouchers.map { it.voucher.customerId }.distinct()
+        val custCount = distinctCustIds.size
+        val commCustCount = distinctCustIds.count { (custMap[it]?.commissionRate ?: 0.0) > 0.0 }
+        val directCustCount = distinctCustIds.count { (custMap[it]?.commissionRate ?: 0.0) == 0.0 }
 
         return BatchFinancialSummary3D(
             totalSales = totalSales,
@@ -795,6 +813,8 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
             winningPayout = payoutTotal,
             voucherCount = batchVouchers.size,
             customerCount = custCount,
+            commissionCustomerCount = commCustCount,
+            directBettorCount = directCustCount,
             isDeclared = wonDeclared,
             winningNumber = winningNum
         )

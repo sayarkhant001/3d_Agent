@@ -7,6 +7,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import com.threeDLedger.ui.theme.EmeraldPrimary
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -114,6 +118,110 @@ fun SettingsScreen(
                     SettingsRow(Icons.Default.History,  Color(0xFF4ECDC4), "မှတ်တမ်းများ",         "သိမ်းဆည်းထားသော မှတ်တမ်းဟောင်းများ", onClick = onNavigateToArchive)
                     SettingsDivider()
                     SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ထွက်ဂဏန်းများ",        "ပေါက်ဂဏန်း စာရင်း",        onClick = onNavigateToWinner)
+                }
+            }
+
+            item { SettingsSectionHeader("စာလုံး အရွယ်အစား (အမြင်အာရုံ အထောက်အကူ)", Icons.Default.FormatSize) }
+            item {
+                val fontScaleIndex by viewModel.fontScaleIndex.collectAsStateWithLifecycle()
+                val scaleLabels = listOf("အသေးဆုံး", "ပုံမှန်", "အကြီး", "အကြီးဆုံး")
+                SettingsCard {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(EmeraldPrimary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.FormatSize, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("စာလုံး အရွယ်အစား ချိန်ညှိရန်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = onSurface)
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = EmeraldPrimary.copy(alpha = 0.12f)
+                                    ) {
+                                        Text(
+                                            scaleLabels.getOrElse(fontScaleIndex) { "အသေးဆုံး" },
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldPrimary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                Text("ဖုန်းစနစ် ဆက်တင်ထက် ဤဆက်တင်က တိုက်ရိုက် ဦးစားပေး အသက်ဝင်ပါမည် (မူလ: အသေးဆုံး)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        // Line with Circle Slider
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Slider(
+                                value = fontScaleIndex.toFloat(),
+                                onValueChange = { viewModel.setFontScaleIndex(kotlin.math.round(it).toInt()) },
+                                valueRange = 0f..3f,
+                                steps = 2,
+                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                                colors = SliderDefaults.colors(
+                                    thumbColor = EmeraldPrimary,
+                                    activeTrackColor = EmeraldPrimary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            )
+                            Text("A", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                        }
+
+                        // Steps label row
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            scaleLabels.forEachIndexed { idx, label ->
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (idx == fontScaleIndex) FontWeight.Bold else FontWeight.Normal,
+                                    color = if (idx == fontScaleIndex) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        // Live Preview Card
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "နမူနာ စာသား အရွယ်အစား ပြသချက်:",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "3D စာရင်း စာလုံးအရွယ်အစား စမ်းသပ်ချက် (123 = 1000)",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = EmeraldPrimary
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -443,6 +551,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                 newLimit = ""
                             }
                         },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                     ) {

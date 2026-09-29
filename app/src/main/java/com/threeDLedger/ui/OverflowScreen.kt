@@ -294,7 +294,7 @@ fun OverflowScreen(
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             Text(
-                                                text = "💰 ကော်မရှင် ${dine.commissionRate}%",
+                                                text = "ကော်မရှင် ${dine.commissionRate}%",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = Color(0xFFD97706)

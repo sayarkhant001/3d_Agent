@@ -408,7 +408,7 @@ fun LicenseDetailsDialog(
                     } else {
                         Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("🔄 အင်တာနက်ဖြင့် အချိန် ပြန်လည်ချိန်ညှိမည် (Sync MMT)", fontSize = 12.sp)
+                        Text("အင်တာနက်ဖြင့် အချိန် ပြန်လည်ချိန်ညှိမည် (Sync MMT)", fontSize = 12.sp)
                     }
                 }
             }
@@ -469,7 +469,7 @@ fun ClockTamperedBlockDialog(
                 }
 
                 Text(
-                    text = "⚠️ အချိန်နှင့် နေ့စွဲ မှားယွင်းနေပါသည်",
+                    text = "အချိန်နှင့် နေ့စွဲ မှားယွင်းနေပါသည်",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color(0xFFDC2626),
@@ -521,7 +521,7 @@ fun ClockTamperedBlockDialog(
                     } else {
                         Icon(Icons.Default.Sync, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("🔄 အင်တာနက်ဖြင့် အချိန် ပြန်ညှိမည်", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text("အင်တာနက်ဖြင့် အချိန် ပြန်ညှိမည်", fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                 }
             }

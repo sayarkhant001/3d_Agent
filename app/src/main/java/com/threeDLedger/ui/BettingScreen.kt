@@ -836,7 +836,7 @@ fun BettingScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("⚡ အမြန်ထိုး စာရင်းထည့်သွင်းခြင်း", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("အမြန်ထိုး စာရင်းထည့်သွင်းခြင်း", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             if (lineCount > 0) {
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
@@ -962,7 +962,7 @@ fun BettingScreen(
                                         )
                                         Spacer(Modifier.width(6.dp))
                                         Text(
-                                            "📋 ကူးယူထားသော စာရင်း ထည့်မည်",
+                                            "ကူးယူထားသော စာရင်း ထည့်မည်",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             color = Color.White
@@ -1003,7 +1003,7 @@ fun BettingScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            "✅ ${liveValidation.validBets.size} ကွက် စစ်ဆေးပြီး",
+                                            "${liveValidation.validBets.size} ကွက် စစ်ဆေးပြီး",
                                             color = Color(0xFF047857),
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp
@@ -1025,7 +1025,7 @@ fun BettingScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
-                                        "⚠️ အမှား ${liveValidation.errors.size} ခု တွေ့ရှိပါသည် (ထိုးကြေးကို = ဖြင့် သေချာ ထည့်ပေးပါ)",
+                                        "အမှား ${liveValidation.errors.size} ခု တွေ့ရှိပါသည် (ထိုးကြေးကို = ဖြင့် သေချာ ထည့်ပေးပါ)",
                                         color = Color(0xFFB91C1C),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.5.sp,
@@ -1055,7 +1055,7 @@ fun BettingScreen(
 
                         if (lineCount > 500)
                             Text(
-                                "⚡ ${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် ပေါက်သီး DB သိမ်းမည်",
+                                "${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် ပေါက်သီး DB သိမ်းမည်",
                                 fontSize = 11.sp, color = Color(0xFFFF9800),
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -1087,7 +1087,7 @@ fun BettingScreen(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                "📋 စာသား ကူးထည့်မည်",
+                                "စာသား ကူးထည့်မည်",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -1160,7 +1160,7 @@ fun BettingScreen(
                         modifier = Modifier.size(52.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text("⚠️", fontSize = 26.sp)
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(26.dp))
                         }
                     }
                 },
@@ -1269,7 +1269,7 @@ fun BettingScreen(
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("✏️ ပြန်လည် ပြင်ဆင်မည်", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("ပြန်လည် ပြင်ဆင်မည်", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             )

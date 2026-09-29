@@ -387,7 +387,7 @@ fun ActivationScreen(
                             modifier = Modifier.padding(dimens.responsiveDp(10.dp, 12.dp, 14.dp))
                         ) {
                             Text(
-                                text = "📋 ရရှိနိုင်သော ဝန်ဆောင်မှု အစီအစဉ်များ",
+                                text = "ရရှိနိုင်သော ဝန်ဆောင်မှု အစီအစဉ်များ",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = dimens.responsiveSp(11.5.sp, 12.5.sp, 13.sp),
                                 color = MaterialTheme.colorScheme.onSurface
@@ -410,7 +410,7 @@ fun ActivationScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            "⭐ ၁ နှစ် (Changeable)",
+                                            "၁ နှစ် (Changeable)",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = dimens.responsiveSp(11.sp, 12.sp, 13.sp),
                                             color = MaterialTheme.colorScheme.primary,
@@ -456,7 +456,7 @@ fun ActivationScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(
-                                            "💎 တစ်သက်တာ (Lifetime)",
+                                            "တစ်သက်တာ (Lifetime)",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = dimens.responsiveSp(11.sp, 12.sp, 13.sp),
                                             color = MaterialTheme.colorScheme.secondary,
@@ -497,7 +497,7 @@ fun ActivationScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        "🎁 ၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (Free 72-Hour Trial)",
+                                        "၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (Free 72-Hour Trial)",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = dimens.responsiveSp(11.sp, 12.sp, 13.sp),
                                         color = MaterialTheme.colorScheme.tertiary
@@ -675,7 +675,7 @@ fun ActivationScreen(
                         Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            "🔄 ယခင် လိုင်စင် အလိုအလျောက် ပြန်လည်ရှာဖွေမည်",
+                            "ယခင် လိုင်စင် အလိုအလျောက် ပြန်လည်ရှာဖွေမည်",
                             fontSize = dimens.responsiveSp(11.5.sp, 12.sp, 13.sp),
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.SemiBold

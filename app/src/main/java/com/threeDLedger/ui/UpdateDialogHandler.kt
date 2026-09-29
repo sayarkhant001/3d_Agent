@@ -210,7 +210,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                             }
                         }
                     ) {
-                        Text("📱 Telegram Bot မှ ရယူမည်")
+                        Text("Telegram Bot မှ ရယူမည်")
                     }
                     TextButton(
                         modifier = Modifier.fillMaxWidth(),
@@ -304,7 +304,7 @@ fun UpdateDialogHandler(owner: String, repo: String) {
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("📱 Telegram Bot မှ ဒေါင်းလုဒ်လုပ်မည်")
+                                Text("Telegram Bot မှ ဒေါင်းလုဒ်လုပ်မည်")
                             }
                             Button(
                                 onClick = {

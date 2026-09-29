@@ -17,6 +17,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.filled.*
+
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.List
@@ -101,6 +105,16 @@ fun HomeScreen(
     var showLicenseDetailsDialog by remember { mutableStateOf(false) }
     var licenseDetails by remember { mutableStateOf(licenseManager.getLicenseDetails()) }
     var isBatchSummaryExpanded by remember { mutableStateOf(false) }
+    var showBatchDropdown by remember { mutableStateOf(false) }
+
+    val availableBatches = remember(vouchersWithBets, allExportRecords, currentBatch) {
+        val bFromVouchers = vouchersWithBets.map { it.voucher.batchNumber }
+        val bFromExports = allExportRecords.map { it.record.batchNumber }
+        (bFromVouchers + bFromExports + listOf(currentBatch, currentBatch + 1))
+            .filter { it > 0 }
+            .distinct()
+            .sortedDescending()
+    }
 
     LaunchedEffect(Unit) {
         licenseManager.syncServerTime()
@@ -262,116 +276,7 @@ fun HomeScreen(
             ) {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ── Tactile Batch Stepper Controller Card ─────────────────────
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(4.dp, RoundedCornerShape(20.dp)),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                            .fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Text(
-                                text = "အကြိမ်",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = rDimens.responsiveSp(16f),
-                                maxLines = 1
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "လက်ရှိ အသုံးပြုနေသော အကြိမ်",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = rDimens.responsiveSp(11f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        // Stepper buttons + Input
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (currentBatch > 1) viewModel.currentBatch.value = currentBatch - 1
-                                },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Icon(
-                                    Icons.Default.Remove,
-                                    contentDescription = "လျှော့မည်",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            var batchText by remember { mutableStateOf(currentBatch.toString()) }
-                            LaunchedEffect(currentBatch) {
-                                batchText = currentBatch.toString()
-                            }
-
-                            OutlinedTextField(
-                                value = batchText,
-                                onValueChange = { newText ->
-                                    batchText = newText
-                                    newText.toIntOrNull()?.let { num ->
-                                        if (num in 1..1000) viewModel.currentBatch.value = num
-                                    }
-                                },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier
-                                    .width(76.dp)
-                                    .padding(horizontal = 6.dp),
-                                singleLine = true,
-                                textStyle = LocalTextStyle.current.copy(
-                                    textAlign = TextAlign.Center,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                ),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
-                                ),
-                                shape = RoundedCornerShape(12.dp)
-                            )
-
-                            IconButton(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    if (currentBatch < 999) viewModel.currentBatch.value = currentBatch + 1
-                                },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "တိုးမည်",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // ── Tap-to-Show / Expandable Batch Financial Summary ─────────
+                // ── 1. Batch Summary Overview (Matching Image 3 - Tap icon to expand) ──
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -386,13 +291,13 @@ fun HomeScreen(
                             .padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Header: Tap to expand / collapse
+                        // Section Header: Batch Indicator & Declaration Tag
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { isBatchSummaryExpanded = !isBatchSummaryExpanded }
-                                .padding(vertical = 2.dp),
+                                .padding(vertical = 4.dp, horizontal = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -400,17 +305,23 @@ fun HomeScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.BarChart,
+                                    contentDescription = null,
+                                    tint = EmeraldPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
                                 Text(
-                                    text = "📊 အကြိမ် #${currentBatch} ရှင်းတမ်း အနှစ်ချုပ်",
-                                    fontSize = 13.sp,
+                                    text = "အကြိမ် #${currentBatch} ရှင်းတမ်း အနှစ်ချုပ်",
+                                    fontSize = 13.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = EmeraldPrimary
                                 )
                                 Icon(
                                     if (isBatchSummaryExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = null,
+                                    contentDescription = if (isBatchSummaryExpanded) "Collapse" else "Expand",
                                     tint = EmeraldPrimary,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             Row(
@@ -424,7 +335,7 @@ fun HomeScreen(
                                         border = BorderStroke(1.dp, Color(0xFFFCA5A5))
                                     ) {
                                         Text(
-                                            text = "🏆 ပေါက်: ${stats.winningNumber}",
+                                            text = "ပေါက်: ${stats.winningNumber}",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Black,
                                             color = Color(0xFFB91C1C),
@@ -438,7 +349,7 @@ fun HomeScreen(
                                         border = BorderStroke(1.dp, Color(0xFF86EFAC))
                                     ) {
                                         Text(
-                                            text = "🟢 ဖွင့်လှစ်ဆဲ",
+                                            text = "ဖွင့်လှစ်ဆဲ",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF15803D),
@@ -446,87 +357,225 @@ fun HomeScreen(
                                         )
                                     }
                                 }
-                                if (!isBatchSummaryExpanded) {
-                                    Text(
-                                        text = "ကြည့်ရန် နှိပ်ပါ",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EmeraldPrimary
-                                    )
-                                }
                             }
                         }
 
-                        // Collapsible Stats Grid Content
+                        // Collapsible Stats Grid Content (Image 3 Breakdown: Left Customers, Right Financials)
                         AnimatedVisibility(
                             visible = isBatchSummaryExpanded,
                             enter = expandVertically(),
                             exit = shrinkVertically()
                         ) {
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // Row 1: Sales & Net Balance
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    BatchStatItem(
-                                        modifier = Modifier.weight(1f),
-                                        label = "အရောင်းကြေး",
-                                        value = "%,d Ks".format(stats.totalSales),
-                                        icon = Icons.Default.AccountBalanceWallet,
-                                        accentColor = EmeraldPrimary
+                                    // Left Column: Customer Breakdown (အားလုံး / ကော်မရှင် / ထိုးသား)
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "ထိုးသား အခြေအနေ",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldPrimary
+                                        )
+                                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                        SummaryStatRow(label = "အားလုံး", value = "${stats.customerCount} ယောက်")
+                                        SummaryStatRow(label = "ကော်မရှင်", value = "${stats.commissionCustomerCount} ယောက်")
+                                        SummaryStatRow(label = "ထိုးသား", value = "${stats.directBettorCount} ယောက်")
+                                    }
+
+                                    // Right Column: Financial Overview (အရောင်းကြေး / ကော်မရှင်ခ / ကျန်ငွေ / ပေါက်ကြေး)
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1.3f)
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                                RoundedCornerShape(12.dp)
+                                            )
+                                            .padding(10.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "ငွေစာရင်း အကျဉ်း",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldPrimary
+                                        )
+                                        HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                        SummaryStatRow(
+                                            label = "အရောင်းကြေး",
+                                            value = "%,d Ks".format(stats.totalSales),
+                                            valueColor = EmeraldPrimary
+                                        )
+                                        SummaryStatRow(
+                                            label = "ကော်မရှင်ခ",
+                                            value = "%,d Ks".format(stats.commissionAmount)
+                                        )
+                                        SummaryStatRow(
+                                            label = "ကျန်ရှိငွေ",
+                                            value = "%,d Ks".format(stats.netBalance),
+                                            valueColor = Color(0xFF059669)
+                                        )
+                                        if (stats.isDeclared) {
+                                            SummaryStatRow(
+                                                label = "ပေါက်လျော်ငွေ",
+                                                value = "%,d Ks".format(stats.winningPayout),
+                                                valueColor = Color(0xFFDC2626)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // ── 2. Compact Date & Batch Selector Bar with Dropdown (Matching Screenshot) ──
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Current Date Display
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = EmeraldPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = currentDate,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        // Interactive Batch Selector Dropdown Pill
+                        Box {
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    showBatchDropdown = true
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                color = EmeraldLight,
+                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "အကြိမ် $currentBatch",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = EmeraldPrimary
                                     )
-                                    BatchStatItem(
-                                        modifier = Modifier.weight(1f),
-                                        label = "ကျန်ရှိငွေ",
-                                        value = "%,d Ks".format(stats.netBalance),
-                                        icon = Icons.Default.AccountBalance,
-                                        accentColor = Color(0xFF059669)
+                                    Icon(
+                                        Icons.Default.ArrowDropDown,
+                                        contentDescription = "Dropdown",
+                                        tint = EmeraldPrimary,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
+                            }
 
-                                // Row 2: Commission & Export / Winning Payout
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    BatchStatItem(
-                                        modifier = Modifier.weight(1f),
-                                        label = "ကော်မရှင်ခ",
-                                        value = "%,d Ks".format(stats.commissionAmount),
-                                        icon = Icons.Default.Percent,
-                                        accentColor = Color(0xFFD97706)
-                                    )
-                                    BatchStatItem(
-                                        modifier = Modifier.weight(1f),
-                                        label = if (stats.isDeclared) "ပေါက်သီး လျော်ငွေ" else "တင်ကွက်ငွေ",
-                                        value = "%,d Ks".format(if (stats.isDeclared) stats.winningPayout else stats.exportedAmount.toLong()),
-                                        icon = if (stats.isDeclared) Icons.Default.EmojiEvents else Icons.Default.Payment,
-                                        accentColor = if (stats.isDeclared) Color(0xFFDC2626) else Color(0xFF7C3AED)
-                                    )
-                                }
-
-                                // Row 3: Operational Counts
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    BatchStatItem(
-                                        modifier = Modifier.weight(1f),
-                                        label = "ဘောင်ချာများ (အားလုံး)",
-                                        value = "%,d စောင်".format(stats.voucherCount),
-                                        icon = Icons.Default.Receipt,
-                                        accentColor = Color(0xFF0891B2)
-                                    )
-                                    BatchStatItem(
-                                        modifier = Modifier.weight(1f),
-                                        label = "ထိုးသား ဦးရေ",
-                                        value = "%,d ဦး".format(stats.customerCount),
-                                        icon = Icons.Default.People,
-                                        accentColor = Color(0xFF4F46E5)
+                            DropdownMenu(
+                                expanded = showBatchDropdown,
+                                onDismissRequest = { showBatchDropdown = false },
+                                modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                availableBatches.forEach { b ->
+                                    val win = viewModel.getWinningNumberForBatch(b)
+                                    val isDecl = win.length == 3
+                                    DropdownMenuItem(
+                                        text = {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                Text(
+                                                    text = "အကြိမ် #$b",
+                                                    fontWeight = if (b == currentBatch) FontWeight.Black else FontWeight.Medium,
+                                                    fontSize = 14.sp,
+                                                    color = if (b == currentBatch) EmeraldPrimary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (isDecl) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFFFEE2E2)
+                                                    ) {
+                                                        Text(
+                                                            text = "ပေါက်: $win",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFFB91C1C),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                } else {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFFDCFCE7)
+                                                    ) {
+                                                        Text(
+                                                            text = "ဖွင့်လှစ်ဆဲ",
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF15803D),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        trailingIcon = {
+                                            if (b == currentBatch) {
+                                                Icon(
+                                                    Icons.Default.Check,
+                                                    contentDescription = "Selected",
+                                                    tint = EmeraldPrimary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        },
+                                        onClick = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            viewModel.selectBatch(b)
+                                            showBatchDropdown = false
+                                        }
                                     )
                                 }
                             }
@@ -614,42 +663,69 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 if (bannedNumbers.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f), RoundedCornerShape(16.dp)),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)),
-                        shape = RoundedCornerShape(16.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier.size(36.dp).background(MaterialTheme.colorScheme.error, CircleShape),
-                                contentAlignment = Alignment.Center
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Info, contentDescription = "သတိပေးချက်", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(18.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Block,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Text(
+                                        text = "ပိတ်ဂဏန်း / ကန့်သတ်ဂဏန်းများ (${bannedNumbers.size})",
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column {
-                                Text(
-                                    text = "ပိတ်ထားသော ဂဏန်းများ",
-                                    color = MaterialTheme.colorScheme.onErrorContainer,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 12.sp
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = bannedNumbers.joinToString(", ") {
-                                        if (it.amountLimit > 0) "${it.number} (≤%,d Ks)".format(it.amountLimit)
-                                        else "${it.number} (လုံးဝပိတ်)"
-                                    },
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontSize = 13.5.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
-                                )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(bannedNumbers) { bn ->
+                                    val isFullBan = bn.amountLimit <= 0
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isFullBan) Color(0xFFFFE4E6) else Color(0xFFFEF3C7),
+                                        border = BorderStroke(0.5.dp, if (isFullBan) Color(0xFFFDA4AF) else Color(0xFFFDE68A))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(
+                                                text = bn.number,
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 12.5.sp,
+                                                fontFamily = FontFamily.Monospace,
+                                                color = if (isFullBan) Color(0xFFE11D48) else Color(0xFFB45309)
+                                            )
+                                            Text(
+                                                text = if (isFullBan) "(ပိတ်)" else "(≤ %,d)".format(bn.amountLimit),
+                                                fontSize = 10.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (isFullBan) Color(0xFFBE123C) else Color(0xFF92400E)
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -923,5 +999,26 @@ fun MenuCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SummaryStatRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor
+        )
     }
 }

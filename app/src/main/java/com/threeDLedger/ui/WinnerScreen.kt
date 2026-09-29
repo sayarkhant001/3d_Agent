@@ -654,7 +654,7 @@ fun WinnerScreen(
                                         HorizontalDivider(thickness = 0.5.dp)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                             Text(
-                                                text = if (overallDineBalance > 0) "🟢 စုစုပေါင်း ဒိုင်များထံမှ ရရန်:" else if (overallDineBalance < 0) "🔴 စုစုပေါင်း ဒိုင်များသို့ ပေးရန်:" else "⚪ စုစုပေါင်း ကျေအေး:",
+                                                text = if (overallDineBalance > 0) "စုစုပေါင်း ဒိုင်များထံမှ ရရန်:" else if (overallDineBalance < 0) "စုစုပေါင်း ဒိုင်များသို့ ပေးရန်:" else "စုစုပေါင်း ကျေအေး:",
                                                 fontWeight = FontWeight.Black,
                                                 fontSize = 13.sp,
                                                 color = if (overallDineBalance > 0) Color(0xFF10B981) else if (overallDineBalance < 0) Color(0xFFEF4444) else MaterialTheme.colorScheme.onSurface
@@ -838,9 +838,9 @@ fun DineSettlementCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (settlement.netBalance > 0) "🟢 ဒိုင်မှ မိမိသို့ ပေးရန်:"
-                           else if (settlement.netBalance < 0) "🔴 မိမိမှ ဒိုင်သို့ ပေးရန်:"
-                           else "⚪ ကျေအေး:",
+                    text = if (settlement.netBalance > 0) "ဒိုင်မှ မိမိသို့ ပေးရန်:"
+                           else if (settlement.netBalance < 0) "မိမိမှ ဒိုင်သို့ ပေးရန်:"
+                           else "ကျေအေး:",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     color = if (settlement.netBalance > 0) Color(0xFF10B981)
@@ -1134,9 +1134,9 @@ fun getNext3DDrawInfo(): DrawScheduleInfo {
     val targetDateIso = String.format(Locale.US, "%04d-%02d-%02d", targetYear, targetMonth + 1, targetDay)
     val nextDrawStr = "$targetDay ရက် ${burmeseMonths[targetMonth]} $targetYear (ညနေ ၃:၃၀)"
     val statusBanner = when {
-        isDrawDay && isAfterDrawTime -> "🟢 ယနေ့ ပေါက်ဂဏန်း ထွက်ရှိပြီးပါပြီ"
-        isDrawDay -> "⏳ ယနေ့ ပေါက်ဂဏန်း ထွက်မည့်ရက် ဖြစ်ပါသည် (ညနေ ၃:၃၀)"
-        else -> "📅 နောက်တစ်ကြိမ် ထွက်မည့်ရက်: $nextDrawStr"
+        isDrawDay && isAfterDrawTime -> "ယနေ့ ပေါက်ဂဏန်း ထွက်ရှိပြီးပါပြီ"
+        isDrawDay -> "ယနေ့ ပေါက်ဂဏန်း ထွက်မည့်ရက် ဖြစ်ပါသည် (ညနေ ၃:၃၀)"
+        else -> "နောက်တစ်ကြိမ် ထွက်မည့်ရက်: $nextDrawStr"
     }
     return DrawScheduleInfo(isDrawDay, isAfterDrawTime, nextDrawStr, statusBanner, targetDay, targetMonth, targetYear, targetDateIso)
 }
@@ -1208,7 +1208,7 @@ private fun InputCard(
                     ),
                     modifier = Modifier.height(36.dp)
                 ) {
-                    Text("တိုက်ရိုက် 🔴", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("တိုက်ရိုက် LIVE", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1228,7 +1228,7 @@ private fun InputCard(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(
-                                    "🇹🇭 GLO ထွက်ဂဏန်း: $fetchedGloNumber",
+                                    "GLO ထွက်ဂဏန်း: $fetchedGloNumber",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
                                     color = if (isPastResult) Color(0xFF92400E) else MaterialTheme.colorScheme.onSecondaryContainer
@@ -1283,7 +1283,7 @@ private fun InputCard(
                             Spacer(Modifier.width(5.dp))
                             Text(when(fetchStatus) {
                                 "checking" -> "ရလဒ် စစ်ဆေးနေပါသည်..."
-                                "ok"       -> if (isFinalResult) "✓ အတည် ($resultSession)" else "⏳ စောင့်ဆိုင်းဆဲ ($resultSession)"
+                                "ok"       -> if (isFinalResult) "အတည် ($resultSession)" else "စောင့်ဆိုင်းဆဲ ($resultSession)"
                                 else       -> "ချိတ်ဆက်မရပါ — ကိုယ်တိုင် ရိုက်ထည့်ပါ"
                             }, fontSize = 11.sp, color = dotColor, fontWeight = FontWeight.SemiBold)
                         }
@@ -1379,7 +1379,7 @@ private fun DeclaredHeroCard(
                         shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
-                            "✅ အောင်မြင်စွာ ကြေညာပြီး",
+                            "အောင်မြင်စွာ ကြေညာပြီး",
                             color = Color(0xFF6EE7B7),
                             fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
