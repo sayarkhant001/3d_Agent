@@ -91,7 +91,13 @@ fun isVoucherMetadataLine(raw: String): Boolean {
     
     // Pure separators: ---, ===, ***, ___, ၊, ။
     if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' || it == '၊' || it == '။' }) return true
-    
+
+    // Standalone voucher number / serial indicator (e.g. "1k", "2k", "3k", "4k", "10k", "#2k")
+    if (Regex("""^#?\s*\d+\s*[kK]\s*$""").matches(trimmed)) return true
+
+    // Standalone voucher / transaction serial marker (e.g. "No.", "No-", "no", "No. 1", "No- 2", "No 1", "no. 2k", "No- 2k", "စဉ် 1", "Voucher 1", "အမှတ် ၁")
+    if (Regex("""^\s*(?:no[\.\-:\s]|no$|စဉ်[\.\-:\s]?|voucher[\.\-:\s]?|အမှတ်[\.\-:\s]?|#)\s*[\w\.\-]*\s*$""", RegexOption.IGNORE_CASE).matches(trimmed)) return true
+
     val lower = trimmed.lowercase()
     if (lower.contains("တင်ကွက်") || 
         lower.contains("ဘောင်ချာ") || 
@@ -245,8 +251,9 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
     var line = converted.replace(CURRENCY_SUFFIX_REGEX, "").trim()
     if (line.isBlank()) return LineParseResult.Ignored
 
-    // 1. Strip optional leading serial prefix (e.g. "စဉ်", "No.", "#")
-    line = line.replace(Regex("""^(?:စဉ်|No\.?|no\.?|#)\s*\d*\s*[\.:\)\-၊။]?\s*""", RegexOption.IGNORE_CASE), "").trim()
+    // 1. Strip optional leading serial / voucher prefix (e.g. "2k:", "2k -", "No. 1:", "No- 2k:", "No.", "စဉ် 1:", "#1:")
+    line = line.replace(Regex("""^(?:(?:စဉ်|No[\.\-:]?|no[\.\-:]?|Voucher[\.\-:]?|အမှတ်[\.\-:]?|#)\s*)?\d+\s*[kK]\s*[\.:\)\-၊။]?\s*""", RegexOption.IGNORE_CASE), "").trim()
+    line = line.replace(Regex("""^(?:စဉ်|No[\.\-:]?|no[\.\-:]?|Voucher[\.\-:]?|အမှတ်[\.\-:]?|#)\s*\d*\s*[kK]?\s*[\.:\)\-၊။]?\s*""", RegexOption.IGNORE_CASE), "").trim()
 
     // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
     line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()

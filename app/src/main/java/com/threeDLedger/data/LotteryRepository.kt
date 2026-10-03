@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.data
+package com.threeDLedger.data
 
 import kotlinx.coroutines.flow.Flow
 
@@ -75,6 +75,13 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
         lotteryDao.archiveAllExportRecords()
         lotteryDao.deleteOldArchives(thresholdBatch)
         lotteryDao.deleteOldExportArchives(thresholdBatch)
+        lotteryDao.deleteOrphanedBets()
+        lotteryDao.deleteOrphanedExportedNumbers()
+    }
+
+    suspend fun deleteBatchData(batchNumber: Int) {
+        lotteryDao.deleteVouchersByBatch(batchNumber)
+        lotteryDao.deleteExportRecordsByBatch(batchNumber)
         lotteryDao.deleteOrphanedBets()
         lotteryDao.deleteOrphanedExportedNumbers()
     }

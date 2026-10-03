@@ -104,7 +104,70 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         
     var currentBatch = MutableStateFlow(prefs.getInt("currentBatch", 1))
-    fun selectBatch(batch: Int) { currentBatch.value = batch }
+    val allBatches = MutableStateFlow<List<Int>>(loadInitialBatches())
+
+    private fun loadInitialBatches(): List<Int> {
+        val saved = prefs.getString("saved_batches", null)
+        if (!saved.isNullOrBlank()) {
+            val list = saved.split(",")
+                .mapNotNull { it.trim().toIntOrNull() }
+                .filter { it > 0 }
+                .distinct()
+                .sorted()
+            if (list.isNotEmpty()) return list
+        }
+        val cur = prefs.getInt("currentBatch", 1)
+        return listOf(if (cur > 0) cur else 1)
+    }
+
+    private fun saveBatchesList(list: List<Int>) {
+        allBatches.value = list
+        prefs.edit().putString("saved_batches", list.joinToString(",")).apply()
+    }
+
+    fun selectBatch(batch: Int) {
+        currentBatch.value = batch
+        if (!allBatches.value.contains(batch) && batch > 0) {
+            val updated = (allBatches.value + batch).distinct().sorted()
+            saveBatchesList(updated)
+        }
+    }
+
+    /**
+     * Create a new batch. If existing batches count >= 4, the earliest batch (lowest number)
+     * is deleted along with all its data to maintain a maximum of 4 batches.
+     */
+    suspend fun createNewBatch(newBatch: Int): Boolean {
+        if (newBatch <= 0) return false
+        val currentList = allBatches.value.toMutableList()
+        if (currentList.contains(newBatch)) return false
+
+        // Keep maximum 4 batches: if we already have >= 4, delete earliest
+        while (currentList.size >= 4) {
+            val earliest = currentList.minOrNull() ?: break
+            deleteBatchInternal(earliest)
+            currentList.remove(earliest)
+        }
+
+        currentList.add(newBatch)
+        val sorted = currentList.distinct().sorted()
+        saveBatchesList(sorted)
+        selectBatch(newBatch)
+        return true
+    }
+
+    private suspend fun deleteBatchInternal(batchToDelete: Int) {
+        repository.deleteBatchData(batchToDelete)
+        val editor = prefs.edit()
+        editor.remove("winningNumber_$batchToDelete")
+        editor.remove("exactMult_$batchToDelete")
+        editor.remove("permMult_$batchToDelete")
+        editor.remove("nearMult_$batchToDelete")
+        prefs.all.keys.filter { it.endsWith("_$batchToDelete") && it.startsWith("paid_") }.forEach { key ->
+            editor.remove(key)
+        }
+        editor.apply()
+    }
 
     val appPassword = MutableStateFlow("")
     val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
@@ -124,6 +187,22 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
                 prefs.edit().putInt("currentBatch", batch).apply()
                 loadWinningNumber()
             }
+        }
+        viewModelScope.launch {
+            try {
+                val vList = repository.allVouchersWithBets.first()
+                val eList = repository.allExportRecords.first()
+                val fromDb = (vList.map { it.voucher.batchNumber } + eList.map { it.record.batchNumber } + listOf(currentBatch.value))
+                    .filter { it > 0 }
+                    .distinct()
+                    .sorted()
+                val currentList = allBatches.value
+                val merged = (currentList + fromDb).distinct().sorted()
+                val trimmed = if (merged.size > 4) merged.takeLast(4) else merged
+                if (trimmed != currentList) {
+                    saveBatchesList(trimmed)
+                }
+            } catch (_: Exception) {}
         }
         viewModelScope.launch {
             repository.purgeOverflowArtifacts()
@@ -526,7 +605,13 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
     fun resetAndArchive() {
         viewModelScope.launch {
             repository.archiveAndReset(currentBatch.value - 2)
-            currentBatch.value = currentBatch.value + 1
+            val nextBatch = currentBatch.value + 1
+            currentBatch.value = nextBatch
+            if (!allBatches.value.contains(nextBatch)) {
+                val updated = (allBatches.value + nextBatch).distinct().sorted()
+                val trimmed = if (updated.size > 4) updated.takeLast(4) else updated
+                saveBatchesList(trimmed)
+            }
         }
     }
 

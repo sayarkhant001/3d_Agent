@@ -498,6 +498,61 @@ class BetParserTest {
         assertEquals(3, l4.size)
         assertTrue(l4.all { it.second == 1000 })
     }
+
+    @Test
+    fun testVoucherSerialAndNoLinesSkipped() {
+        val pasted = """
+            2k
+            No. 1
+            723-372-245-309 = 2000
+            446=1000
+            235-615 = 3000
+            907=4000
+            110=5000
+            149-223=1000
+            807=2000
+            813-724-648-247-369 = 5000
+            472=10000
+            577=1500
+            205-108= 2000
+            764-220 = 3000
+            456=5000r1000
+            185-217-378-549 = 10000
+            895=2500
+            581=5000
+            526=5000
+            763 = 4000
+            903=2000
+            381-379-194-195 = 1000
+            No- 2k
+            3k
+        """.trimIndent()
+
+        // Test individual standalone markers
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("2k"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("1k"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("10K"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("No. 1"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("No- 2"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("No- 2k"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("No. 2k"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("No."))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("No-"))
+        assertTrue(com.threeDLedger.ui.isVoucherMetadataLine("no"))
+
+        // Test validatePastedText ignores them and accepts all 20 bet lines
+        val result = validatePastedText(pasted)
+        assertTrue("Paste with 2k and No. must be valid", result.isValid)
+        assertEquals(0, result.errors.size)
+        assertTrue(result.validBets.isNotEmpty())
+
+        // Test prefixed lines
+        val prefixed1 = parsePastedLine("2k: 723 = 2000")
+        assertEquals(listOf("723" to 2000), prefixed1)
+
+        val prefixed2 = parsePastedLine("No- 2k: 446 = 1000")
+        assertEquals(listOf("446" to 1000), prefixed2)
+    }
 }
 
 

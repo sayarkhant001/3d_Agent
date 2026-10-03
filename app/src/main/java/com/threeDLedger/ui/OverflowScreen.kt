@@ -924,36 +924,25 @@ fun OverflowScreen(
                         Text("စုစုပေါင်း", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
                         Text("%,d".format(totalBraked), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = emeraldPrimary)
                     }
-                    // Action Buttons under Left Table (In 3D: No ရက်ချုပ်, + သိမ်းမည် and  ကော်ပီ)
+                    // Action Button under Left Table (ကော်ပီ)
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Button(
                             onClick = {
-                                android.widget.Toast.makeText(context, "သိမ်းဆည်းထားပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.fillMaxWidth().height(36.dp),
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = emeraldPrimary),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Text("+ သိမ်းမည်", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Button(
-                            onClick = {
                                 val keptText = brakedExposures.joinToString("\n") { "${it.number} = ${keptAmount(it.totalBetAmount)}" }
                                 clipboardManager.setText(AnnotatedString(keptText))
                                 android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                             },
-                            modifier = Modifier.fillMaxWidth().height(34.dp),
+                            modifier = Modifier.fillMaxWidth().height(72.dp),
                             shape = RoundedCornerShape(6.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = emeraldDark),
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("ကော်ပီ", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ကော်ပီ", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

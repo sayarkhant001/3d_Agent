@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.data
+package com.threeDLedger.data
 
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +70,10 @@ interface LotteryDao {
     suspend fun deleteOldArchives(thresholdBatch: Int)
     @Query("DELETE FROM export_records WHERE batchNumber <= :thresholdBatch AND isArchived = 1")
     suspend fun deleteOldExportArchives(thresholdBatch: Int)
+    @Query("DELETE FROM vouchers WHERE batchNumber = :batchNumber")
+    suspend fun deleteVouchersByBatch(batchNumber: Int)
+    @Query("DELETE FROM export_records WHERE batchNumber = :batchNumber")
+    suspend fun deleteExportRecordsByBatch(batchNumber: Int)
     @Query("DELETE FROM bets WHERE voucherId NOT IN (SELECT id FROM vouchers)")
     suspend fun deleteOrphanedBets()
     @Query("DELETE FROM exported_numbers WHERE exportRecordId NOT IN (SELECT id FROM export_records)")

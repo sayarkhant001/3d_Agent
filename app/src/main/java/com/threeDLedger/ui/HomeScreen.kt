@@ -1,6 +1,7 @@
 package com.threeDLedger.ui
 
 import com.threeDLedger.logic.LicenseManager
+import kotlinx.coroutines.launch
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -121,14 +122,15 @@ fun HomeScreen(
     var licenseDetails by remember { mutableStateOf(licenseManager.getLicenseDetails()) }
     var isBatchSummaryExpanded by remember { mutableStateOf(false) }
     var showBatchDropdown by remember { mutableStateOf(false) }
+    var showCreateBatchDialog by remember { mutableStateOf(false) }
+    var showConfirmExceedDialog by remember { mutableStateOf(false) }
+    var pendingBatchNumber by remember { mutableIntStateOf(0) }
+    var newBatchInput by remember { mutableStateOf("") }
+    val coroutineScope = rememberCoroutineScope()
 
-    val availableBatches = remember(vouchersWithBets, allExportRecords, currentBatch) {
-        val bFromVouchers = vouchersWithBets.map { it.voucher.batchNumber }
-        val bFromExports = allExportRecords.map { it.record.batchNumber }
-        (bFromVouchers + bFromExports + listOf(currentBatch, currentBatch + 1))
-            .filter { it > 0 }
-            .distinct()
-            .sortedDescending()
+    val allBatches by viewModel.allBatches.collectAsStateWithLifecycle()
+    val availableBatches = remember(allBatches) {
+        allBatches.sortedDescending()
     }
 
     LaunchedEffect(Unit) {
@@ -328,104 +330,154 @@ fun HomeScreen(
                             )
                         }
 
-                        // Interactive Batch Selector Dropdown Pill
-                        Box {
-                            Surface(
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    showBatchDropdown = true
-                                },
-                                shape = RoundedCornerShape(20.dp),
-                                color = EmeraldLight,
-                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        // Interactive Batch Selector Dropdown Pill + Create Button
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box {
+                                Surface(
+                                    onClick = {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        showBatchDropdown = true
+                                    },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = EmeraldLight,
+                                    border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f))
                                 ) {
-                                    Text(
-                                        text = "အကြိမ် $currentBatch",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = EmeraldPrimary,
-                                        maxLines = 1,
-                                        softWrap = false
-                                    )
-                                    Icon(
-                                        Icons.Default.ArrowDropDown,
-                                        contentDescription = "Dropdown",
-                                        tint = EmeraldPrimary,
-                                        modifier = Modifier.size(18.dp)
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "အကြိမ် $currentBatch",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = EmeraldPrimary,
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        Icon(
+                                            Icons.Default.ArrowDropDown,
+                                            contentDescription = "Dropdown",
+                                            tint = EmeraldPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+
+                                DropdownMenu(
+                                    expanded = showBatchDropdown,
+                                    onDismissRequest = { showBatchDropdown = false },
+                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                                ) {
+                                    availableBatches.forEach { b ->
+                                        val win = viewModel.getWinningNumberForBatch(b)
+                                        val isDecl = win.length == 3
+                                        DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "အကြိမ် #$b",
+                                                        fontWeight = if (b == currentBatch) FontWeight.Black else FontWeight.Medium,
+                                                        fontSize = 14.sp,
+                                                        color = if (b == currentBatch) EmeraldPrimary else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (isDecl) {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = Color(0xFFFEE2E2)
+                                                        ) {
+                                                            Text(
+                                                                text = "ပေါက်: $win",
+                                                                fontSize = 11.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color(0xFFB91C1C),
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    } else {
+                                                        Surface(
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            color = Color(0xFFDCFCE7)
+                                                        ) {
+                                                            Text(
+                                                                text = "ဖွင့်လှစ်ဆဲ",
+                                                                fontSize = 10.5.sp,
+                                                                fontWeight = FontWeight.Bold,
+                                                                color = Color(0xFF15803D),
+                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            trailingIcon = {
+                                                if (b == currentBatch) {
+                                                    Icon(
+                                                        Icons.Default.Check,
+                                                        contentDescription = "Selected",
+                                                        tint = EmeraldPrimary,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                viewModel.selectBatch(b)
+                                                showBatchDropdown = false
+                                            }
+                                        )
+                                    }
+                                    HorizontalDivider(thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                                    DropdownMenuItem(
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.Add,
+                                                contentDescription = null,
+                                                tint = EmeraldPrimary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        text = {
+                                            Text(
+                                                text = "အကြိမ်အသစ် ဖွင့်မည်",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.5.sp,
+                                                color = EmeraldPrimary
+                                            )
+                                        },
+                                        onClick = {
+                                            showBatchDropdown = false
+                                            newBatchInput = ""
+                                            showCreateBatchDialog = true
+                                        }
                                     )
                                 }
                             }
 
-                            DropdownMenu(
-                                expanded = showBatchDropdown,
-                                onDismissRequest = { showBatchDropdown = false },
-                                modifier = Modifier.background(MaterialTheme.colorScheme.surface)
+                            // Quick '+' button next to batch pill
+                            Surface(
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    newBatchInput = ""
+                                    showCreateBatchDialog = true
+                                },
+                                shape = CircleShape,
+                                color = EmeraldPrimary,
+                                modifier = Modifier.size(30.dp)
                             ) {
-                                availableBatches.forEach { b ->
-                                    val win = viewModel.getWinningNumberForBatch(b)
-                                    val isDecl = win.length == 3
-                                    DropdownMenuItem(
-                                        text = {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth(),
-                                                verticalAlignment = Alignment.CenterVertically,
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                Text(
-                                                    text = "အကြိမ် #$b",
-                                                    fontWeight = if (b == currentBatch) FontWeight.Black else FontWeight.Medium,
-                                                    fontSize = 14.sp,
-                                                    color = if (b == currentBatch) EmeraldPrimary else MaterialTheme.colorScheme.onSurface
-                                                )
-                                                if (isDecl) {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = Color(0xFFFEE2E2)
-                                                    ) {
-                                                        Text(
-                                                            text = "ပေါက်: $win",
-                                                            fontSize = 11.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFFB91C1C),
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                        )
-                                                    }
-                                                } else {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = Color(0xFFDCFCE7)
-                                                    ) {
-                                                        Text(
-                                                            text = "ဖွင့်လှစ်ဆဲ",
-                                                            fontSize = 10.5.sp,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = Color(0xFF15803D),
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        trailingIcon = {
-                                            if (b == currentBatch) {
-                                                Icon(
-                                                    Icons.Default.Check,
-                                                    contentDescription = "Selected",
-                                                    tint = EmeraldPrimary,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                        },
-                                        onClick = {
-                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                            viewModel.selectBatch(b)
-                                            showBatchDropdown = false
-                                        }
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "Create Batch",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -915,6 +967,143 @@ fun HomeScreen(
                 licenseManager = licenseManager,
                 onRestored = {
                     licenseDetails = licenseManager.getLicenseDetails()
+                }
+            )
+        }
+
+        if (showCreateBatchDialog) {
+            val earliestBatch = allBatches.minOrNull() ?: 1
+            val willExceed = allBatches.size >= 4
+            AlertDialog(
+                onDismissRequest = { showCreateBatchDialog = false },
+                icon = { Icon(Icons.Default.Add, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(28.dp)) },
+                title = {
+                    Text(
+                        text = "အကြိမ်အသစ် ဖွင့်မည်",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = EmeraldPrimary
+                    )
+                },
+                text = {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            text = "ဖွင့်လှစ်လိုသော အကြိမ်နံပါတ်ကို ရိုက်ထည့်ပါ (လက်ရှိ အကြိမ်များ: ${allBatches.sorted().joinToString(", ") { "#$it" }})",
+                            fontSize = 12.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = newBatchInput,
+                            onValueChange = { newBatchInput = it.filter { c -> c.isDigit() } },
+                            label = { Text("အကြိမ် နံပါတ်") },
+                            placeholder = { Text("ဥပမာ - ${(allBatches.maxOrNull() ?: 1) + 1}") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (willExceed) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFFEF3C7),
+                                border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(Icons.Default.Warning, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(18.dp))
+                                    Text(
+                                        text = "လက်ရှိတွင် ၄ ကြိမ် ပြည့်နေပါသဖြင့် အကြိမ်အသစ် ဖွင့်ပါက အစောဆုံး အကြိမ် #$earliestBatch ၏ ဒေတာများ အလိုအလျောက် ပျက်သွားပါမည်။",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = Color(0xFF92400E)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val num = newBatchInput.toIntOrNull()
+                            if (num == null || num <= 0) {
+                                android.widget.Toast.makeText(context, "အကြိမ် နံပါတ် မှန်ကန်စွာ ရိုက်ထည့်ပေးပါ", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (allBatches.contains(num)) {
+                                android.widget.Toast.makeText(context, "အကြိမ် #$num ရှိပြီးသား ဖြစ်ပါသည်", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (allBatches.size >= 4) {
+                                pendingBatchNumber = num
+                                showCreateBatchDialog = false
+                                showConfirmExceedDialog = true
+                            } else {
+                                coroutineScope.launch {
+                                    viewModel.createNewBatch(num)
+                                    showCreateBatchDialog = false
+                                    android.widget.Toast.makeText(context, "အကြိမ် #$num ကို ဖွင့်လှစ်ပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                    ) {
+                        Text("ဖွင့်မည်", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCreateBatchDialog = false }) {
+                        Text("မလုပ်တော့ပါ")
+                    }
+                }
+            )
+        }
+
+        if (showConfirmExceedDialog) {
+            val earliestBatch = allBatches.minOrNull() ?: 1
+            AlertDialog(
+                onDismissRequest = { showConfirmExceedDialog = false },
+                icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp)) },
+                title = {
+                    Text(
+                        text = "အကြိမ်အသစ် ဖွင့်ရန် အတည်ပြုပါ",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                },
+                text = {
+                    Text(
+                        text = "အစောဆုံး အကြိမ် #$earliestBatch ၏ ဒေတာများ အားလုံး ဖျက်ပစ်ပါမည်။ အကြိမ်အသစ် (#$pendingBatchNumber) ဖွင့်လှစ်လိုပါသလား?\n\n(မှတ်ချက်: အကြိမ် ၄ ကြိမ် အထိသာ အများဆုံး ထားရှိနိုင်ပါသည်)",
+                        fontSize = 13.5.sp,
+                        lineHeight = 20.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val toCreate = pendingBatchNumber
+                            coroutineScope.launch {
+                                viewModel.createNewBatch(toCreate)
+                                showConfirmExceedDialog = false
+                                android.widget.Toast.makeText(context, "အကြိမ် #$toCreate ကို ဖွင့်လှစ်ပြီးပါပြီ (အကြိမ် #$earliestBatch ဖျက်ပြီး)", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text("ဖွင့်မည်", fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showConfirmExceedDialog = false }) {
+                        Text("မလုပ်တော့ပါ")
+                    }
                 }
             )
         }
