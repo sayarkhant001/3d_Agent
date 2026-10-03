@@ -111,8 +111,11 @@ fun WinnerScreen(
     onNavigateBack: () -> Unit
 ) {
     var winningNumber  by remember { mutableStateOf("") }
-    val currentBatch   = viewModel.currentBatch.collectAsStateWithLifecycle().value
-    var targetBatch    by remember { mutableStateOf(currentBatch.toString()) }
+    val currentBatch   by viewModel.currentBatch.collectAsStateWithLifecycle()
+    var targetBatch    by remember(currentBatch) { mutableStateOf(currentBatch.toString()) }
+    LaunchedEffect(currentBatch) {
+        targetBatch = currentBatch.toString()
+    }
     var exactMult      by remember { mutableStateOf("600") }
     var tuwtMult       by remember { mutableStateOf("10") }
     var isFetching     by remember { mutableStateOf(false) }

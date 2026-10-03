@@ -851,7 +851,8 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
         val commTotal = batchVouchers.sumOf { vwb ->
             val cust = custMap[vwb.voucher.customerId]
             val rate = cust?.commissionRate ?: 0.0
-            (vwb.voucher.totalAmount * (rate / 100.0)).toLong()
+            val effectiveRate = if (rate > 1.0) rate / 100.0 else rate
+            (vwb.voucher.totalAmount * effectiveRate).toLong()
         }
         val batchExports = allExportRecords.value.filter { it.record.batchNumber == batch && !it.record.isArchived }
         val exportedAmt = batchExports.sumOf { it.record.totalAmount }

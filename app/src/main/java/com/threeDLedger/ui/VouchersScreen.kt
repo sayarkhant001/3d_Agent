@@ -48,12 +48,14 @@ fun VouchersScreen(
     val vouchers by viewModel.vouchersWithCustomer.collectAsStateWithLifecycle()
     val allVouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+    val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     
     val filteredVouchers = (if (initialCustomerId != null) {
-        allVouchersWithBets.filter { it.voucher.customerId == initialCustomerId }
+        allVouchersWithBets.filter { it.voucher.customerId == initialCustomerId && it.voucher.batchNumber == currentBatch }
     } else {
-        allVouchersWithBets
+        allVouchersWithBets.filter { it.voucher.batchNumber == currentBatch }
     }).filter {
+        !it.voucher.isArchived &&
         !it.voucher.remark.contains("တင်ကွက်") &&
         !it.voucher.remark.contains("overflow", ignoreCase = true)
     }
@@ -64,7 +66,7 @@ fun VouchersScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ဘောင်ချာများ", color = MaterialTheme.colorScheme.onPrimary) },
+                title = { Text("ဘောင်ချာများ (အကြိမ် #$currentBatch)", color = MaterialTheme.colorScheme.onPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)

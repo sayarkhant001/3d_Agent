@@ -66,10 +66,11 @@ fun ExportHistoryScreen(
     }
     val defaultCommRate = meCustomer?.commissionRate ?: 0.15
 
-    val batches = remember(exportRecords) {
-        exportRecords.map { it.record.batchNumber }.distinct().sortedDescending()
+    val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
+    val batches = remember(exportRecords, currentBatch) {
+        (exportRecords.map { it.record.batchNumber } + currentBatch).distinct().sortedDescending()
     }
-    var selectedBatchFilter by remember { mutableStateOf<Int?>(null) }
+    var selectedBatchFilter by remember(currentBatch) { mutableStateOf<Int?>(currentBatch) }
     val displayedRecords = remember(exportRecords, selectedBatchFilter) {
         if (selectedBatchFilter == null) exportRecords
         else exportRecords.filter { it.record.batchNumber == selectedBatchFilter }
@@ -83,7 +84,7 @@ fun ExportHistoryScreen(
         displayedRecords.sumOf { it.numbers.size }
     }
 
-    val activeBatch = selectedBatchFilter ?: batches.firstOrNull() ?: viewModel.currentBatch.value
+    val activeBatch = selectedBatchFilter ?: currentBatch
     val activeBatchWinningNumber = remember(activeBatch, viewModel) {
         viewModel.getWinningNumberForBatch(activeBatch)
     }

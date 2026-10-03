@@ -48,20 +48,24 @@ fun CustomersScreen(
     var viewingCustomer by remember { mutableStateOf<Customer?>(null) }
     var searchQuery     by remember { mutableStateOf("") }
 
-    // Pre-compute per-customer totals once (excluding overflow vouchers)
-    val customerTotals by remember(customers, allVWB) {
+    // Pre-compute per-customer totals once for active batch (excluding overflow vouchers)
+    val customerTotals by remember(customers, allVWB, currentBatch) {
         derivedStateOf {
             customers.associate { c ->
                 val cv = allVWB.filter { 
+                    it.voucher.batchNumber == currentBatch &&
                     it.voucher.customerId == c.id && 
+                    !it.voucher.isArchived &&
                     !it.voucher.remark.contains("တင်ကွက်") && 
                     !it.voucher.remark.contains("overflow", ignoreCase = true) &&
                     !it.voucher.remark.contains("upper", ignoreCase = true) &&
                     !it.voucher.remark.contains("အထက်ဒိုင်")
                 }
                 val total = cv.sumOf { it.voucher.totalAmount }
-                val cut   = (total * c.commissionRate).toInt()
-                val net   = total - cut - c.paidAmount.toInt()
+                val rate  = if (c.commissionRate > 1.0) c.commissionRate / 100.0 else c.commissionRate
+                val cut   = (total * rate).toInt()
+                val paid  = viewModel.getPaidForBatch(c.id, currentBatch)
+                val net   = total - cut - paid.toInt()
                 c.id to Triple(total, cut, net)
             }
         }
@@ -84,18 +88,21 @@ fun CustomersScreen(
             AgentNumbersView(
                 customer     = c,
                 allVWB       = allVWB,
+                currentBatch = currentBatch,
                 totalAmount  = total,
                 commCut      = cut,
                 netAmount    = net,
+                paidAmount   = viewModel.getPaidForBatch(c.id, currentBatch).toInt(),
                 onBack       = { viewingCustomer = null }
             )
         }
 
         editCustomer != null -> {
             EditCustomerFullScreen(
-                viewModel = viewModel,
-                customer  = editCustomer!!,
-                onBack    = { editCustomer = null }
+                viewModel    = viewModel,
+                customer     = editCustomer!!,
+                currentBatch = currentBatch,
+                onBack       = { editCustomer = null }
             )
         }
 
@@ -286,9 +293,11 @@ fun CustomersScreen(
                             items(filtered, key = { it.id }) { customer ->
                                 val (total, cut, net) = customerTotals[customer.id]
                                     ?: Triple(0, 0, 0)
-                                val commPct = (customer.commissionRate * 100).toInt()
+                                val commPct = if (customer.commissionRate > 1.0) customer.commissionRate.toInt() else (customer.commissionRate * 100).toInt()
                                 val voucherCount = allVWB.count {
+                                    it.voucher.batchNumber == currentBatch &&
                                     it.voucher.customerId == customer.id &&
+                                    !it.voucher.isArchived &&
                                     !it.voucher.remark.contains("တင်ကွက်") &&
                                     !it.voucher.remark.contains("overflow", ignoreCase = true)
                                 }
@@ -695,16 +704,24 @@ fun AddCustomerFullScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditCustomerFullScreen(
-    viewModel: MainViewModel,
-    customer : Customer,
-    onBack   : () -> Unit
+    viewModel   : MainViewModel,
+    customer    : Customer,
+    currentBatch: Int = viewModel.currentBatch.value,
+    onBack      : () -> Unit
 ) {
     BackHandler(onBack = onBack)
 
     var name          by remember { mutableStateOf(customer.name) }
-    var commissionStr by remember { mutableStateOf((customer.commissionRate * 100).toInt().toString()) }
+    var commissionStr by remember { 
+        val p = if (customer.commissionRate > 1.0) customer.commissionRate else customer.commissionRate * 100
+        mutableStateOf(p.toInt().toString()) 
+    }
     var multiplierStr by remember { mutableStateOf(customer.multiplier.toString()) }
-    var paidStr       by remember { mutableStateOf(customer.paidAmount.toInt().toString()) }
+    var paidStr       by remember(customer.id, currentBatch) { 
+        val batchPaid = viewModel.getPaidForBatch(customer.id, currentBatch)
+        val initialPaid = if (batchPaid > 0) batchPaid else customer.paidAmount
+        mutableStateOf(initialPaid.toInt().toString()) 
+    }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog) {
@@ -793,6 +810,7 @@ fun EditCustomerFullScreen(
                         val rate = (commissionStr.toDoubleOrNull() ?: 0.0) / 100.0
                         val mult = multiplierStr.toIntOrNull() ?: 80
                         val paid = paidStr.toDoubleOrNull() ?: 0.0
+                        viewModel.setPaidForBatch(customer.id, currentBatch, paid)
                         viewModel.updateCustomer(
                             customer.copy(
                                 name = name,
@@ -873,23 +891,30 @@ fun FormRow(
 fun AgentNumbersView(
     customer    : Customer,
     allVWB      : List<com.threeDLedger.data.VoucherWithBets>,
+    currentBatch: Int,
     totalAmount : Int,
     commCut     : Int,
     netAmount   : Int,
+    paidAmount  : Int = 0,
     onBack      : () -> Unit
 ) {
     BackHandler(onBack = onBack)
 
-    val commPct = (customer.commissionRate * 100).toInt()
+    val commPct = if (customer.commissionRate > 1.0) customer.commissionRate.toInt() else (customer.commissionRate * 100).toInt()
 
-    val numberTotals: List<Pair<String, Int>> = remember(allVWB, customer.id) {
+    val batchVouchers = remember(allVWB, customer.id, currentBatch) {
+        allVWB.filter { 
+            it.voucher.batchNumber == currentBatch &&
+            it.voucher.customerId == customer.id && 
+            !it.voucher.isArchived &&
+            !it.voucher.remark.contains("တင်ကွက်") && 
+            !it.voucher.remark.contains("overflow", ignoreCase = true) 
+        }
+    }
+
+    val numberTotals: List<Pair<String, Int>> = remember(batchVouchers) {
         val map = mutableMapOf<String, Int>()
-        allVWB
-            .filter { 
-                it.voucher.customerId == customer.id && 
-                !it.voucher.remark.contains("တင်ကွက်") && 
-                !it.voucher.remark.contains("overflow", ignoreCase = true) 
-            }
+        batchVouchers
             .flatMap { it.bets }
             .forEach { bet -> map[bet.number] = (map[bet.number] ?: 0) + bet.amount }
         map.entries
@@ -909,11 +934,7 @@ fun AgentNumbersView(
                             fontSize = 17.sp
                         )
                         Text(
-                            "ကော်မရှင်: $commPct%  |  ဘောင်ချာ: ${allVWB.count { 
-                                it.voucher.customerId == customer.id && 
-                                !it.voucher.remark.contains("တင်ကွက်") && 
-                                !it.voucher.remark.contains("overflow", ignoreCase = true) 
-                            }} စောင်",
+                            "အကြိမ်: #$currentBatch  |  ကော်မရှင်: $commPct%  |  ဘောင်ချာ: ${batchVouchers.size} စောင်",
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f),
                             fontSize = 11.sp
                         )
@@ -974,7 +995,7 @@ fun AgentNumbersView(
                     ) {
                         Text("ပေးငွေ", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f), fontSize = 13.sp)
                         Text(
-                            "%,d Ks".format(customer.paidAmount.toInt()),
+                            "%,d Ks".format(paidAmount),
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
                             fontSize = 13.sp,
                             fontFamily = FontFamily.Monospace
