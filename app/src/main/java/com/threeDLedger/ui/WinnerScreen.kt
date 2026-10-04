@@ -755,7 +755,7 @@ fun DineSettlementCard(
                             appendLine("ပေါက်ဂဏန်း: $winningNumber")
                             appendLine("------------------------")
                             appendLine("စုစုပေါင်း တင်ငွေ : %,d ကျပ်".format(settlement.totalExported))
-                            appendLine("ကော်မရှင် (${settlement.commissionRate}%) : %,d ကျပ်".format(settlement.commissionAmount))
+                            appendLine("ကော်မရှင် (${settlement.commissionRate}%) : ${"%,d".format(settlement.commissionAmount)} ကျပ်")
                             appendLine("ဒိုင်သို့ ပေးချေရန် : %,d ကျပ်".format(settlement.netCost))
                             appendLine("ပေါက်သီး (ဒဲ့) : %,d ကျပ်".format(settlement.exactPayout))
                             appendLine("တွတ် (အလှည့်) : %,d ကျပ်".format(settlement.tuwtPayout))

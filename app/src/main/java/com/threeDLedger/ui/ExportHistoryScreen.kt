@@ -170,8 +170,17 @@ fun ExportHistoryScreen(
                     contentPadding = PaddingValues(12.dp)
                 ) {
                     items(displayedRecords, key = { it.record.id }) { export ->
+                        val batchChronologicalRecords = remember(exportRecords, export.record.batchNumber) {
+                            exportRecords.filter { it.record.batchNumber == export.record.batchNumber }
+                                .sortedBy { it.record.timestamp }
+                        }
+                        val voucherIndex = remember(batchChronologicalRecords, export.record.id) {
+                            val idx = batchChronologicalRecords.indexOfFirst { it.record.id == export.record.id }
+                            if (idx >= 0) idx + 1 else export.record.id
+                        }
                         ExportRecordCard(
                             export = export,
+                            voucherIndex = voucherIndex,
                             footerText = footerText,
                             onCopy = { text ->
                                 val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -313,6 +322,7 @@ fun ExportHistoryBottomBar(
 @Composable
 private fun ExportRecordCard(
     export: ExportRecordWithNumbers,
+    voucherIndex: Int,
     footerText: String,
     onCopy: (String) -> Unit,
     onPrint: (ExportRecordWithNumbers) -> Unit
@@ -326,7 +336,7 @@ private fun ExportRecordCard(
     val voucherDate = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(export.record.timestamp))
     val voucherText = buildString {
         appendLine("      တင်ကွက် ဘောင်ချာ    ")
-        appendLine(" ဘောင်ချာ : #${export.record.id}")
+        appendLine(" ဘောင်ချာ : #${export.record.voucherSerial}")
         appendLine(" အကြိမ်   : ${export.record.batchNumber}")
         appendLine(" အချိန်   : $voucherDate")
         appendLine("------------------------")
@@ -335,7 +345,6 @@ private fun ExportRecordCard(
         }
         appendLine("------------------------")
         appendLine(" စုစုပေါင်း : %,d ကျပ်".format(export.record.totalAmount))
-        appendLine("    * တင်ကွက် *    ")
     }
 
     Card(
@@ -363,8 +372,13 @@ private fun ExportRecordCard(
                             shape = RoundedCornerShape(5.dp),
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.2f)
                         ) {
+                            val dineLabel = if (export.record.dineName.isNotBlank()) {
+                                "${export.record.dineName} # ${export.record.voucherSerial}"
+                            } else {
+                                "# ${export.record.voucherSerial}"
+                            }
                             Text(
-                                "ဘောင်ချာ #${export.record.id}",
+                                "$voucherIndex.  $dineLabel",
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.5.sp,

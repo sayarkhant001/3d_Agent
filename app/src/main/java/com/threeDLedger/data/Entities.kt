@@ -1,4 +1,4 @@
-﻿package com.threeDLedger.data
+package com.threeDLedger.data
 
 import androidx.room.Entity
 import androidx.room.Index
@@ -12,6 +12,7 @@ data class Customer(
     val name: String,
     val commissionRate: Double = 0.0,
     val multiplier: Int = 600,
+    val tuwtMultiplier: Int = 10,
     val paidAmount: Double = 0.0
 )
 

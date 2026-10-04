@@ -85,6 +85,27 @@ interface LotteryDao {
     @Query("DELETE FROM vouchers WHERE remark LIKE '%တင်ကွက်%' OR remark LIKE '%overflow%' OR remark LIKE '%upper%' OR remark LIKE '%အထက်ဒိုင်%'")
     suspend fun purgeOverflowVouchers()
 
+    @Query("DELETE FROM vouchers")
+    suspend fun deleteAllVouchers()
+
+    @Query("DELETE FROM bets")
+    suspend fun deleteAllBets()
+
+    @Query("DELETE FROM export_records")
+    suspend fun deleteAllExportRecords()
+
+    @Query("DELETE FROM exported_numbers")
+    suspend fun deleteAllExportedNumbers()
+
+    @Query("UPDATE customers SET paidAmount = 0.0")
+    suspend fun resetCustomerPaidAmounts()
+
+    @Query("UPDATE vouchers SET batchNumber = :newBatch WHERE batchNumber = :oldBatch")
+    suspend fun updateVouchersBatchNumber(oldBatch: Int, newBatch: Int)
+
+    @Query("UPDATE export_records SET batchNumber = :newBatch WHERE batchNumber = :oldBatch")
+    suspend fun updateExportRecordsBatchNumber(oldBatch: Int, newBatch: Int)
+
     @Query("SELECT * FROM dines ORDER BY id ASC")
     fun getAllDines(): Flow<List<Dine>>
 

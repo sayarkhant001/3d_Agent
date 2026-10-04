@@ -126,8 +126,14 @@ fun OverflowScreen(
             }
     }
 
+    val meCommFraction = remember(meCustomer) {
+        val r = meCustomer?.commissionRate ?: 0.0
+        if (r > 1.0) r / 100.0 else r
+    }
+    val meCommPercent = (meCommFraction * 100).toInt()
+
     val totalBraked = brakedExposures.sumOf { keptAmount(it.totalBetAmount) }
-    val commAmount = (totalBraked * (meCommRate / 100.0)).toLong()
+    val commAmount = (totalBraked * meCommFraction).toLong()
     val netAfterComm = totalBraked - commAmount
 
     val exactKeptAmt = if (isWonDeclared) keptAmount(exposureMap[batchWinningNumber]?.totalBetAmount ?: 0) else 0
@@ -576,9 +582,6 @@ fun OverflowScreen(
     if (snapshot != null) {
         val voucherText = buildString {
             appendLine("      တင်ကွက် ဘောင်ချာ    ")
-            if (snapshot.dineName.isNotBlank()) {
-                appendLine(" ဒိုင်      : ${snapshot.dineName}")
-            }
             appendLine(" ဘောင်ချာ : #${snapshot.voucherSerial}")
             appendLine(" အကြိမ်   : ${snapshot.batch}")
             appendLine(" အချိန်   : ${snapshot.timestamp}")
@@ -588,19 +591,11 @@ fun OverflowScreen(
             }
             appendLine("------------------------")
             appendLine(" စုစုပေါင်း : %,d ကျပ်".format(snapshot.total))
-            val comm = (snapshot.total * (snapshot.commissionRate / 100.0)).toInt()
-            if (comm > 0) {
-                appendLine(" ကော်မရှင် (${snapshot.commissionRate}%) : %,d ကျပ်".format(comm))
-                appendLine(" ပေးချေရန် : %,d ကျပ်".format(snapshot.total - comm))
-            }
-            appendLine(" ဒဲ့: ${snapshot.exactMultiplier}ဆ | တွတ်: ${snapshot.tuwtMultiplier}ဆ")
-            appendLine("    * တင်ကွက် *    ")
         }
 
         Dialog(
             onDismissRequest = {
                 overflowSnapshot = null
-                onNavigateToExportHistory()
             },
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
@@ -798,12 +793,32 @@ fun OverflowScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "အကြိမ် $currentBatch",
-                    color = Color.White,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        "အကြိမ် $currentBatch",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (isWonDeclared) {
+                        Surface(
+                            color = Color(0xFFDC2626),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                batchWinningNumber,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -816,7 +831,7 @@ fun OverflowScreen(
                         fontWeight = FontWeight.Medium
                     )
                     Surface(
-                        color = Color(0xFF1E3A8A).copy(alpha = 0.6f),
+                        color = emeraldPrimary,
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.clickable { showBrakeDialog = true }
                     ) {
@@ -872,19 +887,19 @@ fun OverflowScreen(
                 }
             }
 
-            // Tables Section (Matching Image 1: 2-column layout)
+            // Tables Section (Matching 3D Emerald style 2-column layout with Left Summary)
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             ) {
-                // Left Column — Kept Bets (≤ brakeLimit)
+                // Left Column — Kept Bets (≤ brakeLimit) or Win/Tut breakdown
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .border(1.dp, emeraldPrimary)
+                        .border(1.dp, emeraldPrimary.copy(alpha = 0.6f))
                         .padding(2.dp)
                 ) {
                     // Header
@@ -892,58 +907,132 @@ fun OverflowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 5.dp, horizontal = 4.dp)
+                            .padding(vertical = 5.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("ဂဏန်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text("ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("ဂဏန်းများ", color = Color.White, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "ကော်ပီ",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .clickable {
+                                        val keptText = if (isWonDeclared) {
+                                            brakedWinRows.joinToString("\n") { "${it.number} = ${it.amount}" }
+                                        } else {
+                                            brakedExposures.joinToString("\n") { "${it.number} = ${keptAmount(it.totalBetAmount)}" }
+                                        }
+                                        if (keptText.isNotBlank()) {
+                                            clipboardManager.setText(AnnotatedString(keptText))
+                                            android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                            )
+                        }
+                        Text(if (isWonDeclared) "ပမာဏ" else "ဘရိတ်အတွင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     // Rows
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
-                        if (brakedExposures.isEmpty()) {
-                            item {
-                                Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        if (isWonDeclared) {
+                            if (brakedWinRows.isEmpty()) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    }
                                 }
                             }
-                        }
-                        items(brakedExposures, key = { it.number }) { exposure ->
-                            val kept = keptAmount(exposure.totalBetAmount)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp, horizontal = 4.dp)
-                            ) {
-                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
-                                Text("%,d".format(kept), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                            items(brakedWinRows) { row ->
+                                val rowBg = if (row.isExact) Color(0xFFDC2626) else Color.Transparent
+                                val textColor = if (row.isExact) Color.White else MaterialTheme.colorScheme.onSurface
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(rowBg)
+                                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(row.number, color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                    Text("%,d".format(row.amount), color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                }
+                                HorizontalDivider(thickness = 0.5.dp)
                             }
-                            HorizontalDivider(thickness = 0.5.dp)
+                        } else {
+                            if (brakedExposures.isEmpty()) {
+                                item {
+                                    Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                            items(brakedExposures, key = { it.number }) { exposure ->
+                                val kept = keptAmount(exposure.totalBetAmount)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp, horizontal = 4.dp)
+                                    ) {
+                                    Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                    Text("%,d".format(kept), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                }
+                                HorizontalDivider(thickness = 0.5.dp)
+                            }
                         }
                     }
-                    // Subtotal
-                    Row(modifier = Modifier.fillMaxWidth().background(emeraldLight).padding(vertical = 5.dp, horizontal = 4.dp)) {
-                        Text("စုစုပေါင်း", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                        Text("%,d".format(totalBraked), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = emeraldPrimary)
-                    }
-                    // Action Button under Left Table (ကော်ပီ)
+
+                    // Left Column Summary Rows (Matching original brake-hold summary)
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(emeraldDark)
                     ) {
-                        Button(
-                            onClick = {
-                                val keptText = brakedExposures.joinToString("\n") { "${it.number} = ${keptAmount(it.totalBetAmount)}" }
+                        BrakeSummaryRow("စုစုပေါင်း", "%,d".format(totalBraked), bgColor = emeraldDark)
+                        val commLabel = if (meCommPercent > 0) "ကော်" else "ကော်"
+                        BrakeSummaryRow(commLabel, "%,d".format(commAmount), bgColor = emeraldDark)
+                        BrakeSummaryRow("နုတ်ပြီး", "%,d".format(netAfterComm), bgColor = emeraldDark)
+                        BrakeSummaryRow("ပေါက်သီး", if (isWonDeclared) "%,d".format(exactPayout) else "-", bgColor = emeraldDark)
+                        BrakeSummaryRow("တွတ်", if (isWonDeclared) "%,d".format(tuwtPayout) else "-", bgColor = emeraldDark)
+                        BrakeSummaryRow(
+                            "အမြတ်ငွေ",
+                            if (isWonDeclared) "%,d".format(brakedProfit) else "%,d".format(netAfterComm),
+                            bgColor = emeraldDark,
+                            isProfit = isWonDeclared,
+                            profitValue = brakedProfit
+                        )
+                    }
+
+                    // Left Action Button ([ 📋 ကော်ပီ ])
+                    Button(
+                        onClick = {
+                            val keptText = if (isWonDeclared) {
+                                brakedWinRows.joinToString("\n") { "${it.number} = ${it.amount}" }
+                            } else {
+                                brakedExposures.joinToString("\n") { "${it.number} = ${keptAmount(it.totalBetAmount)}" }
+                            }
+                            if (keptText.isNotBlank()) {
                                 clipboardManager.setText(AnnotatedString(keptText))
                                 android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.fillMaxWidth().height(72.dp),
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = emeraldDark),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("ကော်ပီ", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
-                        }
+                            } else {
+                                android.widget.Toast.makeText(context, "ကော်ပီကူးရန် ဂဏန်းမရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp)
+                            .height(36.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = emeraldDark),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("ကော်ပီ", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -954,7 +1043,7 @@ fun OverflowScreen(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .border(1.dp, emeraldPrimary)
+                        .border(1.dp, emeraldPrimary.copy(alpha = 0.6f))
                         .padding(2.dp)
                 ) {
                     // Header
@@ -964,8 +1053,8 @@ fun OverflowScreen(
                             .background(emeraldPrimary)
                             .padding(vertical = 5.dp, horizontal = 4.dp)
                     ) {
-                        Text("ဂဏန်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text("ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     // Rows
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
@@ -989,14 +1078,29 @@ fun OverflowScreen(
                         }
                     }
                     // Subtotal
-                    Row(modifier = Modifier.fillMaxWidth().background(emeraldLight).padding(vertical = 5.dp, horizontal = 4.dp)) {
-                        Text("စုစုပေါင်း", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
-                        Text("%,d".format(totalOverflow), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Black, fontSize = 12.sp, color = emeraldPrimary)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(emeraldPrimary)
+                            .padding(vertical = 5.dp, horizontal = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                        Box(
+                            modifier = Modifier
+                                .height(16.dp)
+                                .width(1.dp)
+                                .background(Color.White.copy(alpha = 0.35f))
+                        )
+                        Text("%,d".format(totalOverflow), color = Color.White, modifier = Modifier.weight(1f).padding(end = 6.dp), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
-                    // Action Buttons under Right Table (+ တင်မည်, မှတ်တမ်းများ)
-                    Column(
-                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+
+                    // Action Buttons under Right Table ([ + တင်မည် ] & [ 📋 မှတ်တမ်းများ ])
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Button(
                             onClick = {
@@ -1011,27 +1115,31 @@ fun OverflowScreen(
                                 }
                             },
                             enabled = !isWonDeclared && overflowExposures.isNotEmpty(),
-                            modifier = Modifier.fillMaxWidth().height(36.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp),
                             shape = RoundedCornerShape(6.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (!isWonDeclared && overflowExposures.isNotEmpty()) emeraldPrimary else MaterialTheme.colorScheme.surfaceVariant
                             ),
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Icon(if (isWonDeclared) Icons.Default.Lock else Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(if (isWonDeclared) "တင်ပို့၍မရပါ" else "+ တင်မည်", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Icon(if (isWonDeclared) Icons.Default.Lock else Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(2.dp))
+                            Text(if (isWonDeclared) "ပိတ်" else "+ တင်မည်", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = onNavigateToExportHistory,
-                            modifier = Modifier.fillMaxWidth().height(34.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(36.dp),
                             shape = RoundedCornerShape(6.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = orangeButton),
                             contentPadding = PaddingValues(0.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(2.dp))
                             Text("မှတ်တမ်းများ", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -1039,4 +1147,54 @@ fun OverflowScreen(
             }
         }
     }
+}
+
+@Composable
+private fun BrakeSummaryRow(
+    label: String,
+    value: String,
+    bgColor: Color = Color(0xFF065F46),
+    textColor: Color = Color.White,
+    isProfit: Boolean = false,
+    profitValue: Long = 0L
+) {
+    val valueColor = if (isProfit) {
+        if (profitValue >= 0) Color(0xFF86EFAC) else Color(0xFFFECACA)
+    } else {
+        textColor
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bgColor)
+            .padding(vertical = 3.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = textColor,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.sp
+        )
+        Box(
+            modifier = Modifier
+                .height(16.dp)
+                .width(1.dp)
+                .background(textColor.copy(alpha = 0.35f))
+        )
+        Text(
+            text = value,
+            color = valueColor,
+            modifier = Modifier
+                .weight(1f)
+                .padding(end = 6.dp),
+            textAlign = TextAlign.End,
+            fontWeight = FontWeight.Bold,
+            fontSize = 11.5.sp,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+    HorizontalDivider(color = textColor.copy(alpha = 0.25f), thickness = 0.5.dp)
 }

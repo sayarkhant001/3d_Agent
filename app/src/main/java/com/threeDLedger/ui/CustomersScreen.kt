@@ -400,6 +400,18 @@ fun CustomerCard(
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                             )
                         }
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant
+                        ) {
+                            Text(
+                                "ဒဲ့ ${customer.multiplier}ဆ / တွတ် ${customer.tuwtMultiplier}ဆ",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
                         if (commPct > 0) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
@@ -625,9 +637,10 @@ fun AddCustomerFullScreen(
 ) {
     BackHandler(onBack = onBack)
 
-    var name          by remember { mutableStateOf("") }
-    var commissionStr by remember { mutableStateOf("15") }
-    var multiplierStr by remember { mutableStateOf("80") }
+    var name              by remember { mutableStateOf("") }
+    var commissionStr     by remember { mutableStateOf("15") }
+    var multiplierStr     by remember { mutableStateOf("600") }
+    var tuwtMultiplierStr by remember { mutableStateOf("10") }
 
     Scaffold(
         topBar = {
@@ -670,8 +683,9 @@ fun AddCustomerFullScreen(
                 Button(
                     onClick = {
                         val rate = (commissionStr.toDoubleOrNull() ?: 0.0) / 100.0
-                        val mult = multiplierStr.toIntOrNull() ?: 80
-                        viewModel.addCustomer(name, rate, mult)
+                        val mult = multiplierStr.toIntOrNull() ?: 600
+                        val tuwt = tuwtMultiplierStr.toIntOrNull() ?: 10
+                        viewModel.addCustomer(name, rate, mult, tuwt)
                         onBack()
                     },
                     modifier = Modifier.weight(1f).height(50.dp),
@@ -692,10 +706,11 @@ fun AddCustomerFullScreen(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            CustomerFormField(label = "အမှတ်စဉ်",           value = "$nextId",      readOnly = true)  { }
-            CustomerFormField(label = "အမည်",              value = name)            { name = it }
-            CustomerFormField(label = "ကော်မရှင်ခ (%)",  value = commissionStr)   { commissionStr = it }
-            CustomerFormField(label = "အဆ",               value = multiplierStr)   { multiplierStr = it }
+            CustomerFormField(label = "အမှတ်စဉ်",           value = "$nextId",          readOnly = true)  { }
+            CustomerFormField(label = "အမည်",              value = name)                { name = it }
+            CustomerFormField(label = "ကော်မရှင်ခ (%)",  value = commissionStr)       { commissionStr = it }
+            CustomerFormField(label = "ဒဲ့ အဆ",           value = multiplierStr)       { multiplierStr = it }
+            CustomerFormField(label = "တွတ် အဆ",          value = tuwtMultiplierStr)   { tuwtMultiplierStr = it }
         }
     }
 }
@@ -716,7 +731,8 @@ fun EditCustomerFullScreen(
         val p = if (customer.commissionRate > 1.0) customer.commissionRate else customer.commissionRate * 100
         mutableStateOf(p.toInt().toString()) 
     }
-    var multiplierStr by remember { mutableStateOf(customer.multiplier.toString()) }
+    var multiplierStr     by remember { mutableStateOf(customer.multiplier.toString()) }
+    var tuwtMultiplierStr by remember { mutableStateOf(customer.tuwtMultiplier.toString()) }
     var paidStr       by remember(customer.id, currentBatch) { 
         val batchPaid = viewModel.getPaidForBatch(customer.id, currentBatch)
         val initialPaid = if (batchPaid > 0) batchPaid else customer.paidAmount
@@ -808,7 +824,8 @@ fun EditCustomerFullScreen(
                 Button(
                     onClick = {
                         val rate = (commissionStr.toDoubleOrNull() ?: 0.0) / 100.0
-                        val mult = multiplierStr.toIntOrNull() ?: 80
+                        val mult = multiplierStr.toIntOrNull() ?: 600
+                        val tuwt = tuwtMultiplierStr.toIntOrNull() ?: 10
                         val paid = paidStr.toDoubleOrNull() ?: 0.0
                         viewModel.setPaidForBatch(customer.id, currentBatch, paid)
                         viewModel.updateCustomer(
@@ -816,6 +833,7 @@ fun EditCustomerFullScreen(
                                 name = name,
                                 commissionRate = rate,
                                 multiplier = mult,
+                                tuwtMultiplier = tuwt,
                                 paidAmount = paid
                             )
                         )
@@ -842,7 +860,8 @@ fun EditCustomerFullScreen(
             CustomerFormField(label = "အမှတ်စဉ်",        value = "${customer.id}", readOnly = true) { }
             CustomerFormField(label = "အမည်",             value = name)             { name = it }
             CustomerFormField(label = "ကော်မရှင်ခ (%)", value = commissionStr)    { commissionStr = it }
-            CustomerFormField(label = "အဆ",               value = multiplierStr)    { multiplierStr = it }
+            CustomerFormField(label = "ဒဲ့ အဆ",           value = multiplierStr)    { multiplierStr = it }
+            CustomerFormField(label = "တွတ် အဆ",          value = tuwtMultiplierStr) { tuwtMultiplierStr = it }
             CustomerFormField(label = "ပေးငွေ",           value = paidStr)          { paidStr = it }
         }
     }

@@ -86,6 +86,19 @@ class LotteryRepository(private val lotteryDao: LotteryDao) {
         lotteryDao.deleteOrphanedExportedNumbers()
     }
 
+    suspend fun resetAllStatistics() {
+        lotteryDao.deleteAllBets()
+        lotteryDao.deleteAllVouchers()
+        lotteryDao.deleteAllExportedNumbers()
+        lotteryDao.deleteAllExportRecords()
+        lotteryDao.resetCustomerPaidAmounts()
+    }
+
+    suspend fun updateBatchNumber(oldBatch: Int, newBatch: Int) {
+        lotteryDao.updateVouchersBatchNumber(oldBatch, newBatch)
+        lotteryDao.updateExportRecordsBatchNumber(oldBatch, newBatch)
+    }
+
     suspend fun getVoucherDetails(voucherId: Int): VoucherWithBets? {
         return lotteryDao.getVoucherWithBets(voucherId)
     }

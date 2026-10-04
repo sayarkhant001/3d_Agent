@@ -150,8 +150,8 @@ fun LicenseDetailsDialog(
                         .border(1.dp, Color(0xFFD4AF37).copy(alpha = 0.5f), RoundedCornerShape(8.dp))
                 )
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("3D စာရင်း လိုင်စင် အချက်အလက်", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                    Text("လိုင်စင် အချက်အလက်နှင့် သက်တမ်းတိုးရန်", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("3D စာရင်း လိုင်စင်", fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+                    Text("လိုင်စင်နှင့် သက်တမ်း အချက်အလက်", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -207,51 +207,98 @@ fun LicenseDetailsDialog(
                             )
                         }
 
-                        // CD-Key with One-Tap Copy
+                        // CD-Key: SHOW ONLY IF DEVICE CHANGEABLE!
                         val rawKey = currentDetails.activeCdKey
-                        if (!rawKey.isNullOrBlank()) {
+                        if (currentDetails.isDeviceChangeable && !rawKey.isNullOrBlank()) {
                             val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
                             val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+
                             Surface(
-                                onClick = {
-                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(rawKey))
-                                    android.widget.Toast.makeText(context, "CD Key ($rawKey) ကူးယူပြီးပါပြီ။ အခြားစက်များတွင် အသုံးပြုနိုင်ပါသည်", android.widget.Toast.LENGTH_LONG).show()
-                                },
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.35f)),
+                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "လိုင်စင် CD-Key (ကူးယူရန် နှိပ်ပါ) :",
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.VpnKey,
+                                                contentDescription = null,
+                                                tint = EmeraldPrimary,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                            Text(
+                                                text = "လိုင်စင် CD-Key",
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        }
+
+                                        Surface(
+                                            color = Color(0xFFDCFCE7),
+                                            shape = RoundedCornerShape(4.dp),
+                                            border = BorderStroke(0.5.dp, Color(0xFF86EFAC))
+                                        ) {
+                                            Text(
+                                                text = "စက်ပြောင်းနိုင် ✅",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF15803D),
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                            )
+                                        }
+                                    }
+
+                                    // Dedicated Key Box
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        border = BorderStroke(0.6.dp, MaterialTheme.colorScheme.outlineVariant),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
                                         Text(
                                             text = rawKey,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.5.sp,
+                                            fontSize = 11.5.sp,
                                             fontFamily = FontFamily.Monospace,
                                             color = EmeraldPrimary,
-                                            letterSpacing = 0.5.sp
+                                            letterSpacing = 0.3.sp,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 6.dp, vertical = 7.dp)
                                         )
                                     }
+
+                                    // Dedicated Copy Button
                                     Surface(
+                                        onClick = {
+                                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                            clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(rawKey))
+                                            android.widget.Toast.makeText(context, "CD Key ($rawKey) ကူးယူပြီးပါပြီ။ အခြားစက်များတွင် ၇ ရက်ပြည့်ပါက ပြောင်းလဲအသုံးပြုနိုင်ပါသည်", android.widget.Toast.LENGTH_LONG).show()
+                                        },
                                         shape = RoundedCornerShape(6.dp),
-                                        color = EmeraldLight.copy(alpha = 0.6f)
+                                        color = EmeraldLight.copy(alpha = 0.7f),
+                                        border = BorderStroke(0.8.dp, EmeraldPrimary.copy(alpha = 0.5f)),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            modifier = Modifier.padding(vertical = 6.dp),
+                                            horizontalArrangement = Arrangement.Center,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
@@ -260,14 +307,53 @@ fun LicenseDetailsDialog(
                                                 tint = EmeraldPrimary,
                                                 modifier = Modifier.size(13.dp)
                                             )
-                                            Spacer(Modifier.width(4.dp))
+                                            Spacer(Modifier.width(5.dp))
                                             Text(
-                                                "ကူးယူမည်",
+                                                "CD-Key ကုတ်နံပါတ် ကူးယူမည်",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = EmeraldPrimary
                                             )
                                         }
+                                    }
+
+                                    Text(
+                                        text = "ℹ️ အခြားဖုန်းသို့ ၇ ရက်လျှင် ၁ ကြိမ်သာ ပြောင်းလဲလွှဲပြောင်းနိုင်ပါသည်",
+                                        fontSize = 9.5.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        } else {
+                            // Non-device changeable: CD-Key is NOT shown!
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("စက်ပြောင်းလဲခွင့် :", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Lock,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Text(
+                                            text = "ဖုန်း ၁ လုံးသာ (စက်ပြောင်းမရပါ)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }

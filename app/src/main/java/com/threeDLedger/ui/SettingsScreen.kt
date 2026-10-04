@@ -115,8 +115,6 @@ fun SettingsScreen(
                 SettingsCard {
                     SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "မရဂဏန်းများ",         "ပိတ်ထားသော ဂဏန်းများ") { showBannedDialog = true }
                     SettingsDivider()
-                    SettingsRow(Icons.Default.History,  Color(0xFF4ECDC4), "မှတ်တမ်းများ",         "သိမ်းဆည်းထားသော မှတ်တမ်းဟောင်းများ", onClick = onNavigateToArchive)
-                    SettingsDivider()
                     SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ထွက်ဂဏန်းများ",        "ပေါက်ဂဏန်း စာရင်း",        onClick = onNavigateToWinner)
                 }
             }
@@ -301,7 +299,7 @@ fun SettingsScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, errorColor.copy(alpha = 0.3f))
                 ) {
                     SettingsRow(Icons.Default.Delete, errorColor, "ဒေတာ အားလုံး ရှင်းလင်းမည်",
-                        "ဒေတာ အားလုံး ဖျက်ပြီး မှတ်တမ်းသို့ သိမ်းမည်", trailingColor = errorColor) { showResetDialog = true }
+                        "ဒေတာ အားလုံး ရှင်းလင်းပြီး အကြိမ်အသစ် စတင်မည်", trailingColor = errorColor) { showResetDialog = true }
                 }
             }
 
@@ -745,14 +743,50 @@ fun ChangePasswordDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
 
 @Composable
 fun ResetDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss,
+    val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
+    var nextBatchInput by remember { mutableStateOf((currentBatch + 1).toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Warning, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(32.dp)) },
         title = { Text("ဒေတာများ ရှင်းလင်းမည်", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
-        text  = { Text("လက်ရှိဒေတာများကို မှတ်တမ်းအဖြစ် သိမ်းဆည်းပြီး ၂ ကြိမ်ထက် ကျော်လွန်သော မှတ်တမ်းဟောင်းများကို အလိုအလျောက် ရှင်းလင်းပါမည်။ ကော်မရှင်စာရင်းများသာ ကျန်ရှိပါမည်။\n\nဆက်လက် လုပ်ဆောင်မည်မှာ သေချာပါသလား?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "ကော်မရှင်နှင့် ဒိုင်စာရင်းများမှလွဲ၍ လက်ရှိစာရင်းဒေတာအားလုံး (ဘောင်ချာများ၊ ဂဏန်းထိုးကြေးများ၊ တင်ကွက်များ) ကို အပြီးတိုင် ဖျက်ပစ်ပါမည်။",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = nextBatchInput,
+                    onValueChange = { nextBatchInput = it.filter { c -> c.isDigit() } },
+                    label = { Text("လာမည့် အကြိမ် နံပါတ်") },
+                    placeholder = { Text("ဥပမာ - ${currentBatch + 1}") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
+                Text(
+                    "အကြိမ်နံပါတ်ကို နောက်ပိုင်းတွင် ပင်မမျက်နှာပြင်မှလည်း အချိန်မရွေး ပြန်လည်ပြင်ဆင်နိုင်ပါသည်။",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
         confirmButton = {
-            Button(onClick = { viewModel.resetAndArchive(); onDismiss() },
+            Button(
+                onClick = {
+                    val targetBatch = nextBatchInput.toIntOrNull() ?: (currentBatch + 1)
+                    viewModel.resetAllStatisticsAndStartNewBatch(targetBatch)
+                    onDismiss()
+                },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                shape = RoundedCornerShape(10.dp)) { Text("ရှင်းလင်းမည်") }
+                shape = RoundedCornerShape(10.dp)
+            ) { Text("ရှင်းလင်းမည်", fontWeight = FontWeight.Bold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("မလုပ်တော့ပါ") } }
     )

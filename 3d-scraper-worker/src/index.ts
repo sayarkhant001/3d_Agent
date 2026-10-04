@@ -925,6 +925,7 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
         const jwtPayload: Record<string, unknown> = {
           cd_key,
           device_fingerprint,
+          device_changeable: keyData.device_changeable === true,
           iat: nowSec,
           exp: expSec
         };
@@ -939,20 +940,35 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
         return new Response(JSON.stringify({
           status: 'activated',
           token: appToken,
+          device_changeable: keyData.device_changeable === true,
           expires_at: keyData.expires_at || null
         }), { headers: corsHeaders });
       } else {
         // A different device is trying to activate with this active key!
         const isDeviceChangeable = keyData.device_changeable === true;
         if (!isDeviceChangeable) {
+          // Auto reject second time, third time, etc. for non-device-changeable keys
           return new Response(JSON.stringify({
             error: 'ဤလိုင်စင်ကုတ်အား အခြားဖုန်းတွင် အသုံးပြုထားပြီး ဖြစ်ပါသည်။ ဤအစီအစဉ်သည် စက်ပြောင်းလဲအသုံးပြုခွင့် မရှိပါ (Non-device changeable)'
           }), { status: 403, headers: corsHeaders });
         }
 
         // It is device changeable (e.g. 1-Year Plan)!
-        // Seamlessly migrate remaining days to the new device without admin permission, and remove old device!
+        // Must transfer to another device ONLY after the device change was made 7 days ago:
         const now = Date.now();
+        const lastChangeAt = keyData.last_migrated_at || keyData.activated_at || keyData.created_at;
+        const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
+        if (lastChangeAt && (now - lastChangeAt) < SEVEN_DAYS_MS) {
+          const timeElapsed = now - lastChangeAt;
+          const daysAgo = Math.max(0, Math.floor(timeElapsed / (24 * 60 * 60 * 1000)));
+          const daysLeft = Math.max(1, Math.ceil((SEVEN_DAYS_MS - timeElapsed) / (24 * 60 * 60 * 1000)));
+          return new Response(JSON.stringify({
+            error: `စက်ပြောင်းလဲထားသည်မှာ ${daysAgo} ရက်သာ ရှိသေးသဖြင့် နောက် ${daysLeft} ရက်ပြည့်မှ စက်အသစ်သို့ ထပ်မံပြောင်းလဲနိုင်ပါမည်။ (Change device after ${daysLeft} days as you recently changed device ${daysAgo} days ago)`
+          }), { status: 403, headers: corsHeaders });
+        }
+
+        // 7 days have passed: Allow device transfer!
         const oldFingerprint = keyData.device_fingerprint;
         const oldModel = keyData.device_model;
         const remainingDays = keyData.expires_at ? Math.max(1, Math.ceil((keyData.expires_at - now) / (1000 * 60 * 60 * 24))) : 365;
@@ -971,6 +987,21 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(migrationUpdates)
         });
+
+        // Update device lookup cache
+        try {
+          await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${device_fingerprint}.json`, {
+            method: 'PATCH',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ active_cd_key: cd_key, updated_at: now })
+          });
+          if (oldFingerprint) {
+            await fetch(`${env.FIREBASE_DB_URL}/3d_licenses/devices/${oldFingerprint}.json`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+          }
+        } catch (_) {}
 
         // Notify Admins on Telegram about device change
         await notifyAllAdmins(env,
@@ -998,6 +1029,7 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
         const jwtPayload: Record<string, unknown> = {
           cd_key,
           device_fingerprint,
+          device_changeable: true,
           iat: Math.floor(now / 1000),
           exp: expSec
         };
@@ -1008,6 +1040,7 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
           token: appToken,
           expires_at: keyData.expires_at || null,
           device_migrated: true,
+          device_changeable: true,
           remaining_days: remainingDays,
           message: `စက်အသစ်သို့ အောင်မြင်စွာ ပြောင်းလဲလိုက်ပါပြီ။ လက်ကျန်သက်တမ်း ${remainingDays} ရက် ရရှိပါသည်။`
         }), { headers: corsHeaders });
@@ -1058,6 +1091,7 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
       const jwtPayload: Record<string, unknown> = {
         cd_key,
         device_fingerprint,
+        device_changeable: isChangeable,
         iat: Math.floor(now / 1000),
         exp: expSec
       };
@@ -1089,6 +1123,7 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
       return new Response(JSON.stringify({
         status: 'activated',
         token: appToken,
+        device_changeable: isChangeable,
         expires_at: expiresAt
       }), { headers: corsHeaders });
     } else {

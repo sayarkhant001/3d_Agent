@@ -89,8 +89,8 @@ fun isVoucherMetadataLine(raw: String): Boolean {
     val trimmed = raw.trim().myanmarToEnglish()
     if (trimmed.isBlank()) return true
     
-    // Pure separators: ---, ===, ***, ___, ၊, ။
-    if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' || it == '၊' || it == '။' }) return true
+    // Pure separators: ---, ===, ***, ___, ၊, ။, •, ~
+    if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' || it == '၊' || it == '။' || it == '•' || it == '~' }) return true
 
     // Standalone voucher number / serial indicator (e.g. "1k", "2k", "3k", "4k", "10k", "#2k")
     if (Regex("""^#?\s*\d+\s*[kK]\s*$""").matches(trimmed)) return true
@@ -107,11 +107,32 @@ fun isVoucherMetadataLine(raw: String): Boolean {
         lower.contains("ကျသင့်ငွေ") || 
         lower.contains("ကော်မရှင်") || 
         lower.contains("အထက်ဒိုင်") || 
+        lower.contains("ဒိုင်") || 
+        lower.contains("ပေးချေရန်") || 
+        lower.contains("ပေးချေရမည့်ငွေ") || 
+        lower.contains("ပေးရန်") || 
+        lower.contains("ကျန်ငွေ") || 
+        lower.contains("ရှင်းတမ်း") || 
+        lower.contains("အမည်") || 
+        lower.contains("ဖောက်သည်") || 
+        lower.contains("ဒဲ့") || 
+        lower.contains("တွတ်") || 
         lower.contains("ရက်စွဲ") || 
         lower.contains("voucher") || 
         lower.contains("batch") || 
         lower.contains("time") || 
-        lower.contains("total")) {
+        lower.contains("total") ||
+        lower.contains("dine")) {
+        return true
+    }
+
+    // Rate / multiplier lines e.g. "ဒဲ့: 600ဆ | တွတ်: 10ဆ" or "600ဆ / 10ဆ"
+    if (lower.contains("ဆ") && (lower.contains("ဒဲ့") || lower.contains("တွတ်") || lower.contains("|") || lower.contains("/"))) {
+        return true
+    }
+
+    // Table header rows e.g. "စဉ်   ဂဏန်း   ပမာဏ"
+    if (lower.contains("ဂဏန်း") && (lower.contains("ပမာဏ") || lower.contains("စဉ်"))) {
         return true
     }
     

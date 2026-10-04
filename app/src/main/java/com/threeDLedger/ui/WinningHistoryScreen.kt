@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.ThreeDWinningHistory
 import com.threeDLedger.logic.NumberGenerator
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,9 +49,23 @@ fun WinningHistoryScreen(
     val emeraldDark = Color(0xFF065F46)
     val emeraldLight = Color(0xFFECFDF5)
 
-    val filteredList = remember(historyList, searchQuery) {
-        if (searchQuery.isBlank()) historyList
-        else historyList.filter {
+    val sortedHistoryList = remember(historyList) {
+        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.US)
+        historyList.sortedWith { a, b ->
+            val dateA = try { sdf.parse(a.drawDate) } catch (_: Exception) { null }
+            val dateB = try { sdf.parse(b.drawDate) } catch (_: Exception) { null }
+            when {
+                dateA != null && dateB != null -> dateB.compareTo(dateA)
+                dateA != null -> -1
+                dateB != null -> 1
+                else -> b.id.compareTo(a.id)
+            }
+        }
+    }
+
+    val filteredList = remember(sortedHistoryList, searchQuery) {
+        if (searchQuery.isBlank()) sortedHistoryList
+        else sortedHistoryList.filter {
             it.winningNumber.contains(searchQuery.trim()) ||
             it.drawDate.contains(searchQuery.trim()) ||
             it.drawDateFormatted.contains(searchQuery.trim()) ||
@@ -182,9 +198,14 @@ fun ThreeDHistoryCard(
     val emeraldDark = Color(0xFF065F46)
     val emeraldLight = Color(0xFFECFDF5)
 
-    val perms = remember(history.winningNumber) {
+    val tutNumbers = remember(history.winningNumber) {
         if (history.winningNumber.length == 3) {
-            (NumberGenerator.permutations(history.winningNumber).toSet() - setOf(history.winningNumber)).sorted()
+            val perms = (NumberGenerator.permutations(history.winningNumber).toSet() - setOf(history.winningNumber)).sorted()
+            val winInt = history.winningNumber.toIntOrNull() ?: 0
+            val numPlus1 = String.format("%03d", (winInt + 1) % 1000)
+            val numMinus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
+            val near = listOf(numMinus1, numPlus1).filter { it != history.winningNumber }
+            (perms + near).distinct()
         } else emptyList()
     }
 
@@ -287,16 +308,16 @@ fun ThreeDHistoryCard(
                 }
             }
 
-            // Permutations (အလှည့် / တွတ်)
-            if (perms.isNotEmpty()) {
+            // Permutations & Tut Numbers (အလှည့် / တွတ် ၇ ကွက်)
+            if (tutNumbers.isNotEmpty()) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.Top
                     ) {
                         Text(
                             text = "အလှည့် (တွတ်): ",
@@ -305,13 +326,13 @@ fun ThreeDHistoryCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = perms.joinToString(", "),
+                            text = tutNumbers.joinToString(", "),
                             fontSize = 11.5.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF4338CA),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            lineHeight = 16.sp,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }

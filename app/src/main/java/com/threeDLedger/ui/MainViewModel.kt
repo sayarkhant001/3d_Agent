@@ -127,9 +127,37 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
 
     fun selectBatch(batch: Int) {
         currentBatch.value = batch
-        if (!allBatches.value.contains(batch) && batch > 0) {
-            val updated = (allBatches.value + batch).distinct().sorted()
-            saveBatchesList(updated)
+        prefs.edit().putInt("currentBatch", batch).apply()
+        saveBatchesList(listOf(batch))
+    }
+
+    fun updateCurrentBatchNumber(newBatchNumber: Int) {
+        if (newBatchNumber <= 0) return
+        val oldBatch = currentBatch.value
+        currentBatch.value = newBatchNumber
+        prefs.edit().putInt("currentBatch", newBatchNumber).apply()
+        saveBatchesList(listOf(newBatchNumber))
+
+        val oldWinning = prefs.getString("winningNumber_$oldBatch", null)
+        if (!oldWinning.isNullOrBlank()) {
+            prefs.edit().putString("winningNumber_$newBatchNumber", oldWinning).remove("winningNumber_$oldBatch").apply()
+            winningNumber.value = oldWinning
+        }
+        val oldExact = prefs.getString("multiplier_exact_$oldBatch", null)
+        if (!oldExact.isNullOrBlank()) {
+            prefs.edit().putString("multiplier_exact_$newBatchNumber", oldExact).remove("multiplier_exact_$oldBatch").apply()
+        }
+        val oldPerm = prefs.getString("multiplier_perm_$oldBatch", null)
+        if (!oldPerm.isNullOrBlank()) {
+            prefs.edit().putString("multiplier_perm_$newBatchNumber", oldPerm).remove("multiplier_perm_$oldBatch").apply()
+        }
+        val oldNear = prefs.getString("multiplier_near_$oldBatch", null)
+        if (!oldNear.isNullOrBlank()) {
+            prefs.edit().putString("multiplier_near_$newBatchNumber", oldNear).remove("multiplier_near_$oldBatch").apply()
+        }
+
+        viewModelScope.launch {
+            repository.updateBatchNumber(oldBatch, newBatchNumber)
         }
     }
 
@@ -602,17 +630,27 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
             repository.deleteBannedNumber(bannedNumber)
         }
     }
-    fun resetAndArchive() {
+    fun resetAllStatisticsAndStartNewBatch(newBatchNumber: Int) {
         viewModelScope.launch {
-            repository.archiveAndReset(currentBatch.value - 2)
-            val nextBatch = currentBatch.value + 1
-            currentBatch.value = nextBatch
-            if (!allBatches.value.contains(nextBatch)) {
-                val updated = (allBatches.value + nextBatch).distinct().sorted()
-                val trimmed = if (updated.size > 4) updated.takeLast(4) else updated
-                saveBatchesList(trimmed)
-            }
+            repository.resetAllStatistics()
+            val oldBatch = currentBatch.value
+            prefs.edit()
+                .remove("winningNumber_$oldBatch")
+                .remove("winningNumber_$newBatchNumber")
+                .remove("multiplier_exact_$oldBatch")
+                .remove("multiplier_perm_$oldBatch")
+                .remove("multiplier_near_$oldBatch")
+                .putInt("currentBatch", newBatchNumber)
+                .apply()
+
+            winningNumber.value = ""
+            currentBatch.value = newBatchNumber
+            saveBatchesList(listOf(newBatchNumber))
         }
+    }
+
+    fun resetAndArchive() {
+        resetAllStatisticsAndStartNewBatch(currentBatch.value + 1)
     }
 
     fun exportUnderBrake() {
@@ -638,9 +676,16 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         }
     }
 
-    fun addCustomer(name: String, commissionRate: Double, multiplier: Int) {
+    fun addCustomer(name: String, commissionRate: Double, multiplier: Int = 600, tuwtMultiplier: Int = 10) {
         viewModelScope.launch {
-            repository.insertCustomer(Customer(name = name, commissionRate = commissionRate, multiplier = multiplier))
+            repository.insertCustomer(
+                Customer(
+                    name = name,
+                    commissionRate = commissionRate,
+                    multiplier = multiplier,
+                    tuwtMultiplier = tuwtMultiplier
+                )
+            )
         }
     }
 
@@ -812,34 +857,41 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
     private suspend fun ensureDefault3DHistory() {
         try {
             val list = repository.winningHistory3D.first()
+            val defaultHistory = listOf(
+                ThreeDWinningHistory(drawDate = "01/10/2026", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၆", winningNumber = "371", firstPrize6D = "835371"),
+                ThreeDWinningHistory(drawDate = "16/09/2026", drawDateFormatted = "၁၆ စက်တင်ဘာ ၂၀၂၆", winningNumber = "640", firstPrize6D = "360640"),
+                ThreeDWinningHistory(drawDate = "01/09/2026", drawDateFormatted = "၁ စက်တင်ဘာ ၂၀၂၆", winningNumber = "341", firstPrize6D = "199341"),
+                ThreeDWinningHistory(drawDate = "16/08/2026", drawDateFormatted = "၁၆ ဩဂုတ် ၂၀၂၆", winningNumber = "941", firstPrize6D = "046941"),
+                ThreeDWinningHistory(drawDate = "01/08/2026", drawDateFormatted = "၁ ဩဂုတ် ၂၀၂၆", winningNumber = "756", firstPrize6D = "407756"),
+                ThreeDWinningHistory(drawDate = "16/07/2026", drawDateFormatted = "၁၆ ဇူလိုင် ၂၀၂၆", winningNumber = "533", firstPrize6D = "518533"),
+                ThreeDWinningHistory(drawDate = "01/07/2026", drawDateFormatted = "၁ ဇူလိုင် ၂၀၂၆", winningNumber = "032", firstPrize6D = "922032"),
+                ThreeDWinningHistory(drawDate = "16/06/2026", drawDateFormatted = "၁၆ ဇွန် ၂၀၂၆", winningNumber = "092", firstPrize6D = "516092"),
+                ThreeDWinningHistory(drawDate = "01/06/2026", drawDateFormatted = "၁ ဇွန် ၂၀၂၆", winningNumber = "593", firstPrize6D = "530593"),
+                ThreeDWinningHistory(drawDate = "16/05/2026", drawDateFormatted = "၁၆ မေ ၂၀၂၆", winningNumber = "903", firstPrize6D = "205903"),
+                ThreeDWinningHistory(drawDate = "02/05/2026", drawDateFormatted = "၂ မေ ၂၀၂၆", winningNumber = "884", firstPrize6D = "980884"),
+                ThreeDWinningHistory(drawDate = "16/04/2026", drawDateFormatted = "၁၆ ဧပြီ ၂၀၂၆", winningNumber = "873", firstPrize6D = "943873"),
+                ThreeDWinningHistory(drawDate = "01/04/2026", drawDateFormatted = "၁ ဧပြီ ၂၀၂၆", winningNumber = "720", firstPrize6D = "803720"),
+                ThreeDWinningHistory(drawDate = "16/03/2026", drawDateFormatted = "၁၆ မတ် ၂၀၂၆", winningNumber = "503", firstPrize6D = "997503"),
+                ThreeDWinningHistory(drawDate = "01/03/2026", drawDateFormatted = "၁ မတ် ၂၀၂၆", winningNumber = "603", firstPrize6D = "253603"),
+                ThreeDWinningHistory(drawDate = "16/02/2026", drawDateFormatted = "၁၆ ဖေဖော်ဝါရီ ၂၀၂၆", winningNumber = "395", firstPrize6D = "094395"),
+                ThreeDWinningHistory(drawDate = "01/02/2026", drawDateFormatted = "၁ ဖေဖော်ဝါရီ ၂၀၂၆", winningNumber = "063", firstPrize6D = "607063"),
+                ThreeDWinningHistory(drawDate = "17/01/2026", drawDateFormatted = "၁၇ ဇန်နဝါရီ ၂၀၂၆", winningNumber = "979", firstPrize6D = "105979"),
+                ThreeDWinningHistory(drawDate = "30/12/2025", drawDateFormatted = "၃၀ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "955", firstPrize6D = "444955"),
+                ThreeDWinningHistory(drawDate = "16/12/2025", drawDateFormatted = "၁၆ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "757", firstPrize6D = "356757"),
+                ThreeDWinningHistory(drawDate = "01/12/2025", drawDateFormatted = "၁ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "097", firstPrize6D = "843097"),
+                ThreeDWinningHistory(drawDate = "16/11/2025", drawDateFormatted = "၁၆ နိုဝင်ဘာ ၂၀၂၅", winningNumber = "361", firstPrize6D = "187361"),
+                ThreeDWinningHistory(drawDate = "01/11/2025", drawDateFormatted = "၁ နိုဝင်ဘာ ၂၀၂၅", winningNumber = "444", firstPrize6D = "741444"),
+                ThreeDWinningHistory(drawDate = "16/10/2025", drawDateFormatted = "၁၆ အောက်တိုဘာ ၂၀၂၅", winningNumber = "286", firstPrize6D = "429286"),
+                ThreeDWinningHistory(drawDate = "01/10/2025", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၅", winningNumber = "202", firstPrize6D = "880202")
+            )
             if (list.isEmpty()) {
-                val defaultHistory = listOf(
-                    ThreeDWinningHistory(drawDate = "16/09/2026", drawDateFormatted = "၁၆ စက်တင်ဘာ ၂၀၂၆", winningNumber = "640", firstPrize6D = "360640"),
-                    ThreeDWinningHistory(drawDate = "01/09/2026", drawDateFormatted = "၁ စက်တင်ဘာ ၂၀၂၆", winningNumber = "341", firstPrize6D = "199341"),
-                    ThreeDWinningHistory(drawDate = "16/08/2026", drawDateFormatted = "၁၆ ဩဂုတ် ၂၀၂၆", winningNumber = "941", firstPrize6D = "046941"),
-                    ThreeDWinningHistory(drawDate = "01/08/2026", drawDateFormatted = "၁ ဩဂုတ် ၂၀၂၆", winningNumber = "756", firstPrize6D = "407756"),
-                    ThreeDWinningHistory(drawDate = "16/07/2026", drawDateFormatted = "၁၆ ဇူလိုင် ၂၀၂၆", winningNumber = "533", firstPrize6D = "518533"),
-                    ThreeDWinningHistory(drawDate = "01/07/2026", drawDateFormatted = "၁ ဇူလိုင် ၂၀၂၆", winningNumber = "032", firstPrize6D = "922032"),
-                    ThreeDWinningHistory(drawDate = "16/06/2026", drawDateFormatted = "၁၆ ဇွန် ၂၀၂၆", winningNumber = "092", firstPrize6D = "516092"),
-                    ThreeDWinningHistory(drawDate = "01/06/2026", drawDateFormatted = "၁ ဇွန် ၂၀၂၆", winningNumber = "593", firstPrize6D = "530593"),
-                    ThreeDWinningHistory(drawDate = "16/05/2026", drawDateFormatted = "၁၆ မေ ၂၀၂၆", winningNumber = "903", firstPrize6D = "205903"),
-                    ThreeDWinningHistory(drawDate = "02/05/2026", drawDateFormatted = "၂ မေ ၂၀၂၆", winningNumber = "884", firstPrize6D = "980884"),
-                    ThreeDWinningHistory(drawDate = "16/04/2026", drawDateFormatted = "၁၆ ဧပြီ ၂၀၂၆", winningNumber = "873", firstPrize6D = "943873"),
-                    ThreeDWinningHistory(drawDate = "01/04/2026", drawDateFormatted = "၁ ဧပြီ ၂၀၂၆", winningNumber = "720", firstPrize6D = "803720"),
-                    ThreeDWinningHistory(drawDate = "16/03/2026", drawDateFormatted = "၁၆ မတ် ၂၀၂၆", winningNumber = "503", firstPrize6D = "997503"),
-                    ThreeDWinningHistory(drawDate = "01/03/2026", drawDateFormatted = "၁ မတ် ၂၀၂၆", winningNumber = "603", firstPrize6D = "253603"),
-                    ThreeDWinningHistory(drawDate = "16/02/2026", drawDateFormatted = "၁၆ ဖေဖော်ဝါရီ ၂၀၂၆", winningNumber = "395", firstPrize6D = "094395"),
-                    ThreeDWinningHistory(drawDate = "01/02/2026", drawDateFormatted = "၁ ဖေဖော်ဝါရီ ၂၀၂၆", winningNumber = "063", firstPrize6D = "607063"),
-                    ThreeDWinningHistory(drawDate = "17/01/2026", drawDateFormatted = "၁၇ ဇန်နဝါရီ ၂၀၂၆", winningNumber = "979", firstPrize6D = "105979"),
-                    ThreeDWinningHistory(drawDate = "30/12/2025", drawDateFormatted = "၃၀ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "955", firstPrize6D = "444955"),
-                    ThreeDWinningHistory(drawDate = "16/12/2025", drawDateFormatted = "၁၆ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "757", firstPrize6D = "356757"),
-                    ThreeDWinningHistory(drawDate = "01/12/2025", drawDateFormatted = "၁ ဒီဇင်ဘာ ၂၀၂၅", winningNumber = "097", firstPrize6D = "843097"),
-                    ThreeDWinningHistory(drawDate = "16/11/2025", drawDateFormatted = "၁၆ နိုဝင်ဘာ ၂၀၂၅", winningNumber = "361", firstPrize6D = "187361"),
-                    ThreeDWinningHistory(drawDate = "01/11/2025", drawDateFormatted = "၁ နိုဝင်ဘာ ၂၀၂၅", winningNumber = "444", firstPrize6D = "741444"),
-                    ThreeDWinningHistory(drawDate = "16/10/2025", drawDateFormatted = "၁၆ အောက်တိုဘာ ၂၀၂၅", winningNumber = "286", firstPrize6D = "429286"),
-                    ThreeDWinningHistory(drawDate = "01/10/2025", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၅", winningNumber = "202", firstPrize6D = "880202")
-                )
                 repository.insert3DWinningHistory(defaultHistory)
+            } else {
+                val existingDates = list.map { it.drawDate }.toSet()
+                val missing = defaultHistory.filter { it.drawDate !in existingDates }
+                if (missing.isNotEmpty()) {
+                    repository.insert3DWinningHistory(missing)
+                }
             }
         } catch (_: Exception) {}
     }

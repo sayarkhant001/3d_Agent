@@ -163,12 +163,15 @@ fun CommissionerResultScreen(
             // Commission calculation: commissionRate is decimal fraction (0.15 = 15%)
             val commission   = (totalBet * customer.commissionRate).toLong()
             val netAfterComm = totalBet - commission
+            val custExactMult = if (customer.multiplier > 0) customer.multiplier.toDouble() else exactMult
+            val custTuwtMult = if (customer.tuwtMultiplier > 0) customer.tuwtMultiplier.toDouble() else permMult
+
             val exactBets    = bets.filter { it.number == winningNumber }
             val tuwtBets     = bets.filter { it.number in permsOnly || it.number in near }
             val exactBetAmt  = exactBets.sumOf { it.amount }.toLong()
-            val exactPayout  = (exactBetAmt * exactMult).toLong()
+            val exactPayout  = (exactBetAmt * custExactMult).toLong()
             val tuwtBetAmt   = tuwtBets.sumOf { it.amount }.toLong()
-            val tuwtPayout   = (tuwtBetAmt * permMult).toLong()
+            val tuwtPayout   = (tuwtBetAmt * custTuwtMult).toLong()
             val totalPayout  = exactPayout + tuwtPayout
             val balance      = netAfterComm - totalPayout
             val paid         = (paidMap[customer.id] ?: 0.0).toLong()
@@ -178,7 +181,7 @@ fun CommissionerResultScreen(
                 .groupBy { it.number }
                 .map { (num, list) ->
                     val amt = list.sumOf { it.amount }.toLong()
-                    TutWinDetail(num, amt, (amt * permMult).toLong())
+                    TutWinDetail(num, amt, (amt * custTuwtMult).toLong())
                 }
                 .sortedWith(compareByDescending<TutWinDetail> { it.amount }.thenBy { it.number })
 
@@ -186,7 +189,7 @@ fun CommissionerResultScreen(
                 .groupBy { it.number }
                 .map { (num, list) ->
                     val amt = list.sumOf { it.amount }.toLong()
-                    TutWinDetail(num, amt, (amt * exactMult).toLong())
+                    TutWinDetail(num, amt, (amt * custExactMult).toLong())
                 }
                 .sortedWith(compareByDescending<TutWinDetail> { it.amount }.thenBy { it.number })
 

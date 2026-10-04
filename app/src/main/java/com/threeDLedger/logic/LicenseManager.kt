@@ -48,7 +48,8 @@ data class LicenseDetails(
     val isExpired: Boolean,
     val isClockTampered: Boolean = false,
     val tamperReason: String? = null,
-    val lastSyncMmtFormatted: String? = null
+    val lastSyncMmtFormatted: String? = null,
+    val isDeviceChangeable: Boolean = false
 )
 
 class LicenseManager(private val context: Context) {
@@ -181,6 +182,29 @@ class LicenseManager(private val context: Context) {
         return if (cleanKey.isNotEmpty()) LicensePlanType.ONE_YEAR else LicensePlanType.TRIAL
     }
 
+    fun isDeviceChangeable(): Boolean {
+        if (prefs.contains("device_changeable")) {
+            return prefs.getBoolean("device_changeable", false)
+        }
+        val token = prefs.getString("jwt_token", null)
+        if (!token.isNullOrBlank()) {
+            try {
+                val parts = token.split(".")
+                if (parts.size >= 2) {
+                    val payloadStr = String(Base64.decode(parts[1], Base64.URL_SAFE), StandardCharsets.UTF_8)
+                    val json = JSONObject(payloadStr)
+                    if (json.has("device_changeable")) {
+                        val ch = json.getBoolean("device_changeable")
+                        prefs.edit().putBoolean("device_changeable", ch).apply()
+                        return ch
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+        // Fallback: 1-Year plan is changeable, Lifetime & Trial are locked to 1 device
+        return getLicensePlanType() == LicensePlanType.ONE_YEAR
+    }
+
     fun getLicenseDetails(): LicenseDetails {
         val isAct = isActivated()
         val planType = getLicensePlanType()
@@ -188,6 +212,7 @@ class LicenseManager(private val context: Context) {
         val isTampered = timeIntegrity.isClockTampered()
         val tamperReason = timeIntegrity.getTamperReason()
         val lastSyncMmt = timeIntegrity.getLastSyncMmt()
+        val isChangeable = isDeviceChangeable()
 
         val badgeText = when (planType) {
             LicensePlanType.TRIAL -> "အစမ်းသုံး"
@@ -206,7 +231,8 @@ class LicenseManager(private val context: Context) {
                 isExpired = false,
                 isClockTampered = isTampered,
                 tamperReason = tamperReason,
-                lastSyncMmtFormatted = lastSyncMmt
+                lastSyncMmtFormatted = lastSyncMmt,
+                isDeviceChangeable = isChangeable
             )
         }
 
@@ -222,7 +248,8 @@ class LicenseManager(private val context: Context) {
                 isExpired = false,
                 isClockTampered = isTampered,
                 tamperReason = tamperReason,
-                lastSyncMmtFormatted = lastSyncMmt
+                lastSyncMmtFormatted = lastSyncMmt,
+                isDeviceChangeable = isChangeable
             )
         }
 
@@ -247,7 +274,8 @@ class LicenseManager(private val context: Context) {
             isExpired = isExpired,
             isClockTampered = isTampered,
             tamperReason = tamperReason,
-            lastSyncMmtFormatted = lastSyncMmt
+            lastSyncMmtFormatted = lastSyncMmt,
+            isDeviceChangeable = isChangeable
         )
     }
 
@@ -297,6 +325,10 @@ class LicenseManager(private val context: Context) {
                 return false
             }
 
+            if (json.has("device_changeable")) {
+                prefs.edit().putBoolean("device_changeable", json.getBoolean("device_changeable")).apply()
+            }
+
             // 3. Expiration verification
             if (json.has("exp") && !json.isNull("exp")) {
                 val expSec = json.getLong("exp")
@@ -320,15 +352,32 @@ class LicenseManager(private val context: Context) {
         message: String?,
         error: String?,
         deviceMigrated: Boolean?,
-        remainingDays: Int?
+        remainingDays: Int?,
+        deviceChangeable: Boolean? = null
     ): ActivationResult {
         return if (status == "activated" && !token.isNullOrBlank()) {
-            prefs.edit()
+            val editor = prefs.edit()
                 .putString("jwt_token", token)
                 .putString("active_cd_key", cdKey)
                 .remove("pending_cd_key")
                 .remove("expired_warning")
-                .apply()
+
+            if (deviceChangeable != null) {
+                editor.putBoolean("device_changeable", deviceChangeable)
+            } else {
+                try {
+                    val parts = token.split(".")
+                    if (parts.size >= 2) {
+                        val payloadStr = String(Base64.decode(parts[1], Base64.URL_SAFE), StandardCharsets.UTF_8)
+                        val json = JSONObject(payloadStr)
+                        if (json.has("device_changeable")) {
+                            editor.putBoolean("device_changeable", json.getBoolean("device_changeable"))
+                        }
+                    }
+                } catch (_: Exception) {}
+            }
+            editor.apply()
+
             ActivationResult.Success(
                 token = token,
                 message = message,
@@ -387,8 +436,9 @@ class LicenseManager(private val context: Context) {
                 val error = if (json.has("error") && !json.isNull("error")) json.getString("error") else null
                 val deviceMigrated = if (json.has("device_migrated")) json.optBoolean("device_migrated") else null
                 val remainingDays = if (json.has("remaining_days")) json.optInt("remaining_days") else null
+                val deviceChangeable = if (json.has("device_changeable")) json.optBoolean("device_changeable") else null
 
-                handleActivationSuccess(cdKey, status, token, message, error, deviceMigrated, remainingDays)
+                handleActivationSuccess(cdKey, status, token, message, error, deviceMigrated, remainingDays, deviceChangeable)
             } else {
                 handleActivationHttpError(response.code, responseBody)
             }
@@ -422,7 +472,8 @@ class LicenseManager(private val context: Context) {
                     message = body.message,
                     error = body.error,
                     deviceMigrated = body.device_migrated,
-                    remainingDays = body.remaining_days
+                    remainingDays = body.remaining_days,
+                    deviceChangeable = body.device_changeable
                 )
             } else {
                 handleActivationHttpError(response.code(), response.errorBody()?.string())
@@ -566,12 +617,15 @@ class LicenseManager(private val context: Context) {
                 val body = response.body()!!
                 if (body.status == "activated" && !body.token.isNullOrBlank()) {
                     if (verifyToken(body.token)) {
-                        prefs.edit()
+                        val editor = prefs.edit()
                             .putString("jwt_token", body.token)
                             .putString("active_cd_key", body.cd_key ?: "")
                             .remove("pending_cd_key")
                             .remove("expired_warning")
-                            .apply()
+                        if (body.device_changeable != null) {
+                            editor.putBoolean("device_changeable", body.device_changeable)
+                        }
+                        editor.apply()
                         return@withContext true
                     }
                 } else if (body.status == "expired") {
@@ -604,12 +658,15 @@ class LicenseManager(private val context: Context) {
                     val token = json.optString("token")
                     val cdKey = json.optString("cd_key")
                     if (token.isNotBlank() && verifyToken(token)) {
-                        prefs.edit()
+                        val editor = prefs.edit()
                             .putString("jwt_token", token)
                             .putString("active_cd_key", cdKey)
                             .remove("pending_cd_key")
                             .remove("expired_warning")
-                            .apply()
+                        if (json.has("device_changeable")) {
+                            editor.putBoolean("device_changeable", json.getBoolean("device_changeable"))
+                        }
+                        editor.apply()
                         return@withContext true
                     }
                 } else if (json.optString("status") == "expired") {
