@@ -553,6 +553,117 @@ class BetParserTest {
         val prefixed2 = parsePastedLine("No- 2k: 446 = 1000")
         assertEquals(listOf("446" to 1000), prefixed2)
     }
+
+    @Test
+    fun testChainedNumbersWithTrailingAmount() {
+        val r1 = parsePastedLine("113=663=351=347=2500")
+        assertEquals(4, r1.size)
+        assertEquals("113" to 2500, r1[0])
+        assertEquals("663" to 2500, r1[1])
+        assertEquals("351" to 2500, r1[2])
+        assertEquals("347" to 2500, r1[3])
+
+        val r2 = parsePastedLine("255=671=998=2500")
+        assertEquals(3, r2.size)
+        assertEquals("255" to 2500, r2[0])
+        assertEquals("671" to 2500, r2[1])
+        assertEquals("998" to 2500, r2[2])
+    }
+
+    @Test
+    fun testChainedNumbersWithTrailingRoundAmountOnlyForLastNumber() {
+        // 234-344-120=1000r3000
+        val r1 = parsePastedLine("234-344-120=1000r3000")
+        // 234 (1000), 344 (1000), 120 (1000) + other 5 permutations of 120 (3000 each) = 8 bets
+        assertEquals(8, r1.size)
+        assertEquals("234" to 1000, r1[0])
+        assertEquals("344" to 1000, r1[1])
+        assertEquals("120" to 1000, r1[2])
+        val perms120 = setOf("102", "210", "201", "012", "021")
+        val trailingBets = r1.drop(3)
+        assertEquals(5, trailingBets.size)
+        assertEquals(perms120, trailingBets.map { it.first }.toSet())
+        assertTrue(trailingBets.all { it.second == 3000 })
+
+        // Slash '/' also means 'R' or 'r': 234-344-120=1000/3000
+        val r2 = parsePastedLine("234-344-120=1000/3000")
+        assertEquals(8, r2.size)
+        assertEquals("234" to 1000, r2[0])
+        assertEquals("344" to 1000, r2[1])
+        assertEquals("120" to 1000, r2[2])
+        val trailingBets2 = r2.drop(3)
+        assertEquals(5, trailingBets2.size)
+        assertEquals(perms120, trailingBets2.map { it.first }.toSet())
+        assertTrue(trailingBets2.all { it.second == 3000 })
+    }
+
+    @Test
+    fun testMultiLineBlankAmountPropagation() {
+        val pasted = """
+            100=500
+            200=
+            300=
+            400=
+            500=
+            660=
+            770=
+            780=
+            101=500
+        """.trimIndent()
+
+        val result = validatePastedText(pasted)
+        assertTrue("Paste with blank amounts must be valid", result.isValid)
+        assertEquals(0, result.errors.size)
+        assertEquals(9, result.validBets.size)
+        val expectedNumbers = listOf("100", "200", "300", "400", "500", "660", "770", "780", "101")
+        assertEquals(expectedNumbers, result.validBets.map { it.first })
+        assertTrue("All bets must take the amount 500", result.validBets.all { it.second == 500 })
+
+        // Backward propagation test (starting with blank amounts)
+        val leadingBlanks = """
+            100=
+            200=
+            300=500
+        """.trimIndent()
+        val resultLeading = validatePastedText(leadingBlanks)
+        assertTrue(resultLeading.isValid)
+        assertEquals(3, resultLeading.validBets.size)
+        assertTrue(resultLeading.validBets.all { it.second == 500 })
+    }
+
+    @Test
+    fun testVoucherPastedIntelligentlySkipsNonDigitLines() {
+        val voucher = """
+            ========================
+                  3D ဘောင်ချာ      
+            ========================
+             ဘောင်ချာအမှတ်-2  အကြိမ် : 1
+             ရက်စွဲ : 2026.10.04/16:39:25
+             ထိုးသူ : မိမိ (ကိုယ်တိုင်)
+            ------------------------
+             649 = 100,000 Ks
+             694 = 100,000 Ks
+             469 = 100,000 Ks
+             496 = 100,000 Ks
+             964 = 100,000 Ks
+             946 = 100,000 Ks
+            ------------------------
+             ထိုးကြေးငွေ = 600,000 Ks
+            ------------------------
+             ထွက်လျော်မည်။
+            ========================
+                  ကျေးဇူးတင်ပါသည်      
+            ========================
+        """.trimIndent()
+
+        val result = validatePastedText(voucher)
+        assertTrue("Voucher must parse successfully skipping headers/footers/metadata", result.isValid)
+        assertEquals(0, result.errors.size)
+        assertEquals(6, result.validBets.size)
+        assertEquals(listOf("649", "694", "469", "496", "964", "946"), result.validBets.map { it.first })
+        assertTrue(result.validBets.all { it.second == 100000 })
+        assertEquals(600000, result.validBets.sumOf { it.second })
+    }
 }
 
 

@@ -840,17 +840,10 @@ private val VM_BLOCK_TAIL_REGEX        = Regex("([-:/.,_=]+)?(\\d+)(?:R(\\d+))?$
 private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
 
     fun parseBets(input: String): List<Bet> {
-        val lines = input.lines().filter { it.isNotBlank() }
-        val bets = mutableListOf<Bet>()
-        for (line in lines) {
-            val pairs = parsePastedLine(line)
-            for ((num, amt) in pairs) {
-                if (amt > 0) {
-                    bets.add(Bet(voucherId = 0, number = num, amount = amt))
-                }
-            }
+        val result = validatePastedText(input)
+        return result.validBets.mapNotNull { (num, amt) ->
+            if (amt > 0) Bet(voucherId = 0, number = num, amount = amt) else null
         }
-        return bets
     }
 
 

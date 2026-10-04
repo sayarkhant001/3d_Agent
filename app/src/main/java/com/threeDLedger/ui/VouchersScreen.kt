@@ -154,7 +154,7 @@ fun VouchersScreen(
                                             Text(
                                                 "${idx + 1}.",
                                                 fontSize = 13.sp,
-                                                color = Color(0xFF64748B),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontFamily = FontFamily.Monospace,
                                                 modifier = Modifier.widthIn(min = 28.dp),
                                                 maxLines = 1,
@@ -163,7 +163,7 @@ fun VouchersScreen(
                                             Spacer(Modifier.width(8.dp))
                                             Text(
                                                 bet.number,
-                                                color = Color(0xFF047857),
+                                                color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 fontSize = 18.sp,
                                                 fontFamily = FontFamily.Monospace,
@@ -179,7 +179,7 @@ fun VouchersScreen(
                                         ) {
                                             Text(
                                                 "%,d".format(bet.amount),
-                                                color = Color(0xFF0F172A),
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 16.5.sp,
                                                 fontFamily = FontFamily.Monospace,
@@ -189,7 +189,7 @@ fun VouchersScreen(
                                             Spacer(Modifier.width(4.dp))
                                             Text(
                                                 "Ks",
-                                                color = Color(0xFF64748B),
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontSize = 12.sp,
                                                 fontFamily = FontFamily.Monospace,
                                                 maxLines = 1,
@@ -200,7 +200,7 @@ fun VouchersScreen(
 
                                     if (idx < voucherWithBets.bets.size - 1) {
                                         HorizontalDivider(
-                                            color = Color(0xFFE2E8F0),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                                             thickness = 0.5.dp
                                         )
                                     }

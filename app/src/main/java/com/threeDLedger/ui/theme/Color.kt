@@ -33,7 +33,7 @@ val md_theme_light_onSurfaceVariant   = Color(0xFF065F46)
 val md_theme_light_outline            = Color(0xFFCBD5E1)
 val md_theme_light_outlineVariant     = Color(0xFFE2E8F0)
 
-// ── Dark theme: Obsidian-Emerald canvas with glowing mint & gold highlights ──
+// ── Dark theme: Rich obsidian-emerald canvas with brilliant white & glowing mint highlights ──
 val md_theme_dark_primary             = Color(0xFF34D399)  // Glowing mint (actionable elements)
 val md_theme_dark_onPrimary           = Color(0xFF022C22)
 val md_theme_dark_primaryContainer    = Color(0xFF064E3B)  // Deep emerald container
@@ -54,14 +54,14 @@ val md_theme_dark_errorContainer      = Color(0xFF7F1D1D)
 val md_theme_dark_onError             = Color(0xFF450A0A)
 val md_theme_dark_onErrorContainer    = Color(0xFFFECACA)
 
-val md_theme_dark_background          = Color(0xFF0B1311)  // Obsidian deep emerald
-val md_theme_dark_onBackground        = Color(0xFFE6F4EE)
-val md_theme_dark_surface             = Color(0xFF13221E)  // Elevated dark surface
-val md_theme_dark_onSurface           = Color(0xFFE6F4EE)
-val md_theme_dark_surfaceVariant      = Color(0xFF1A2F2A)
-val md_theme_dark_onSurfaceVariant    = Color(0xFF94D2BD)
-val md_theme_dark_outline             = Color(0xFF2D4B42)
-val md_theme_dark_outlineVariant      = Color(0xFF1F3831)
+val md_theme_dark_background          = Color(0xFF111E1A)  // Lighter, richer slate-emerald canvas
+val md_theme_dark_onBackground        = Color(0xFFFFFFFF)  // Brilliant pure white text
+val md_theme_dark_surface             = Color(0xFF192C26)  // Rich elevated dark surface
+val md_theme_dark_onSurface           = Color(0xFFFFFFFF)  // Maximum clarity white for numbers & amounts
+val md_theme_dark_surfaceVariant      = Color(0xFF233D35)  // Distinct elevated surface
+val md_theme_dark_onSurfaceVariant    = Color(0xFFBFEADB)  // Bright readable mint-white (not pale grey!)
+val md_theme_dark_outline             = Color(0xFF3D6658)  // Crisp borders
+val md_theme_dark_outlineVariant      = Color(0xFF2B4A3F)
 
 // ── Semantic Color Tokens for Screens ─────────────────────────────────────────
 val EmeraldPrimary      = Color(0xFF046A4E)

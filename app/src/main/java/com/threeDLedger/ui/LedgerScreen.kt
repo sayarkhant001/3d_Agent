@@ -285,7 +285,10 @@ fun LedgerScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (isEven) Color.White else Color(0xFFF8FAFC))
+                                    .background(
+                                        if (isEven) MaterialTheme.colorScheme.surface
+                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                    )
                                     .clickable(onClick = onNavigateToResult)
                                     .padding(horizontal = 16.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -302,13 +305,13 @@ fun LedgerScreen(
                                 // Number in distinct badge
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color.White,
-                                    border = BorderStroke(1.dp, EmeraldMedium.copy(alpha = 0.4f)),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
                                     shadowElevation = 1.dp
                                 ) {
                                     Text(
                                         exposure.number,
-                                        color = EmeraldPrimary,
+                                        color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.Black,
                                         fontSize = 18.sp,
                                         fontFamily = FontFamily.Monospace,
@@ -361,9 +364,9 @@ fun LedgerScreen(
                         itemsIndexed(relevantRows) { idx, (exposure, cat) ->
                             val isEven = idx % 2 == 0
                             val rowBg = when (cat) {
-                                NumCat.EXACT -> Color(0xFFFFF1F2) // Dominant rose highlight for exact win
-                                NumCat.TUWT  -> if (isEven) Color.White else Color(0xFFFFFBEB) // Alternating clean white and warm cream
-                                else         -> if (isEven) Color.White else Color(0xFFF8FAFC)
+                                NumCat.EXACT -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
+                                NumCat.TUWT  -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
+                                else         -> if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                             }
                             Row(
                                 modifier = Modifier
@@ -409,12 +412,12 @@ fun LedgerScreen(
                                             Spacer(Modifier.width(8.dp))
                                             Surface(
                                                 shape = RoundedCornerShape(6.dp),
-                                                color = Color(0xFFFEE2E2),
+                                                color = MaterialTheme.colorScheme.errorContainer,
                                                 border = BorderStroke(1.dp, WinExactRed.copy(alpha = 0.7f))
                                             ) {
                                                 Text(
                                                     "ဒဲ့ (ပေါက်)",
-                                                    color = Color(0xFFB91C1C),
+                                                    color = MaterialTheme.colorScheme.onErrorContainer,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.ExtraBold,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -422,16 +425,16 @@ fun LedgerScreen(
                                             }
                                         }
                                         NumCat.TUWT -> {
-                                            // Tut numbers with distinct high-contrast white container & warm amber border
+                                            // Tut numbers with distinct high-contrast container & warm amber border
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
-                                                color = Color.White,
-                                                border = BorderStroke(1.2.dp, GoldAccent.copy(alpha = 0.5f)),
+                                                color = MaterialTheme.colorScheme.surface,
+                                                border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.6f)),
                                                 shadowElevation = 1.dp
                                             ) {
                                                 Text(
                                                     exposure.number,
-                                                    color = GoldDark,
+                                                    color = MaterialTheme.colorScheme.secondary,
                                                     fontWeight = FontWeight.Black,
                                                     fontSize = 18.sp,
                                                     fontFamily = FontFamily.Monospace,
@@ -442,12 +445,12 @@ fun LedgerScreen(
                                             Spacer(Modifier.width(8.dp))
                                             Surface(
                                                 shape = RoundedCornerShape(6.dp),
-                                                color = GoldContainer,
-                                                border = BorderStroke(0.8.dp, GoldAccent.copy(alpha = 0.4f))
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f))
                                             ) {
                                                 Text(
                                                     cat.label,
-                                                    color = GoldDark,
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -458,7 +461,7 @@ fun LedgerScreen(
                                             // Regular numbers
                                             Surface(
                                                 shape = RoundedCornerShape(8.dp),
-                                                color = Color.White,
+                                                color = MaterialTheme.colorScheme.surface,
                                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                                 shadowElevation = 0.5.dp
                                             ) {

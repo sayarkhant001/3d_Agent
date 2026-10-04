@@ -89,8 +89,14 @@ fun isVoucherMetadataLine(raw: String): Boolean {
     val trimmed = raw.trim().myanmarToEnglish()
     if (trimmed.isBlank()) return true
     
-    // Pure separators: ---, ===, ***, ___, ၊, ။, •, ~
+    // Pure separators: ---, ===, ***, ___, ၊, ။, •, ~, etc.
     if (trimmed.all { it == '-' || it == '=' || it == '*' || it == '_' || it == '—' || it == ' ' || it == '၊' || it == '။' || it == '•' || it == '~' }) return true
+
+    // If the line has NO digits at all (no 0-9 and no Myanmar digits in raw), it is purely letters/text/notes/greetings/header/footer -> IGNORE IT!
+    val hasDigits = trimmed.any { it.isDigit() } || raw.any { "၀၁၂၃၄၅၆၇၈၉".contains(it) }
+    if (!hasDigits) {
+        return true
+    }
 
     // Standalone voucher number / serial indicator (e.g. "1k", "2k", "3k", "4k", "10k", "#2k")
     if (Regex("""^#?\s*\d+\s*[kK]\s*$""").matches(trimmed)) return true
@@ -99,35 +105,25 @@ fun isVoucherMetadataLine(raw: String): Boolean {
     if (Regex("""^\s*(?:no[\.\-:\s]|no$|စဉ်[\.\-:\s]?|voucher[\.\-:\s]?|အမှတ်[\.\-:\s]?|#)\s*[\w\.\-]*\s*$""", RegexOption.IGNORE_CASE).matches(trimmed)) return true
 
     val lower = trimmed.lowercase()
-    if (lower.contains("တင်ကွက်") || 
-        lower.contains("ဘောင်ချာ") || 
-        lower.contains("အကြိမ်") || 
-        lower.contains("အချိန်") || 
-        lower.contains("စုစုပေါင်း") || 
-        lower.contains("ကျသင့်ငွေ") || 
-        lower.contains("ကော်မရှင်") || 
-        lower.contains("အထက်ဒိုင်") || 
-        lower.contains("ဒိုင်") || 
-        lower.contains("ပေးချေရန်") || 
-        lower.contains("ပေးချေရမည့်ငွေ") || 
-        lower.contains("ပေးရန်") || 
-        lower.contains("ကျန်ငွေ") || 
-        lower.contains("ရှင်းတမ်း") || 
-        lower.contains("အမည်") || 
-        lower.contains("ဖောက်သည်") || 
-        lower.contains("ဒဲ့") || 
-        lower.contains("တွတ်") || 
-        lower.contains("ရက်စွဲ") || 
-        lower.contains("voucher") || 
-        lower.contains("batch") || 
-        lower.contains("time") || 
-        lower.contains("total") ||
-        lower.contains("dine")) {
+    val rawLower = raw.trim().lowercase()
+
+    // Voucher metadata keywords
+    val metadataKeywords = listOf(
+        "တင်ကွက်", "ဘောင်ချာ", "အကြိမ်", "အချိန်", "စုစုပေါင်း", "ကျသင့်ငွေ", "ကော်မရှင်", "အထက်ဒိုင်",
+        "ဒိုင်", "ပေးချေရန်", "ပေးချေရမည့်ငွေ", "ပေးရန်", "ကျန်ငွေ", "ရှင်းတမ်း", "အမည်", "ဖောက်သည်",
+        "ရက်စွဲ", "voucher", "batch", "time", "total", "dine",
+        "ထိုးသူ", "ထိုးကြေးငွေ", "ရောင်းကြေး", "လျော်ငွေ", "လျော်မည်", "ထွက်လျော်မည်",
+        "ကျေးဇူးတင်", "ကျေးဇူး", "ပေါက်သီး", "အထက်", "ကိုယ်တိုင်", "အမှတ်", "ဘောင်ချာအမှတ်",
+        "နေ့စွဲ", "draw", "date", "slip", "phone", "ph", "tel", "ဖုန်း", "မှတ်ချက်",
+        "ကြွေးကျန်", "ပေးငွေ", "ရငွေ", "ရှင်းပြီး", "မရှင်းရသေး", "အမြတ်ငွေ", "အမြတ်", "မိမိ"
+    )
+    if (metadataKeywords.any { lower.contains(it) || rawLower.contains(it) }) {
         return true
     }
 
     // Rate / multiplier lines e.g. "ဒဲ့: 600ဆ | တွတ်: 10ဆ" or "600ဆ / 10ဆ"
-    if (lower.contains("ဆ") && (lower.contains("ဒဲ့") || lower.contains("တွတ်") || lower.contains("|") || lower.contains("/"))) {
+    if ((lower.contains("ဆ") || rawLower.contains("ဆ")) && 
+        (lower.contains("ဒဲ့") || lower.contains("တွတ်") || lower.contains("|") || lower.contains("/"))) {
         return true
     }
 
@@ -136,10 +132,11 @@ fun isVoucherMetadataLine(raw: String): Boolean {
         return true
     }
     
-    // Protect date and timestamp lines (e.g. 13/09/2026 or 11:57:45)
+    // Date and timestamp lines (e.g. 2026.10.04/16:39:25 or 13/09/2026 or 11:57:45)
+    if (Regex("""\d{4}[\.\-/]\d{1,2}[\.\-/]\d{1,2}""").containsMatchIn(trimmed)) return true
     if (Regex("""\d{1,2}[/-]\d{1,2}[/-]\d{2,4}""").containsMatchIn(trimmed)) return true
     if (Regex("""\d{1,2}:\d{2}(?::\d{2})?""").containsMatchIn(trimmed)) return true
-    
+
     return false
 }
 
@@ -151,10 +148,25 @@ fun parseNumbersWithExplicitAmount(
     lineNumber: Int,
     raw: String
 ): LineParseResult {
-    val cleanStr = numbersStr.replace(Regex("""(?<=\d)\s+[Rr/](?!\w)"""), "R")
-    val chunks = cleanStr.split(Regex("""[\s\-.,_+၊။]+""")).filter { it.isNotBlank() }
+    // Normalise R, r, / attached to numbers: e.g. 120r, 120/, 120 R -> 120R
+    val cleanStr = numbersStr.replace(Regex("""(?<=\d)\s*[/rR](?!\w)"""), "R")
+    // Note delimiter regex includes = and : to handle chained tokens like 113=663=351=347
+    val chunks = cleanStr.split(Regex("""[\s=:\-.,_+၊။]+""")).filter { it.isNotBlank() }
     if (chunks.isEmpty()) {
         return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
+    }
+
+    val allTokens = mutableListOf<String>()
+    for (chunk in chunks) {
+        if (chunk.contains('R')) {
+            if (chunk.endsWith("R") && chunk.count { it == 'R' } == 1) {
+                allTokens.add(chunk)
+            } else {
+                chunk.split('R').filter { it.isNotBlank() }.forEach { allTokens.add("${it}R") }
+            }
+        } else {
+            allTokens.add(chunk)
+        }
     }
 
     val lessThan3Digits = mutableListOf<String>()
@@ -162,48 +174,42 @@ fun parseNumbersWithExplicitAmount(
     val invalidFormat = mutableListOf<String>()
     val parsedBets = mutableListOf<Pair<String, Int>>()
 
-    for (chunk in chunks) {
-        val subTokens = if (chunk.contains('R')) {
-            if (chunk.endsWith("R") && chunk.count { it == 'R' } == 1) {
-                listOf(chunk)
-            } else {
-                chunk.split('R').filter { it.isNotBlank() }.map { "${it}R" }
-            }
-        } else {
-            listOf(chunk)
+    for ((idx, token) in allTokens.withIndex()) {
+        val isLast = (idx == allTokens.size - 1)
+        val hasR = token.endsWith("R") || token.endsWith("r") || token.endsWith("/")
+        val baseNum = token.removeSuffix("R").removeSuffix("r").removeSuffix("/").trim()
+
+        if (!baseNum.all { it.isDigit() } || baseNum.isEmpty()) {
+            invalidFormat.add(token)
+            continue
         }
 
-        for (token in subTokens) {
-            val hasR = token.endsWith("R")
-            val baseNum = if (hasR) token.dropLast(1) else token
+        if (baseNum.length < 3) {
+            lessThan3Digits.add(baseNum)
+            continue
+        }
 
-            if (!baseNum.all { it.isDigit() } || baseNum.isEmpty()) {
-                invalidFormat.add(token)
-                continue
-            }
+        if (baseNum.length > 3) {
+            moreThan3Digits.add(baseNum)
+            continue
+        }
 
-            if (baseNum.length < 3) {
-                lessThan3Digits.add(baseNum)
-                continue
-            }
+        // Direct bet on the number
+        parsedBets.add(baseNum to amount)
 
-            if (baseNum.length > 3) {
-                moreThan3Digits.add(baseNum)
-                continue
-            }
-
-            parsedBets.add(baseNum to amount)
-
-            when {
-                rAmount != null && rAmount > 0 -> {
-                    NumberGenerator.permutations(baseNum).forEach { perm ->
-                        if (perm != baseNum) parsedBets.add(perm to rAmount)
-                    }
+        // Permutations:
+        // Rule: If rAmount is specified on the line (e.g. 234-344-120=1000r3000 or 1000/3000),
+        // rAmount applies ONLY to the other 5 permutations of the LAST number (120).
+        // If an earlier number explicitly had 'R' (e.g. 234R), its permutations get the regular amount.
+        when {
+            isLast && rAmount != null && rAmount > 0 -> {
+                NumberGenerator.permutations(baseNum).forEach { perm ->
+                    if (perm != baseNum) parsedBets.add(perm to rAmount)
                 }
-                hasR -> {
-                    NumberGenerator.permutations(baseNum).forEach { perm ->
-                        if (perm != baseNum) parsedBets.add(perm to amount)
-                    }
+            }
+            hasR -> {
+                NumberGenerator.permutations(baseNum).forEach { perm ->
+                    if (perm != baseNum) parsedBets.add(perm to amount)
                 }
             }
         }
@@ -258,28 +264,36 @@ fun parseNumbersWithExplicitAmount(
     return LineParseResult.Success(merged.entries.map { it.key to it.value })
 }
 
-// Parses and validates a single line. Detects less-than-3-digit numbers, more-than-3-digit numbers, and wrong formats.
-// Strictly prevents amounts and numbers from being confused or mistakenly assumed.
-fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
+data class LineBetDraft(
+    val lineNumber: Int,
+    val rawLine: String,
+    val numbersStr: String?,
+    val explicitAmount: Int?,
+    val explicitRAmount: Int?,
+    val isBlankAmount: Boolean,
+    val error: BetLineParseError?
+)
+
+fun extractLineDraft(raw: String, lineNumber: Int): LineBetDraft? {
     val trimmed = raw.trim()
     if (trimmed.isBlank() || isVoucherMetadataLine(trimmed)) {
-        return LineParseResult.Ignored
+        return null
     }
 
     // Convert Myanmar digits -> English
     val converted = trimmed.myanmarToEnglish()
     val hasCurrencySuffix = CURRENCY_SUFFIX_REGEX.containsMatchIn(converted)
     var line = converted.replace(CURRENCY_SUFFIX_REGEX, "").trim()
-    if (line.isBlank()) return LineParseResult.Ignored
+    if (line.isBlank()) return null
 
-    // 1. Strip optional leading serial / voucher prefix (e.g. "2k:", "2k -", "No. 1:", "No- 2k:", "No.", "စဉ် 1:", "#1:")
+    // 1. Strip optional leading serial / voucher prefix
     line = line.replace(Regex("""^(?:(?:စဉ်|No[\.\-:]?|no[\.\-:]?|Voucher[\.\-:]?|အမှတ်[\.\-:]?|#)\s*)?\d+\s*[kK]\s*[\.:\)\-၊။]?\s*""", RegexOption.IGNORE_CASE), "").trim()
     line = line.replace(Regex("""^(?:စဉ်|No[\.\-:]?|no[\.\-:]?|Voucher[\.\-:]?|အမှတ်[\.\-:]?|#)\s*\d*\s*[kK]?\s*[\.:\)\-၊။]?\s*""", RegexOption.IGNORE_CASE), "").trim()
 
     // 2. Strip leading list numerals e.g. "1.", "2.", "10.", "1)", "(1)", "[1]", "1:", "1။", or "1 - "
     line = line.replace(Regex("""^\s*(?:\(\d{1,3}\)|\[\d{1,3}\]|\d{1,3}\))\s*"""), "").trim()
     line = line.replace(Regex("""^\s*\d{1,2}\s*[\.:၊။\-]\s+(?=\d)"""), "").trim()
-    if (line.isBlank()) return LineParseResult.Ignored
+    if (line.isBlank()) return null
 
     // 3. Prefix amount pattern e.g. "1000ဖိုး 123 456" or "1,000 ks : 123 456" or "500ကျပ် = 123"
     val prefixMatch = Regex("""^([\d,]+)\s*(?:ဖိုး|ks|ကျပ်)\s*[:=\-]?\s*(.+)$""", RegexOption.IGNORE_CASE).matchEntire(line)
@@ -287,51 +301,24 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
         val amt = prefixMatch.groupValues[1].replace(",", "").toIntOrNull()
         val numPart = prefixMatch.groupValues[2].trim()
         if (amt == null || amt <= 0) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+            return LineBetDraft(lineNumber, raw, null, null, null, false, BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
         }
-        return parseNumbersWithExplicitAmount(numPart, amt, null, lineNumber, raw)
+        return LineBetDraft(lineNumber, raw, numPart, amt, null, false, null)
     }
 
     // 4. Check for explicit '=' or ':' delimiter
     if (line.contains('=') || line.contains(':')) {
-        // Direct single bet format check e.g. "108 = 50", "108=50", "108:50", "108=1,000"
-        val directMatch = Regex("""^([^\s=:.,_+\-]+)\s*[=:]\s*([\d,]+)$""").matchEntire(line)
-        if (directMatch != null) {
-            val numToken = directMatch.groupValues[1]
-            val amt = directMatch.groupValues[2].replace(",", "").toIntOrNull()
-            if (amt == null || amt <= 0) {
-                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
-            }
-            val cleanNum = numToken.removeSuffix("R").removeSuffix("r").removeSuffix("/").trim()
-            if (!cleanNum.all { it.isDigit() }) {
-                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ပုံစံမမှန်ပါ", listOf(numToken)))
-            }
-            if (cleanNum.length < 3) {
-                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံး မပြည့်ပါ", listOf(cleanNum)))
-            }
-            if (cleanNum.length > 3) {
-                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ဂဏန်း ၃ လုံးထက် ပိုနေပါသည်", listOf(cleanNum)))
-            }
-            val isRound = numToken.endsWith("R", ignoreCase = true) || numToken.endsWith("/")
-            val results = mutableListOf<Pair<String, Int>>()
-            results.add(cleanNum to amt)
-            if (isRound) {
-                NumberGenerator.permutations(cleanNum).forEach { perm ->
-                    if (perm != cleanNum) results.add(perm to amt)
-                }
-            }
-            return LineParseResult.Success(results)
-        }
-
         val delimIdx = if (line.contains('=')) line.lastIndexOf('=') else line.lastIndexOf(':')
         val partLeft = line.substring(0, delimIdx).trim()
         val partRight = line.substring(delimIdx + 1).trim()
 
         if (partLeft.isBlank()) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
+            return LineBetDraft(lineNumber, raw, null, null, null, false, BetLineParseError(lineNumber, raw, "ထိုးဂဏန်း မပါရှိပါ"))
         }
+
+        // If partRight is empty (e.g. "200=", "200:", "113=663=351=347="), it's a BLANK AMOUNT line!
         if (partRight.isBlank()) {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+            return LineBetDraft(lineNumber, raw, partLeft, null, null, true, null)
         }
 
         // Check if Left is Amount and Right is Numbers: e.g. "1000 = 123 456" or "10,000 = 123 456"
@@ -344,25 +331,23 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
         val rightAmountMatch = Regex("""^(\d+)(?:\s*[Rr/]\s*(\d+))?$""").matchEntire(rightClean)
 
         if (isLeftExplicitAmount && rightAmountMatch == null && leftAsAmount != null && leftAsAmount > 0) {
-            return parseNumbersWithExplicitAmount(partRight, leftAsAmount, null, lineNumber, raw)
+            return LineBetDraft(lineNumber, raw, partRight, leftAsAmount, null, false, null)
         }
 
         if (rightAmountMatch != null) {
             val amt = rightAmountMatch.groupValues[1].toIntOrNull()
             if (amt == null || amt <= 0) {
-                return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+                return LineBetDraft(lineNumber, raw, null, null, null, false, BetLineParseError(lineNumber, raw, "ထိုးကြေး ၀ သို့မဟုတ် ပုံစံမမှန်ပါ"))
             }
             val rAmt = rightAmountMatch.groupValues[2].takeIf { it.isNotEmpty() }?.toIntOrNull()
-            return parseNumbersWithExplicitAmount(partLeft, amt, rAmt, lineNumber, raw)
+            return LineBetDraft(lineNumber, raw, partLeft, amt, rAmt, false, null)
         } else {
-            return LineParseResult.Error(BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
+            return LineBetDraft(lineNumber, raw, null, null, null, false, BetLineParseError(lineNumber, raw, "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ"))
         }
     }
 
     // 5. Lines without '=' or ':'.
-    // Step 1: collapse spaces around plain separators (NOT / -- handled below)
     var text = line.replace(SEPARATOR_SPACES_REGEX, "$1")
-    // Step 2: normalise R, r, AND / -> "R"
     text = text.replace(ROUND_MARKERS_REGEX, "R")
 
     val tailAmountRegex = Regex("""(?:[\s\-]|(?<=\d)R)\s*([\d,]+)(?:\s*R\s*([\d,]+))?$""")
@@ -380,14 +365,6 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
             prefixText
         }
 
-        // PROTECTION RULE:
-        // A 3-digit candidate amount without currency suffix ('Ks', 'ကျပ်') is AMBIGUOUS with a 3D bet number (e.g. "123 456 789").
-        // Therefore:
-        // If candidate amount is 3 digits (or fewer), it is ONLY accepted as an amount IF:
-        // 1) hadCurrencySuffix is true (e.g. "123 500 Ks")
-        // 2) OR it has a round amount (e.g. "123 500r100")
-        // 3) OR it is 1-2 digits (e.g. 50 Ks)
-        // Otherwise, it could be a betting number (e.g. 789 in "123 456 789"), so we reject as missing amount!
         val isConfirmedAmount = hasCurrencySuffix || 
                                 (candidateAmtStr.length >= 4) || 
                                 (candidateRAmt != null) ||
@@ -395,43 +372,124 @@ fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
                                 (candidateAmt != null && candidateAmt < 100)
 
         if (isConfirmedAmount && candidateAmt != null && candidateAmt > 0 && adjustedPrefix.isNotBlank()) {
-            return parseNumbersWithExplicitAmount(adjustedPrefix, candidateAmt, candidateRAmt, lineNumber, raw)
+            return LineBetDraft(lineNumber, raw, adjustedPrefix, candidateAmt, candidateRAmt, false, null)
         }
     }
 
-    // If we reached here, there is NO valid explicit amount!
-    return LineParseResult.Error(
-        BetLineParseError(
-            lineNumber = lineNumber,
-            rawLine = raw,
-            reason = "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ (ထိုးကြေးကို = ဖြင့် ထည့်ပေးပါ)"
+    // If no confirmed tail amount, treat the line as numbers with a BLANK AMOUNT to inherit from surrounding lines!
+    return LineBetDraft(lineNumber, raw, line, null, null, true, null)
+}
+
+// Parses and validates a single line.
+fun validateAndParseLine(raw: String, lineNumber: Int): LineParseResult {
+    val draft = extractLineDraft(raw, lineNumber) ?: return LineParseResult.Ignored
+    if (draft.error != null) return LineParseResult.Error(draft.error)
+    if (draft.explicitAmount == null || draft.explicitAmount <= 0) {
+        return LineParseResult.Error(
+            BetLineParseError(
+                lineNumber = lineNumber,
+                rawLine = raw,
+                reason = "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ (ထိုးကြေးကို = ဖြင့် ထည့်ပေးပါ)"
+            )
         )
+    }
+    return parseNumbersWithExplicitAmount(
+        numbersStr = draft.numbersStr ?: "",
+        amount = draft.explicitAmount,
+        rAmount = draft.explicitRAmount,
+        lineNumber = lineNumber,
+        raw = raw
     )
 }
 
-// Validates the entire pasted text block. If ANY line has errors, declines the WHOLE paste.
+// Validates the entire pasted text block with forward and backward blank-amount propagation.
+// If ANY line has errors, declines the WHOLE paste.
 fun validatePastedText(text: String): PasteValidationResult {
     val lines = text.lines()
+    val drafts = mutableListOf<LineBetDraft>()
+
+    lines.forEachIndexed { index, rawLine ->
+        val draft = extractLineDraft(rawLine, index + 1)
+        if (draft != null) {
+            drafts.add(draft)
+        }
+    }
+
+    if (drafts.isEmpty()) {
+        return PasteValidationResult(isValid = true, validBets = emptyList(), errors = emptyList())
+    }
+
+    // Forward pass to propagate amounts to blank amount lines (e.g. 100=500 followed by 200=)
+    var currentAmount: Int? = null
+    var currentRAmount: Int? = null
+    val resolvedAmounts = arrayOfNulls<Int>(drafts.size)
+    val resolvedRAmounts = arrayOfNulls<Int>(drafts.size)
+
+    for (i in drafts.indices) {
+        val d = drafts[i]
+        if (d.explicitAmount != null) {
+            currentAmount = d.explicitAmount
+            currentRAmount = d.explicitRAmount
+            resolvedAmounts[i] = currentAmount
+            resolvedRAmounts[i] = currentRAmount
+        } else if (d.isBlankAmount && currentAmount != null) {
+            resolvedAmounts[i] = currentAmount
+            // Do not propagate rAmount to un-annotated blank lines
+        }
+    }
+
+    // Backward pass to propagate amounts to leading blank amount lines (e.g. 100= followed by 101=500)
+    var futureAmount: Int? = null
+    for (i in drafts.indices.reversed()) {
+        val d = drafts[i]
+        if (d.explicitAmount != null) {
+            futureAmount = d.explicitAmount
+        } else if (resolvedAmounts[i] != null) {
+            futureAmount = resolvedAmounts[i]
+        } else if (d.isBlankAmount && futureAmount != null) {
+            resolvedAmounts[i] = futureAmount
+        }
+    }
+
     val allBets = mutableListOf<Pair<String, Int>>()
     val errors = mutableListOf<BetLineParseError>()
 
-    lines.forEachIndexed { index, rawLine ->
-        val lineNum = index + 1
-        when (val res = validateAndParseLine(rawLine, lineNum)) {
-            is LineParseResult.Success -> {
-                allBets.addAll(res.bets)
-            }
-            is LineParseResult.Error -> {
-                errors.add(res.error)
-            }
-            is LineParseResult.Ignored -> {
-                // Ignore blank lines and metadata lines
-            }
+    for (i in drafts.indices) {
+        val d = drafts[i]
+        if (d.error != null) {
+            errors.add(d.error)
+            continue
+        }
+
+        val amt = resolvedAmounts[i]
+        if (amt == null || amt <= 0) {
+            errors.add(
+                BetLineParseError(
+                    lineNumber = d.lineNumber,
+                    rawLine = d.rawLine,
+                    reason = "ထိုးကြေး မပါရှိပါ သို့မဟုတ် ပုံစံမမှန်ပါ (ထိုးကြေးကို = ဖြင့် ထည့်ပေးပါ)"
+                )
+            )
+            continue
+        }
+
+        val rAmt = resolvedRAmounts[i]
+        val parseRes = parseNumbersWithExplicitAmount(
+            numbersStr = d.numbersStr ?: "",
+            amount = amt,
+            rAmount = rAmt,
+            lineNumber = d.lineNumber,
+            raw = d.rawLine
+        )
+
+        when (parseRes) {
+            is LineParseResult.Success -> allBets.addAll(parseRes.bets)
+            is LineParseResult.Error   -> errors.add(parseRes.error)
+            is LineParseResult.Ignored -> {}
         }
     }
 
     return if (errors.isNotEmpty()) {
-        // DECLINE THE WHOLE PASTE!
         PasteValidationResult(isValid = false, validBets = emptyList(), errors = errors)
     } else {
         PasteValidationResult(isValid = true, validBets = allBets, errors = emptyList())
@@ -1006,11 +1064,24 @@ fun BettingScreen(
                             onValueChange = { pasteText = it },
                             modifier = Modifier.fillMaxWidth().height(if (pasteText.isBlank() && detectedText != null) 150.dp else 210.dp),
                             enabled = !isParsing,
+                            textStyle = LocalTextStyle.current.copy(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 14.sp,
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            ),
                             placeholder = {
                                 Text(
                                     "အောက်ပါ 'စာသား ကူးထည့်မည်' ခလုတ်ကို နှိပ်ပါ သို့မဟုတ် စာရင်း ရိုက်ထည့်ပါ...",
                                     fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             }
                         )
@@ -1021,8 +1092,8 @@ fun BettingScreen(
                             if (liveValidation.isValid && liveValidation.validBets.isNotEmpty()) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFECFDF5),
-                                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -1032,13 +1103,13 @@ fun BettingScreen(
                                     ) {
                                         Text(
                                             "${liveValidation.validBets.size} ကွက် စစ်ဆေးပြီး",
-                                            color = Color(0xFF047857),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 12.sp
                                         )
                                         Text(
                                             "= %,d Ks".format(liveValidation.validBets.sumOf { it.second }),
-                                            color = Color(0xFF065F46),
+                                            color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.ExtraBold,
                                             fontSize = 12.5.sp,
                                             fontFamily = FontFamily.Monospace
@@ -1048,13 +1119,13 @@ fun BettingScreen(
                             } else if (!liveValidation.isValid) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = Color(0xFFFEF2F2),
-                                    border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
                                         "အမှား ${liveValidation.errors.size} ခု တွေ့ရှိပါသည် (ထိုးကြေးကို = ဖြင့် သေချာ ထည့်ပေးပါ)",
-                                        color = Color(0xFFB91C1C),
+                                        color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 11.5.sp,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
@@ -1224,8 +1295,8 @@ fun BettingScreen(
 
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFFEF2F2),
-                            border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(max = 280.dp)
@@ -1237,8 +1308,8 @@ fun BettingScreen(
                                 items(pasteErrors) { err ->
                                     Card(
                                         shape = RoundedCornerShape(8.dp),
-                                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                                        border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
@@ -1251,17 +1322,17 @@ fun BettingScreen(
                                                     "မျဉ်း ${err.lineNumber}",
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 12.sp,
-                                                    color = Color(0xFFDC2626)
+                                                    color = MaterialTheme.colorScheme.error
                                                 )
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = Color(0xFFFEE2E2)
+                                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
                                                 ) {
                                                     Text(
                                                         err.reason,
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = Color(0xFFB91C1C),
+                                                        color = MaterialTheme.colorScheme.error,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                     )
                                                 }
@@ -1271,7 +1342,7 @@ fun BettingScreen(
                                                 err.rawLine,
                                                 fontFamily = FontFamily.Monospace,
                                                 fontSize = 12.5.sp,
-                                                color = Color(0xFF1E293B),
+                                                color = MaterialTheme.colorScheme.onSurface,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             if (err.invalidTokens.isNotEmpty()) {
@@ -1279,7 +1350,7 @@ fun BettingScreen(
                                                 Text(
                                                     "မှားယွင်းနေသော ဂဏန်း: ${err.invalidTokens.joinToString(", ")}",
                                                     fontSize = 11.5.sp,
-                                                    color = Color(0xFFDC2626),
+                                                    color = MaterialTheme.colorScheme.error,
                                                     fontWeight = FontWeight.Medium
                                                 )
                                             }
@@ -1444,13 +1515,13 @@ fun BettingScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "ဂဏန်းထည့်ရန်",
-                            color = primaryBlue.copy(alpha = 0.35f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
                             "ကီးပက်ကို သုံး၍ ထိုးနိုင်သည်",
-                            color = primaryBlue.copy(alpha = 0.25f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             fontSize = 12.sp
                         )
                     }
@@ -1476,8 +1547,8 @@ fun BettingScreen(
                             // Row number
                             Text(
                                 "${i + 1}.",
-                                fontSize = 11.sp,
-                                color = primaryBlue.copy(alpha = 0.45f),
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 modifier = Modifier.width(26.dp),
                                 textAlign = TextAlign.End
@@ -1499,17 +1570,17 @@ fun BettingScreen(
                             Text(
                                 "=",
                                 fontSize = 16.sp,
-                                color = Color(0xFF9CA3AF),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 modifier = Modifier.padding(horizontal = 4.dp)
                             )
 
-                            // Amount — right-aligned, large
+                            // Amount — right-aligned, large, high contrast
                             Text(
                                 "%,d".format(bet.amount).padStart(amtWidthB),
                                 fontSize = 19.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF111827),
+                                color = MaterialTheme.colorScheme.onSurface,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 textAlign = TextAlign.End,
                                 modifier = Modifier.weight(1f)
@@ -1518,8 +1589,8 @@ fun BettingScreen(
                             // "Ks" suffix
                             Text(
                                 " Ks",
-                                fontSize = 11.sp,
-                                color = Color(0xFF6B7280),
+                                fontSize = 11.5.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
 

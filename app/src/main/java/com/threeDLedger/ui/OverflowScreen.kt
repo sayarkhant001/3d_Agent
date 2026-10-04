@@ -1007,32 +1007,20 @@ fun OverflowScreen(
                         )
                     }
 
-                    // Left Action Button ([ 📋 ကော်ပီ ])
+                    // Left Action Button ([ 📋 မှတ်တမ်းများ ])
                     Button(
-                        onClick = {
-                            val keptText = if (isWonDeclared) {
-                                brakedWinRows.joinToString("\n") { "${it.number} = ${it.amount}" }
-                            } else {
-                                brakedExposures.joinToString("\n") { "${it.number} = ${keptAmount(it.totalBetAmount)}" }
-                            }
-                            if (keptText.isNotBlank()) {
-                                clipboardManager.setText(AnnotatedString(keptText))
-                                android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                            } else {
-                                android.widget.Toast.makeText(context, "ကော်ပီကူးရန် ဂဏန်းမရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        },
+                        onClick = onNavigateToExportHistory,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 2.dp)
                             .height(36.dp),
                         shape = RoundedCornerShape(6.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = emeraldDark),
+                        colors = ButtonDefaults.buttonColors(containerColor = orangeButton),
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("ကော်ပီ", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("မှတ်တမ်းများ", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -1051,9 +1039,31 @@ fun OverflowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 5.dp, horizontal = 4.dp)
+                            .padding(vertical = 5.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("ဂဏန်းများ", color = Color.White, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "ကော်ပီ",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier
+                                    .size(13.dp)
+                                    .clickable {
+                                        val overflowText = overflowExposures.joinToString("\n") { "${it.number} = ${it.overflowAmount}" }
+                                        if (overflowText.isNotBlank()) {
+                                            clipboardManager.setText(AnnotatedString(overflowText))
+                                            android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                            )
+                        }
                         Text(if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                     }
                     // Rows
@@ -1095,53 +1105,33 @@ fun OverflowScreen(
                         Text("%,d".format(totalOverflow), color = Color.White, modifier = Modifier.weight(1f).padding(end = 6.dp), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
 
-                    // Action Buttons under Right Table ([ + တင်မည် ] & [ 📋 မှတ်တမ်းများ ])
-                    Row(
+                    // Action Button under Right Table (+ တင်မည်)
+                    Button(
+                        onClick = {
+                            if (isWonDeclared) {
+                                android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း ထွက်ပြီးပါပြီ။ အထက်ဒိုင်သို့ တင်ပို့၍ မရတော့ပါ။", android.widget.Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (overflowExposures.isNotEmpty()) {
+                                showSelectDineDialog = true
+                            } else {
+                                android.widget.Toast.makeText(context, "တင်ရန် ဘရိတ်ကျော် ဂဏန်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = !isWonDeclared && overflowExposures.isNotEmpty(),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            .padding(top = 2.dp)
+                            .height(36.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (!isWonDeclared && overflowExposures.isNotEmpty()) emeraldPrimary else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        contentPadding = PaddingValues(0.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                if (isWonDeclared) {
-                                    android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း ထွက်ပြီးပါပြီ။ အထက်ဒိုင်သို့ တင်ပို့၍ မရတော့ပါ။", android.widget.Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                if (overflowExposures.isNotEmpty()) {
-                                    showSelectDineDialog = true
-                                } else {
-                                    android.widget.Toast.makeText(context, "တင်ရန် ဘရိတ်ကျော် ဂဏန်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            enabled = !isWonDeclared && overflowExposures.isNotEmpty(),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp),
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (!isWonDeclared && overflowExposures.isNotEmpty()) emeraldPrimary else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Icon(if (isWonDeclared) Icons.Default.Lock else Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(2.dp))
-                            Text(if (isWonDeclared) "ပိတ်" else "+ တင်မည်", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Button(
-                            onClick = onNavigateToExportHistory,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(36.dp),
-                            shape = RoundedCornerShape(6.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = orangeButton),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                            Spacer(Modifier.width(2.dp))
-                            Text("မှတ်တမ်းများ", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
-                        }
+                        Icon(if (isWonDeclared) Icons.Default.Lock else Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (isWonDeclared) "ပိတ်" else "+ တင်မည်", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
