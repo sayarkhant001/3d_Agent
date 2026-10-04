@@ -73,6 +73,7 @@ fun WinningHistoryScreen(
         }
     }
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -83,14 +84,14 @@ fun WinningHistoryScreen(
                             text = "ရလဒ်မှတ်တမ်း (၁ နှစ်စာ)",
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
-                            color = Color.White,
+                            color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
                             maxLines = 1,
                             softWrap = false
                         )
                         Text(
                             text = "ပြီးခဲ့သော ၁ နှစ်စာ 3D ပေါက်ဂဏန်း မှတ်တမ်း",
                             fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.85f),
+                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f),
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis
@@ -99,7 +100,7 @@ fun WinningHistoryScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "နောက်သို့", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "နောက်သို့", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
                     }
                 },
                 actions = {
@@ -108,13 +109,13 @@ fun WinningHistoryScreen(
                         enabled = !isFetching
                     ) {
                         if (isFetching) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = if (isDark) MaterialTheme.colorScheme.primary else Color.White)
                         } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "ပြန်လည်ရယူမည်", tint = Color.White)
+                            Icon(Icons.Default.Refresh, contentDescription = "ပြန်လည်ရယူမည်", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = emeraldPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else emeraldPrimary)
             )
         }
     ) { padding ->

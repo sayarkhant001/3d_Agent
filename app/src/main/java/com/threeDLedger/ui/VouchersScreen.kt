@@ -63,16 +63,30 @@ fun VouchersScreen(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("ဘောင်ချာများ (အကြိမ် #$currentBatch)", color = MaterialTheme.colorScheme.onPrimary) },
+                title = {
+                    Text(
+                        "ဘောင်ချာများ (အကြိမ် #$currentBatch)",
+                        color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary
+                )
             )
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -101,14 +115,15 @@ fun VouchersScreen(
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.5.dp, Color(0xFF059669)),
+                            color = MaterialTheme.colorScheme.surface,
+                            border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.outlineVariant else Color(0xFF059669).copy(alpha = 0.5f)),
                             shadowElevation = 1.dp
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                // Table Header (identical to Numbers page)
+                                // Table Header
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    color = Color(0xFFDCFCE7)
+                                    color = MaterialTheme.colorScheme.primaryContainer
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -121,23 +136,26 @@ fun VouchersScreen(
                                             "စဉ်   ဂဏန်း:",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.5.sp,
-                                            color = Color(0xFF065F46)
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                         Text(
                                             "ထိုးငွေ ပမာဏ",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.5.sp,
-                                            color = Color(0xFF065F46)
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
                                 }
 
-                                HorizontalDivider(color = Color(0xFF6EE7B7), thickness = 1.dp)
+                                HorizontalDivider(
+                                    color = if (isDark) MaterialTheme.colorScheme.outlineVariant else Color(0xFF6EE7B7),
+                                    thickness = 1.dp
+                                )
 
                                 // Alternating rows (color lines)
                                 voucherWithBets.bets.forEachIndexed { idx, bet ->
                                     val isEven = idx % 2 == 0
-                                    val rowBg = if (isEven) Color.White else Color(0xFFF0FDF4)
+                                    val rowBg = if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()

@@ -212,21 +212,22 @@ fun CommissionerResultScreen(
     val grandBalance = settlements.sumOf { it.balance }
 
     // ── Scaffold ──────────────────────────────────────────────────────────────
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { 
                     Column {
-                        Text("ကော်မရှင်ဆိုင်ရာ ရလဒ်", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("အကြိမ် $batchNumber ရှင်းတမ်း", color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f), fontSize = 11.sp)
+                        Text("ကော်မရှင်ဆိုင်ရာ ရလဒ်", color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("အကြိမ် $batchNumber ရှင်းတမ်း", color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = ResPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else ResPrimary)
             )
         }
     ) { padding ->
@@ -234,7 +235,7 @@ fun CommissionerResultScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(ResMintBg)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             // Page header banner
             Surface(
@@ -251,7 +252,7 @@ fun CommissionerResultScreen(
                 ) {
                     Column {
                         Text("အကြိမ်", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("$batchNumber", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = ResPrimary)
+                        Text("$batchNumber", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
                     }
 
                     if (winningNumber.length == 3) {

@@ -377,6 +377,7 @@ fun WinnerScreen(
         )
     }
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -387,24 +388,24 @@ fun WinnerScreen(
                                 "အကြိမ် $targetBatch ပေါက်သီး ကြေညာပြီး",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp,
-                                color = Color.White
+                                color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
                             )
                             Text(
                                 "${results.size} ကြိမ် ပေါက် — %,.0f ကျပ်".format(grandTotal),
                                 fontSize = 11.5.sp,
-                                color = Color.White.copy(alpha = 0.9f)
+                                color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.9f)
                             )
                         } else {
                             Text(
                                 "ပေါက်ဂဏန်း စာရင်း",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp,
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
                             )
                             Text(
                                 "အကြိမ် $targetBatch • မကြေညာရသေးပါ",
                                 fontSize = 11.5.sp,
-                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                                color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
                             )
                         }
                     }
@@ -414,12 +415,16 @@ fun WinnerScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             "နောက်သို့",
-                            tint = if (isDeclared) Color.White else MaterialTheme.colorScheme.onPrimary
+                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDeclared) Color(0xFF047857) else MaterialTheme.colorScheme.primary
+                    containerColor = if (isDeclared) {
+                        if (isDark) MaterialTheme.colorScheme.surface else Color(0xFF047857)
+                    } else {
+                        if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary
+                    }
                 )
             )
         }

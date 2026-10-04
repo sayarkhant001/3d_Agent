@@ -34,25 +34,26 @@ fun ArchiveScreen(
 
     val batches by viewModel.archivedBatchSummaries.collectAsStateWithLifecycle()
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text("မှတ်တမ်းဟောင်းများ", fontWeight = FontWeight.Bold, fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onPrimary)
+                            color = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
                         Text("${batches.size} ကြိမ် မှတ်တမ်းတင်ထားသည်", fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
+                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f))
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onPrimary)
+                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
+                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary
                 )
             )
         }

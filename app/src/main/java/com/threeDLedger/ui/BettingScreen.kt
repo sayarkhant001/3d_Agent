@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -524,6 +525,7 @@ fun BettingScreen(
     var isParsing       by remember { mutableStateOf(false) }
     val rDimens = rememberResponsiveDimens()
     val haptic = LocalHapticFeedback.current
+    val isDark = isSystemInDarkTheme()
 
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var detectedClipboardText by remember { mutableStateOf<String?>(null) }
@@ -1997,7 +1999,7 @@ fun BettingScreen(
                             .weight(1.1f)
                             .height(if (rDimens.isCompact) 42.dp else 46.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isNumFocused) EmeraldLight.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface)
+                            .background(if (isNumFocused) (if (isDark) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else EmeraldLight.copy(alpha = 0.4f)) else MaterialTheme.colorScheme.surface)
                             .border(
                                 width = if (isNumFocused) 2.5.dp else 1.dp,
                                 color = if (isNumFocused) KeypadFocusRing else borderColor,
@@ -2011,7 +2013,7 @@ fun BettingScreen(
                     ) {
                         Text(
                             text = if (tempNumber.isEmpty()) "ဂဏန်းရိုက်ပါ" else tempNumber,
-                            color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.outline else EmeraldPrimary,
+                            color = if (tempNumber.isEmpty()) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
                             fontSize = if (tempNumber.isEmpty()) (if (rDimens.isCompact) 11.5.sp else 13.sp) else (if (rDimens.isCompact) 19.sp else 22.sp),
                             fontWeight = FontWeight.ExtraBold,
                             fontFamily = FontFamily.Monospace,
@@ -2068,10 +2070,10 @@ fun BettingScreen(
                             .weight(1.2f)
                             .height(if (rDimens.isCompact) 42.dp else 46.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isAmtFocused) GoldContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surface)
+                            .background(if (isAmtFocused) (if (isDark) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) else GoldContainer.copy(alpha = 0.45f)) else MaterialTheme.colorScheme.surface)
                             .border(
                                 width = if (isAmtFocused) 2.5.dp else 1.dp,
-                                color = if (isAmtFocused) GoldAccent else borderColor,
+                                color = if (isAmtFocused) MaterialTheme.colorScheme.secondary else borderColor,
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .clickable {
@@ -2084,7 +2086,7 @@ fun BettingScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = tempAmount,
-                                color = if (isAmtFocused) GoldDark else MaterialTheme.colorScheme.onSurface,
+                                color = if (isAmtFocused) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
                                 fontSize = if (tempAmount.length > 5) (if (rDimens.isCompact) 14.sp else 16.sp) else (if (rDimens.isCompact) 17.sp else 20.sp),
                                 fontWeight = FontWeight.ExtraBold,
                                 fontFamily = FontFamily.Monospace,
@@ -2149,8 +2151,8 @@ fun BettingScreen(
                                 focusedField = FocusField.AMOUNT
                             },
                             shape = RoundedCornerShape(8.dp),
-                            color = if (isSel) GoldAccent else MaterialTheme.colorScheme.surface,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) GoldDark else borderColor),
+                            color = if (isSel) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surface,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isSel) MaterialTheme.colorScheme.secondary else borderColor),
                             shadowElevation = if (isSel) 2.dp else 1.dp,
                             modifier = Modifier.height(34.dp)
                         ) {
@@ -2159,7 +2161,7 @@ fun BettingScreen(
                                     amt,
                                     fontSize = 13.sp,
                                     fontWeight = if (isSel) FontWeight.Black else FontWeight.SemiBold,
-                                    color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                                    color = if (isSel) (if (isDark) MaterialTheme.colorScheme.onSecondary else Color.White) else MaterialTheme.colorScheme.onSurface,
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
@@ -2307,9 +2309,9 @@ fun TactileKeypadButton(
     text: String,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    bgColor: Color = Color.White,
+    bgColor: Color = if (isSystemInDarkTheme()) KeypadDigitBgDark else Color.White,
     contentColor: Color = if (bgColor == Color.White) KeypadDigitText else Color.White,
-    bevelColor: Color = if (bgColor == Color.White) Color(0xFFE2E8F0) else bgColor.copy(alpha = 0.85f),
+    bevelColor: Color = if (bgColor == Color.White) Color(0xFFE2E8F0) else if (bgColor == KeypadDigitBgDark) Color(0xFF14201B) else bgColor.copy(alpha = 0.85f),
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {

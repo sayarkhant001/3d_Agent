@@ -9,6 +9,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -91,16 +92,17 @@ fun ExportHistoryScreen(
     val isWinningDeclared = activeBatchWinningNumber.length == 3
     var showUpperSettlementDialog by remember { mutableStateOf(false) }
 
+    val isDark = isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("တင်ကွက် မှတ်တမ်း", color = MaterialTheme.colorScheme.onPrimary) },
+                title = { Text("တင်ကွက် မှတ်တမ်း", color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary)
             )
         },
         bottomBar = {

@@ -81,24 +81,25 @@ fun SettingsScreen(
     val onSurface    = MaterialTheme.colorScheme.onSurface
     val errorColor   = MaterialTheme.colorScheme.error
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text("ဆက်တင်", fontWeight = FontWeight.Bold, fontSize = 18.sp,
-                            color = MaterialTheme.colorScheme.onPrimary)
+                            color = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
                         Text("3D စာရင်း စနစ်", fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.75f))
+                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f))
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onPrimary)
+                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = primaryColor)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary)
             )
         }
     ) { padding ->

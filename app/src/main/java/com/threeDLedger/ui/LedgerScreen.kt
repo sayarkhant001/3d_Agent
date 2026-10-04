@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -104,25 +105,26 @@ fun LedgerScreen(
     val netBalance  = totalAll - totalPayout
     val rDimens = rememberResponsiveDimens()
 
+    val isDark = isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text("ဂဏန်းများ စာရင်း", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text(if (isAfterMode) "ပေါက်သီး / တွတ် တိုက်စစ်ချက်" else "ထိုးထားသော ဂဏန်းများ", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
+                        Text("ဂဏန်းများ စာရင်း", color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(if (isAfterMode) "ပေါက်သီး / တွတ် တိုက်စစ်ချက်" else "ထိုးထားသော ဂဏန်းများ", fontSize = 11.sp, color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.8f))
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
                     }
                 },
                 actions = {
                     if (isAfterMode) {
                         TextButton(
                             onClick = onNavigateToResult,
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onPrimary)
+                            colors = ButtonDefaults.textButtonColors(contentColor = if (isDark) MaterialTheme.colorScheme.primary else Color.White)
                         ) {
                             Icon(Icons.Default.Assessment, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -130,7 +132,7 @@ fun LedgerScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary)
             )
         }
     ) { padding ->

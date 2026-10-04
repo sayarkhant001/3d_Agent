@@ -26,16 +26,17 @@ fun ReceiptScreen(
 ) {
     BackHandler(onBack = onNavigateBack)
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("အသေးစိတ်", color = MaterialTheme.colorScheme.onPrimary) },
+                title = { Text("အသေးစိတ်", color = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary)
             )
         }
     ) { padding ->

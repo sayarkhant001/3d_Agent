@@ -11,6 +11,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -176,6 +177,8 @@ fun HomeScreen(
         )
     )
 
+    val isDark = isSystemInDarkTheme()
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -242,8 +245,8 @@ fun HomeScreen(
                             onNavigateToWinner()
                         },
                         shape = RoundedCornerShape(20.dp),
-                        color = Color(0xFFFEF3C7),
-                        border = BorderStroke(1.dp, Color(0xFFFDE68A).copy(alpha = 0.8f)),
+                        color = if (isDark) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f) else Color(0xFFFEF3C7),
+                        border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.secondary.copy(alpha = 0.5f) else Color(0xFFFDE68A).copy(alpha = 0.8f)),
                         modifier = Modifier.padding(end = 12.dp)
                     ) {
                         Row(
@@ -254,14 +257,14 @@ fun HomeScreen(
                             Icon(
                                 imageVector = Icons.Default.EmojiEvents,
                                 contentDescription = "ပေါက်ဂဏန်း",
-                                tint = Color(0xFFB45309),
+                                tint = if (isDark) MaterialTheme.colorScheme.secondary else Color(0xFFB45309),
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
                                 text = "ပေါက်ဂဏန်း",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF92400E)
+                                color = if (isDark) MaterialTheme.colorScheme.secondary else Color(0xFF92400E)
                             )
                         }
                     }
@@ -328,8 +331,8 @@ fun HomeScreen(
                                 showEditBatchDialog = true
                             },
                             shape = RoundedCornerShape(20.dp),
-                            color = EmeraldLight,
-                            border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.5f))
+                            color = if (isDark) MaterialTheme.colorScheme.primaryContainer else EmeraldLight,
+                            border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else EmeraldPrimary.copy(alpha = 0.5f))
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
@@ -340,14 +343,14 @@ fun HomeScreen(
                                     text = "အကြိမ် $currentBatch",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = EmeraldPrimary,
+                                    color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
                                     maxLines = 1,
                                     softWrap = false
                                 )
                                 Icon(
                                     Icons.Default.Edit,
                                     contentDescription = "Edit Batch",
-                                    tint = EmeraldPrimary,
+                                    tint = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
