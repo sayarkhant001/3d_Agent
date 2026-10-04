@@ -858,7 +858,7 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
         try {
             val list = repository.winningHistory3D.first()
             val defaultHistory = listOf(
-                ThreeDWinningHistory(drawDate = "01/10/2026", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၆", winningNumber = "371", firstPrize6D = "835371"),
+                ThreeDWinningHistory(drawDate = "01/10/2026", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၆", winningNumber = "701", firstPrize6D = "402701"),
                 ThreeDWinningHistory(drawDate = "16/09/2026", drawDateFormatted = "၁၆ စက်တင်ဘာ ၂၀၂၆", winningNumber = "640", firstPrize6D = "360640"),
                 ThreeDWinningHistory(drawDate = "01/09/2026", drawDateFormatted = "၁ စက်တင်ဘာ ၂၀၂၆", winningNumber = "341", firstPrize6D = "199341"),
                 ThreeDWinningHistory(drawDate = "16/08/2026", drawDateFormatted = "၁၆ ဩဂုတ် ၂၀၂၆", winningNumber = "941", firstPrize6D = "046941"),
@@ -891,6 +891,9 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
                 val missing = defaultHistory.filter { it.drawDate !in existingDates }
                 if (missing.isNotEmpty()) {
                     repository.insert3DWinningHistory(missing)
+                }
+                list.firstOrNull { it.drawDate == "01/10/2026" && it.winningNumber != "701" }?.let { outdated ->
+                    repository.insert3DWinningHistorySingle(outdated.copy(winningNumber = "701", firstPrize6D = "402701"))
                 }
             }
         } catch (_: Exception) {}
