@@ -37,8 +37,10 @@ data class ResponsiveDimens(
 
     // Senior-accessible touch target minimum: 48dp (WCAG 2.1 AA requirement)
     val minTouchTarget: Dp get() = 48.dp
-    val compactButtonHeight: Dp get() = if (isCompact) 44.dp else 48.dp
-    val cardCornerRadius: Dp get() = if (isCompact) 14.dp else 16.dp
+    // Comfortable, easy-to-press buttons for older users (52–56dp)
+    val compactButtonHeight: Dp get() = if (isCompact) 52.dp else 56.dp
+    // Rounded, friendly card corners
+    val cardCornerRadius: Dp get() = if (isCompact) 16.dp else 20.dp
 }
 
 @Composable
@@ -52,9 +54,10 @@ fun rememberResponsiveDimens(): ResponsiveDimens {
         else -> WindowSizeClass.EXPANDED
     }
 
-    // Keep font scale safe (never shrink text too aggressively for senior legibility)
+    // Never shrink text — small screens adapt via FitText instead.
+    // Padding scales gently on compact devices to preserve layout space.
     val (fontScale, paddingScale) = when (sizeClass) {
-        WindowSizeClass.COMPACT -> 0.94f to 0.90f
+        WindowSizeClass.COMPACT -> 1.0f to 0.90f
         WindowSizeClass.STANDARD -> 1.0f to 1.0f
         WindowSizeClass.EXPANDED -> 1.05f to 1.1f
     }

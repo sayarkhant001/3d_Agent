@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 // ── Ultra-Clean High-Contrast Palette for Seniors & Older Users ──────────────
 // Light theme: Clean, high-contrast canvas with vibrant emerald, warm eye-catching gold, and crisp slate-black text
-val md_theme_light_primary            = Color(0xFF027A55)  // Vibrant rich emerald (high contrast)
+val md_theme_light_primary            = Color(0xFF047857)  // Bright vivid emerald (white text stays AA contrast)
 val md_theme_light_onPrimary          = Color(0xFFFFFFFF)
 val md_theme_light_primaryContainer   = Color(0xFFD1FAE5)  // Bright mint chip container
 val md_theme_light_onPrimaryContainer = Color(0xFF003824)
@@ -24,11 +24,11 @@ val md_theme_light_errorContainer     = Color(0xFFFEE2E2)
 val md_theme_light_onError            = Color(0xFFFFFFFF)
 val md_theme_light_onErrorContainer   = Color(0xFF7F1D1D)
 
-val md_theme_light_background         = Color(0xFFF8FAFC)  // Crisp slate-white canvas
+val md_theme_light_background         = Color(0xFFFEFBF6)  // Bright warm ivory canvas — cheerful, low glare
 val md_theme_light_onBackground       = Color(0xFF0F172A)  // Maximum legibility slate-black
 val md_theme_light_surface            = Color(0xFFFFFFFF)  // Pure white card canvas
 val md_theme_light_onSurface          = Color(0xFF0F172A)  // Deep slate-black (high contrast for numbers & labels)
-val md_theme_light_surfaceVariant     = Color(0xFFF1F5F9)  // Clean subtle card separator
+val md_theme_light_surfaceVariant     = Color(0xFFF5F1E9)  // Warm subtle card separator
 val md_theme_light_onSurfaceVariant   = Color(0xFF334155)  // Highly legible dark slate (not pale grey!)
 val md_theme_light_outline            = Color(0xFFCBD5E1)  // Crisp defining borders
 val md_theme_light_outlineVariant     = Color(0xFFE2E8F0)
@@ -64,7 +64,7 @@ val md_theme_dark_outline             = Color(0xFF475569)  // Crisp borders
 val md_theme_dark_outlineVariant      = Color(0xFF334155)
 
 // ── Semantic Color Tokens for Screens ─────────────────────────────────────────
-val EmeraldPrimary      = Color(0xFF027A55)
+val EmeraldPrimary      = Color(0xFF047857)
 val EmeraldLight        = Color(0xFFD1FAE5)
 val EmeraldDark         = Color(0xFF003824)
 val EmeraldMedium       = Color(0xFF059669)
@@ -103,7 +103,7 @@ val KeypadActionTeal     = Color(0xFF0D9488)  // Triples (ထွိုင်) ke
 val KeypadBackspaceRed   = Color(0xFFDC2626)  // Backspace key
 val KeypadClearAmber     = Color(0xFFD97706)  // ရှင်း Clear key
 val KeypadSubmitGold     = Color(0xFFEAB308)  // OK / Enter key
-val KeypadSubmitBg       = Color(0xFF027A55)  // Rich Emerald Submit
+val KeypadSubmitBg       = Color(0xFF047857)  // Bright Emerald Submit
 val KeypadFocusRing      = Color(0xFF10B981)  // Glowing focus ring
 
 

@@ -155,28 +155,28 @@ fun HomeScreen(
             title = "ကော်မရှင်",
             subtitle = "စာရင်းသွင်းသူများ",
             icon = Icons.Default.People,
-            iconColors = listOf(Color(0xFF0284C7), Color(0xFF0369A1)),
+            iconColors = listOf(Color(0xFF0EA5E9), Color(0xFF0284C7)),
             onClick = onNavigateToCustomers
         ),
         MenuItem(
             title = "ဂဏန်းများ",
             subtitle = "စာရင်းချုပ် စစ်ဆေး",
             icon = Icons.AutoMirrored.Filled.List,
-            iconColors = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8)),
+            iconColors = listOf(Color(0xFF3B82F6), Color(0xFF2563EB)),
             onClick = onNavigateToLedger
         ),
         MenuItem(
             title = "ဘောင်ချာ",
             subtitle = "ဘောင်ချာမှတ်တမ်း",
             icon = Icons.Default.Receipt,
-            iconColors = listOf(Color(0xFFD97706), Color(0xFFB45309)),
+            iconColors = listOf(Color(0xFFF59E0B), Color(0xFFD97706)),
             onClick = onNavigateToVouchers
         ),
         MenuItem(
             title = "တင်ကွက်များ",
             subtitle = "အထက်ဒိုင် တင်ကွက်",
             icon = Icons.Default.Payment,
-            iconColors = listOf(Color(0xFF7C3AED), Color(0xFF6D28D9)),
+            iconColors = listOf(Color(0xFF8B5CF6), Color(0xFF7C3AED)),
             onClick = onNavigateToOverflow
         )
     )
@@ -221,7 +221,7 @@ fun HomeScreen(
                                 text = "3D ဒိုင်ချုပ် စာရင်းစနစ်",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp
+                                fontSize = 12.5.sp
                             )
                         }
                     }
@@ -1037,7 +1037,7 @@ fun MenuCard(
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = if (rDimens.isCompact) 112.dp else 124.dp)
+            .heightIn(min = if (rDimens.isCompact) 120.dp else 132.dp)
             .shadow(2.dp, RoundedCornerShape(20.dp))
             .pressScale(interactionSource = interactionSource),
         shape = RoundedCornerShape(20.dp),
@@ -1054,15 +1054,15 @@ fun MenuCard(
             // Gradient Icon Medallion
             Box(
                 modifier = Modifier
-                    .size(if (rDimens.isCompact) 40.dp else 44.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(if (rDimens.isCompact) 48.dp else 52.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Brush.linearGradient(colors = iconColors)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = title,
-                    modifier = Modifier.size(if (rDimens.isCompact) 20.dp else 22.dp),
+                    modifier = Modifier.size(if (rDimens.isCompact) 24.dp else 26.dp),
                     tint = Color.White
                 )
             }
@@ -1073,16 +1073,16 @@ fun MenuCard(
                 FitText(
                     text = title,
                     fontWeight = FontWeight.ExtraBold,
-                    maxFontSize = rDimens.responsiveSp(15.5f),
-                    minFontSize = 10.sp,
+                    maxFontSize = rDimens.responsiveSp(17f),
+                    minFontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     letterSpacing = 0.2.sp
                 )
                 Spacer(Modifier.height(2.dp))
                 FitText(
                     text = subtitle,
-                    maxFontSize = rDimens.responsiveSp(11f),
-                    minFontSize = 8.sp,
+                    maxFontSize = rDimens.responsiveSp(13f),
+                    minFontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
                 )
@@ -1109,10 +1109,10 @@ fun SummaryStatRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
             Text(
                 text = label,
-                fontSize = 12.5.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -1123,7 +1123,7 @@ fun SummaryStatRow(
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = value,
-            fontSize = 13.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.ExtraBold,
             color = valueColor,
             fontFamily = FontFamily.Monospace,
