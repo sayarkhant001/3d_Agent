@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
             val prefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
             val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(repository, prefs))
             val fontScaleIndex by viewModel.fontScaleIndex.collectAsStateWithLifecycle()
-            val currentFontScale = viewModel.fontScales.getOrElse(fontScaleIndex) { 0.85f }
+            val currentFontScale = viewModel.fontScales.getOrElse(fontScaleIndex) { 1.0f }
 
             MyApplicationTheme(fontScale = currentFontScale) {
                 Surface(
@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     NotificationPermissionHandler()
-                    UpdateDialogHandler(owner = "sayarkhant001", repo = "3d_Agent")
+                    UpdateDialogHandler(owner = "sayarkhant001", repo = "3d_Agent", viewModel = viewModel)
                     AppNavigation(viewModel = viewModel)
                 }
             }

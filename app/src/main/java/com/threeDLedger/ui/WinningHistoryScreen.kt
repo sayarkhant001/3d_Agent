@@ -82,16 +82,17 @@ fun WinningHistoryScreen(
                     Column {
                         Text(
                             text = "ရလဒ်မှတ်တမ်း (၁ နှစ်စာ)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             softWrap = false
                         )
                         Text(
                             text = "ပြီးခဲ့သော ၁ နှစ်စာ 3D ပေါက်ဂဏန်း မှတ်တမ်း",
-                            fontSize = 11.sp,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f),
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis
@@ -100,7 +101,11 @@ fun WinningHistoryScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "နောက်သို့", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
                 actions = {
@@ -109,13 +114,13 @@ fun WinningHistoryScreen(
                         enabled = !isFetching
                     ) {
                         if (isFetching) {
-                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = if (isDark) MaterialTheme.colorScheme.primary else Color.White)
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
                         } else {
-                            Icon(Icons.Default.Refresh, contentDescription = "ပြန်လည်ရယူမည်", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
+                            Icon(Icons.Default.Refresh, contentDescription = "ပြန်လည်ရယူမည်", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else emeraldPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.threeDLedger.ui.components.FitText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -111,20 +112,34 @@ fun LedgerScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("ဂဏန်းများ စာရင်း", color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text(if (isAfterMode) "ပေါက်သီး / တွတ် တိုက်စစ်ချက်" else "ထိုးထားသော ဂဏန်းများ", fontSize = 11.sp, color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.8f))
+                        Text(
+                            text = "ဂဏန်းများ စာရင်းချုပ်",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = if (isAfterMode) "ပေါက်သီး / တွတ် တိုက်စစ်ချက်" else "ထိုးထားသော ဂဏန်းများနှင့် ပမာဏ",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
                 actions = {
                     if (isAfterMode) {
                         TextButton(
                             onClick = onNavigateToResult,
-                            colors = ButtonDefaults.textButtonColors(contentColor = if (isDark) MaterialTheme.colorScheme.primary else Color.White)
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(Icons.Default.Assessment, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
@@ -132,7 +147,9 @@ fun LedgerScreen(
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -511,7 +528,9 @@ fun LedgerScreen(
 
             // ── Footer — Under bar with totals, winning payouts & net balance ─
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
                 color = MaterialTheme.colorScheme.primary,
                 shadowElevation = 8.dp
             ) {
@@ -529,13 +548,13 @@ fun LedgerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
-                                Text("ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
-                                Text("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, fontSize = if (rDimens.isCompact) 12.sp else 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+                                FitText("ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
+                                FitText("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace)
                             }
                             Spacer(Modifier.width(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("ပေါက်ကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
-                                Text("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, fontSize = if (rDimens.isCompact) 12.sp else 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+                                FitText("ပေါက်ကြေး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
+                                FitText("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
 
@@ -548,19 +567,19 @@ fun LedgerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
-                                Text("လျော်ကြေး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
-                                Text("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, fontSize = if (rDimens.isCompact) 12.sp else 14.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+                                FitText("လျော်ကြေး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
+                                FitText("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace)
                             }
                             Spacer(Modifier.width(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(if (netBalance >= 0) "အမြတ် : " else "အရှုံး : ", color = Color.White.copy(alpha = 0.85f), fontSize = if (rDimens.isCompact) 11.sp else 12.sp, maxLines = 1)
-                                Text(
+                                FitText(if (netBalance >= 0) "အမြတ် : " else "အရှုံး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
+                                FitText(
                                     "${if (netBalance >= 0) "+" else ""}${"%,.0f Ks".format(netBalance)}",
                                     color = if (netBalance >= 0) Color(0xFF69F0AE) else Color(0xFFFF5252),
                                     fontWeight = FontWeight.ExtraBold,
-                                    fontSize = if (rDimens.isCompact) 12.sp else 14.sp,
-                                    fontFamily = FontFamily.Monospace,
-                                    maxLines = 1
+                                    maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp,
+                                    minFontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace
                                 )
                             }
                         }
@@ -574,7 +593,7 @@ fun LedgerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "စုစုပေါင်း ထိုးကြေး",
+                            "စုစုပေါင်း",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp

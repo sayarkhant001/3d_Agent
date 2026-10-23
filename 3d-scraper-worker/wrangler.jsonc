@@ -12,10 +12,13 @@
 	},
 	"upload_source_maps": true,
 
-	// Run every 5 minutes on draw days (1st and 16th of each month) between 14:30 - 16:30 Indochina / 2:00 PM - 4:00 PM MMT (08:00 - 09:55 UTC)
-	// and regular 6-hour background sync checks
+	// Draw-day precision fetching:
+	// - Every minute from 08:00–09:59 UTC (2:00 PM – 3:59 PM MMT) on draw days (1st & 16th)
+	//   → catches the Thai GLO result the moment Sanook live publishes it (~3:15:10 PM MMT)
+	// - Rapid sub-minute catch-up is handled internally by processDraw (fast-poll loop)
+	// - Regular 6-hour background sync checks
 	"triggers": {
-		"crons": ["*/5 8 1,16 * *", "*/5 9 1,16 * *", "0 */6 * * *"]
+		"crons": ["*/1 8 1,16 * *", "*/1 9 1,16 * *", "0 */6 * * *"]
 	},
 
 	// Non-secret environment variables

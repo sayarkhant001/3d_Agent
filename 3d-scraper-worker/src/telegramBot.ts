@@ -83,6 +83,7 @@ export interface AppReleaseRecord {
   version_name: string;
   version_code?: number;
   download_url?: string;
+  release_url?: string;
   release_notes?: string;
   uploaded_by?: string;
   uploaded_at: number;
@@ -1552,16 +1553,21 @@ export async function broadcastAppUpdate(
   const recipientIds = await getAllRecipientIds(env);
 
   let successCount = 0;
-  const updateCaption = customMessage ||
+  const githubLink = release?.release_url || '';
+  const customNote = customMessage?.trim()
+    ? `\n💬 <b>မှတ်ချက်:</b> ${customMessage.trim()}\n`
+    : '';
+  const updateCaption =
     `🚀 <b>3D LEDGER အက်ပ် ဗားရှင်းအသစ် [${release?.version_name || 'Latest'}] ထွက်ရှိပါပြီ!</b>\n\n` +
     (release ? `📦 <b>ဖိုင်အမည်:</b> <code>${release.file_name}</code>\n` : '') +
-    `📝 <b>အပြောင်းအလဲများ:</b> ${release?.release_notes || 'Physical Tactile Keypad, Haptic Feedback နှင့် Active License ပိတ်သိမ်းနိုင်သော စနစ်သစ်များ ပါဝင်ပါသည်'}\n\n` +
+    `📝 <b>အပြောင်းအလဲများ:</b> ${release?.release_notes || 'Physical Tactile Keypad, Haptic Feedback နှင့် Active License ပိတ်သိမ်းနိုင်သော စနစ်သစ်များ ပါဝင်ပါသည်'}${customNote}\n\n` +
     `အောက်ပါ APK ဖိုင်ကို ဒေါင်းလုဒ်ဆွဲ၍ ယခင်အက်ပ်ပေါ်တွင် အဆင့်မြှင့်တင် (Update) တပ်ဆင်နိုင်ပါပြီ 👇`;
 
   const kb: InlineKeyboardMarkup = {
     inline_keyboard: [
       [
         { text: '📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်', callback_data: 'b_app_download' },
+        ...(githubLink ? [{ text: '🌐 GitHub Release', url: githubLink }] : []),
         { text: '🛒 လိုင်စင် ဝယ်ယူမည်', callback_data: 'b_buy_menu' }
       ]
     ]

@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -51,30 +53,66 @@ jobs:
           path: ${{ steps.apk.outputs.path }}
           retention-days: 30
 
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" "$PREV_TAG..HEAD" | head -20)
+          else
+            NOTES=$(git log --pretty=format:"- %s" -20)
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="- System performance and security improvements"
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release with APK
+        id: release
         uses: softprops/action-gh-release@v2
-        continue-on-error: true
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: "Release v1.0.${{ github.run_number }}"
-          body: "Automated production release from commit ${{ github.sha }} with R8 bytecode obfuscation and anti-reverse engineering shield."
+          body: |
+            ## 3D Ledger — Update v1.0.${{ github.run_number }}
+            ဤဗားရှင်းတွင် ပါဝင်သော အပြောင်းအလဲများ (What's Changed):
+            ${{ steps.notes.outputs.notes }}
+
+            ---
+            APK ကို ဒေါင်းလုဒ်ဆွဲ၍ တပ်ဆင်နိုင်ပါသည် (R8 obfuscation + anti-reverse-engineering shield)။
           files: ${{ steps.apk.outputs.path }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get GitHub Release URL
+        id: release_url
+        run: |
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/v1.0.${{ github.run_number }}"
+          echo "url=$RELEASE_URL" >> $GITHUB_OUTPUT
+
       - name: Sync Release to Telegram Bot & Cloudflare Worker
+        env:
+          NOTES: ${{ steps.notes.outputs.notes }}
         run: |
           RELEASE_TAG="v1.0.${{ github.run_number }}"
           FILE_NAME="${{ steps.apk.outputs.filename }}"
-          DOWNLOAD_URL="https://github.com/sayarkhant001/3d_Agent/releases/download/${RELEASE_TAG}/${FILE_NAME}"
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/${FILE_NAME}"
+          RELEASE_URL="${{ steps.release_url.outputs.url }}"
+          NOTES_FILE=$(mktemp)
+          printf '%s' "$NOTES" > "$NOTES_FILE"
           echo "Syncing ${RELEASE_TAG} (${DOWNLOAD_URL}) to Cloudflare Worker..."
           curl -s -X POST "https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/api/app/publish" \
             -H "Content-Type: application/json" \
-            -d '{
-              "version_name": "'"${RELEASE_TAG}"'",
-              "version_code": '${{ github.run_number }}',
-              "file_name": "'"${FILE_NAME}"'",
-              "download_url": "'"${DOWNLOAD_URL}"'",
-              "release_notes": "Automated release from GitHub Actions run #${{ github.run_number }}",
-              "uploaded_by": "GitHub Actions",
-              "broadcast": true
-            }'
+            --data-binary @- <<EOF_PAYLOAD
+          {
+            "version_name": "${RELEASE_TAG}",
+            "version_code": ${{ github.run_number }},
+            "file_name": "${FILE_NAME}",
+            "download_url": "${DOWNLOAD_URL}",
+            "release_url": "${RELEASE_URL}",
+            "release_notes": $(python3 -c "import json,sys; print(json.dumps(open(sys.argv[1]).read().strip()))" "$NOTES_FILE"),
+            "uploaded_by": "GitHub Actions",
+            "broadcast": true
+          }
+          EOF_PAYLOAD

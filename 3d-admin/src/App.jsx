@@ -590,6 +590,90 @@ function App() {
     }
   };
 
+  // ── ⚡ Fast Reset: Zero-out a single reseller's earnings (testing / clean state) ──
+  const handleZeroOutResellerEarnings = async (reseller) => {
+    if (!reseller) return;
+    if (!window.confirm(`⚡ ZERO OUT ${reseller.name}'s earnings?\n\nThis sets Due AND Paid to 0 for testing.\nAn audit ledger entry will be recorded.`)) {
+      return;
+    }
+
+    try {
+      const resellerId = reseller.telegram_id;
+      const previousDue = reseller.total_due || 0;
+      const previousPaid = reseller.total_paid || 0;
+
+      const updates = {};
+      updates[`3d_licenses/resellers/${resellerId}/total_due`] = 0;
+      updates[`3d_licenses/resellers/${resellerId}/total_paid`] = 0;
+
+      const ledgerId = `zero_${Date.now()}`;
+      updates[`3d_licenses/reseller_ledger/${resellerId}/${ledgerId}`] = {
+        id: ledgerId,
+        reseller_id: resellerId,
+        reseller_name: reseller.name,
+        action: 'ZERO_OUT_EARNINGS',
+        amount: 0,
+        previous_due: previousDue,
+        previous_paid: previousPaid,
+        settled_at: Date.now(),
+        settled_by: user?.email || 'Web Admin',
+        notes: 'Fast Earnings Reset to Zero (Testing / Clean State)'
+      };
+
+      await update(ref(db), updates);
+      showToast(`⚡ ${reseller.name}'s earnings reset to ZERO (was due: ${previousDue.toLocaleString()} Ks)`);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to reset earnings: ' + (err.message || 'Error'), 'error');
+    }
+  };
+
+  // ── ⚡ Bulk Fast Reset: Zero-out ALL resellers' earnings (clean test state) ──
+  const [bulkResetting, setBulkResetting] = useState(false);
+  const handleZeroOutAllEarnings = async () => {
+    if (allResellerList.length === 0) {
+      showToast('No resellers to reset', 'error');
+      return;
+    }
+    const totalDue = allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0);
+    if (!window.confirm(`⚡ ZERO OUT ALL ${allResellerList.length} resellers' earnings?\n\nTotal Due: ${totalDue.toLocaleString()} Ks\nTotal Paid: ${allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks\n\n⚠️ This is for TESTING only.\nAn audit ledger entry will be recorded for each reseller.`)) {
+      return;
+    }
+
+    setBulkResetting(true);
+    try {
+      const updates = {};
+      const now = Date.now();
+      allResellerList.forEach((r) => {
+        const resellerId = r.telegram_id;
+        updates[`3d_licenses/resellers/${resellerId}/total_due`] = 0;
+        updates[`3d_licenses/resellers/${resellerId}/total_paid`] = 0;
+
+        const ledgerId = `zero_${now}_${resellerId}`;
+        updates[`3d_licenses/reseller_ledger/${resellerId}/${ledgerId}`] = {
+          id: ledgerId,
+          reseller_id: resellerId,
+          reseller_name: r.name,
+          action: 'BULK_ZERO_OUT_EARNINGS',
+          amount: 0,
+          previous_due: r.total_due || 0,
+          previous_paid: r.total_paid || 0,
+          settled_at: now,
+          settled_by: user?.email || 'Web Admin',
+          notes: 'Bulk Earnings Reset to Zero (Testing / Clean State)'
+        };
+      });
+
+      await update(ref(db), updates);
+      showToast(`⚡ Bulk reset complete! ${allResellerList.length} resellers' earnings zeroed out (was ${totalDue.toLocaleString()} Ks total due)`);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to bulk reset earnings: ' + (err.message || 'Error'), 'error');
+    } finally {
+      setBulkResetting(false);
+    }
+  };
+
   const toggleMode = async (newMode) => {
     await set(ref(db, '3d_lottery_config/mode'), newMode);
     showToast(`Switched to ${newMode.toUpperCase()} mode`);
@@ -1243,6 +1327,27 @@ function App() {
                 <div className="financial-card-hint">
                   Unsettled dues pending collection from resellers
                 </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={bulkResetting}
+                  onClick={handleZeroOutAllEarnings}
+                  style={{
+                    marginTop: 10,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    padding: '6px 12px',
+                    background: bulkResetting ? 'rgba(120,120,120,0.2)' : 'rgba(239, 68, 68, 0.14)',
+                    color: bulkResetting ? '#9ca3af' : '#f87171',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    borderRadius: 8,
+                    cursor: bulkResetting ? 'not-allowed' : 'pointer',
+                    width: '100%'
+                  }}
+                  title="⚡ Fast clear: Zero out ALL resellers' Due + Paid earnings (for testing)"
+                >
+                  {bulkResetting ? '⏳ Resetting...' : '⚡ Zero Out ALL Earnings (Test Reset)'}
+                </button>
               </div>
 
               <div className="financial-card">
@@ -1779,6 +1884,16 @@ function App() {
                               💳 Clear Due
                             </button>
                           )}
+
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={(e) => { e.stopPropagation(); handleZeroOutResellerEarnings(reseller); }}
+                            style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700, background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.35)' }}
+                            title="Fast reset: Zero out Due + Paid earnings (for testing)"
+                          >
+                            ⚡ Zero Out
+                          </button>
 
                           <button
                             type="button"

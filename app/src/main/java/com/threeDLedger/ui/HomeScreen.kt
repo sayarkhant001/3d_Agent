@@ -14,6 +14,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.threeDLedger.ui.components.pressScale
+import com.threeDLedger.ui.components.FitText
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -114,6 +117,7 @@ fun HomeScreen(
     val allExportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val winningNumber by viewModel.winningNumber.collectAsStateWithLifecycle()
+    val availableUpdate by viewModel.availableUpdate.collectAsStateWithLifecycle()
 
     val haptic = LocalHapticFeedback.current
     val rDimens = rememberResponsiveDimens()
@@ -156,14 +160,14 @@ fun HomeScreen(
         ),
         MenuItem(
             title = "ဂဏန်းများ",
-            subtitle = "ပေါက်ဂဏန်း စစ်ဆေးချက်",
+            subtitle = "စာရင်းချုပ် စစ်ဆေး",
             icon = Icons.AutoMirrored.Filled.List,
             iconColors = listOf(Color(0xFF2563EB), Color(0xFF1D4ED8)),
             onClick = onNavigateToLedger
         ),
         MenuItem(
             title = "ဘောင်ချာ",
-            subtitle = "ရောင်းရငွေ ဘောင်ချာများ",
+            subtitle = "ဘောင်ချာမှတ်တမ်း",
             icon = Icons.Default.Receipt,
             iconColors = listOf(Color(0xFFD97706), Color(0xFFB45309)),
             onClick = onNavigateToVouchers
@@ -223,6 +227,34 @@ fun HomeScreen(
                     }
                 },
                 actions = {
+                    // GitHub Update Notice Icon (pulsating new badge)
+                    if (availableUpdate != null) {
+                        IconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                viewModel.triggerUpdateDialog(true)
+                            }
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    Badge(
+                                        containerColor = Color(0xFFDC2626),
+                                        contentColor = Color.White
+                                    ) {
+                                        Text("NEW", fontSize = 8.sp, fontWeight = FontWeight.Black)
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = "GitHub ဗားရှင်းအသစ် ရရှိနိုင်ပါသည်",
+                                    tint = GoldAccent,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+
                     // Winning History for 1 Year
                     IconButton(
                         onClick = {
@@ -358,6 +390,18 @@ fun HomeScreen(
                     }
                 }
 
+                // ── Update Notification Banner (GitHub Releases) ─────────────
+                if (availableUpdate != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    GitHubUpdateBanner(
+                        updateInfo = availableUpdate!!,
+                        onUpdateClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            viewModel.triggerUpdateDialog(true)
+                        }
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // ── 2. Batch Summary Overview (Collapsible breakdown) ──────────────
@@ -397,7 +441,7 @@ fun HomeScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = "အကြိမ် #${currentBatch} ရှင်းတမ်း အနှစ်ချုပ်",
+                                    text = "အကြိမ် $currentBatch အကျဉ်းချုပ်",
                                     fontSize = 13.5.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = EmeraldPrimary,
@@ -486,21 +530,21 @@ fun HomeScreen(
                                                 icon = Icons.Default.Groups,
                                                 iconTint = EmeraldPrimary,
                                                 label = "အားလုံး",
-                                                value = "${stats.customerCount} ယောက်"
+                                                value = "${stats.customerCount} ဦး"
                                             )
                                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                             SummaryStatRow(
                                                 icon = Icons.Default.Handshake,
                                                 iconTint = Color(0xFF0D9488),
                                                 label = "ကော်မရှင်",
-                                                value = "${stats.commissionCustomerCount} ယောက်"
+                                                value = "${stats.commissionCustomerCount} ဦး"
                                             )
                                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                             SummaryStatRow(
                                                 icon = Icons.Default.Person,
                                                 iconTint = Color(0xFF059669),
                                                 label = "ထိုးသား",
-                                                value = "${stats.directBettorCount} ယောက်"
+                                                value = "${stats.directBettorCount} ဦး"
                                             )
                                         }
 
@@ -512,7 +556,7 @@ fun HomeScreen(
                                                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                                         )
 
-                                        // Right Column: Financial Figures (အရောင်းကြေး, ကော်မရှင်ခ, ကျန်ရှိငွေ)
+                                        // Right Column: Financial Figures (အရောင်းကြေး, ကော်မရှင်ခ, နှုတ်ပြီးငွေ)
                                         Column(
                                             modifier = Modifier.weight(1.3f),
                                             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -520,21 +564,21 @@ fun HomeScreen(
                                             SummaryStatRow(
                                                 icon = Icons.Default.AccountBalanceWallet,
                                                 iconTint = EmeraldPrimary,
-                                                label = "အရောင်း",
+                                                label = "အရောင်းကြေး",
                                                 value = "%,d Ks".format(stats.totalSales)
                                             )
                                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                             SummaryStatRow(
                                                 icon = Icons.Default.Percent,
                                                 iconTint = Color(0xFFD97706),
-                                                label = "ကော်မရှင်",
+                                                label = "ကော်မရှင်ခ",
                                                 value = "%,d Ks".format(stats.commissionAmount)
                                             )
                                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                                             SummaryStatRow(
                                                 icon = Icons.Default.AccountBalance,
                                                 iconTint = Color(0xFF047857),
-                                                label = "ကျန်ငွေ",
+                                                label = "နှုတ်ပြီးငွေ",
                                                 value = "%,d Ks".format(stats.netBalance)
                                             )
                                             if (stats.isDeclared) {
@@ -604,7 +648,7 @@ fun HomeScreen(
                                 Spacer(Modifier.width(12.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        "ထိုးကြေး စာရင်းသွင်းမည်",
+                                        "ထိုးကြေး စာရင်းသွင်း",
                                         fontWeight = FontWeight.Black,
                                         fontSize = rDimens.responsiveSp(16f),
                                         color = Color.White,
@@ -613,7 +657,7 @@ fun HomeScreen(
                                     )
                                     Spacer(Modifier.height(2.dp))
                                     Text(
-                                        "ကီးပက်ဖြင့် အမြန် စာရင်းသွင်းရန် နှိပ်ပါ",
+                                        "ကီးပက်ဖြင့် အမြန်စာရင်းသွင်းရန်",
                                         fontSize = rDimens.responsiveSp(11.5f),
                                         color = Color.White.copy(alpha = 0.85f),
                                         maxLines = 1,
@@ -706,28 +750,32 @@ fun HomeScreen(
                 // ── 2x2 Grid Menu with Tactile Medallion Cards ─────────────────
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Box(modifier = Modifier.weight(1f)) {
-                        MenuCard(
-                            title = menuItems[0].title,
-                            subtitle = menuItems[0].subtitle,
-                            icon = menuItems[0].icon,
-                            iconColors = menuItems[0].iconColors,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                menuItems[0].onClick()
-                            }
-                        )
+                        com.threeDLedger.ui.components.AnimatedEntrance(index = 0) {
+                            MenuCard(
+                                title = menuItems[0].title,
+                                subtitle = menuItems[0].subtitle,
+                                icon = menuItems[0].icon,
+                                iconColors = menuItems[0].iconColors,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    menuItems[0].onClick()
+                                }
+                            )
+                        }
                     }
                     Box(modifier = Modifier.weight(1f)) {
-                        MenuCard(
-                            title = menuItems[1].title,
-                            subtitle = menuItems[1].subtitle,
-                            icon = menuItems[1].icon,
-                            iconColors = menuItems[1].iconColors,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                menuItems[1].onClick()
-                            }
-                        )
+                        com.threeDLedger.ui.components.AnimatedEntrance(index = 1) {
+                            MenuCard(
+                                title = menuItems[1].title,
+                                subtitle = menuItems[1].subtitle,
+                                icon = menuItems[1].icon,
+                                iconColors = menuItems[1].iconColors,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    menuItems[1].onClick()
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -735,28 +783,32 @@ fun HomeScreen(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     Box(modifier = Modifier.weight(1f)) {
-                        MenuCard(
-                            title = menuItems[2].title,
-                            subtitle = menuItems[2].subtitle,
-                            icon = menuItems[2].icon,
-                            iconColors = menuItems[2].iconColors,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                menuItems[2].onClick()
-                            }
-                        )
+                        com.threeDLedger.ui.components.AnimatedEntrance(index = 2) {
+                            MenuCard(
+                                title = menuItems[2].title,
+                                subtitle = menuItems[2].subtitle,
+                                icon = menuItems[2].icon,
+                                iconColors = menuItems[2].iconColors,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    menuItems[2].onClick()
+                                }
+                            )
+                        }
                     }
                     Box(modifier = Modifier.weight(1f)) {
-                        MenuCard(
-                            title = menuItems[3].title,
-                            subtitle = menuItems[3].subtitle,
-                            icon = menuItems[3].icon,
-                            iconColors = menuItems[3].iconColors,
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                menuItems[3].onClick()
-                            }
-                        )
+                        com.threeDLedger.ui.components.AnimatedEntrance(index = 3) {
+                            MenuCard(
+                                title = menuItems[3].title,
+                                subtitle = menuItems[3].subtitle,
+                                icon = menuItems[3].icon,
+                                iconColors = menuItems[3].iconColors,
+                                onClick = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    menuItems[3].onClick()
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -806,7 +858,7 @@ fun HomeScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    "လိုင်စင်၊ စကားဝှက်၊ အရန်သိမ်းဆည်းမှု စီမံရန်",
+                                    "လိုင်စင်၊ လျှို့ဝှက်နံပါတ်၊ အရန်သိမ်းဆည်းမှု စီမံရန်",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -851,7 +903,7 @@ fun HomeScreen(
                 icon = { Icon(Icons.Default.Edit, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(28.dp)) },
                 title = {
                     Text(
-                        text = "အကြိမ် နံပါတ် ပြင်ဆင်ရန်",
+                        text = "အကြိမ်နံပါတ် ပြောင်းလဲရန်",
                         fontWeight = FontWeight.Bold,
                         fontSize = 17.sp,
                         color = EmeraldPrimary
@@ -863,7 +915,7 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "လက်ရှိ အသုံးပြုမည့် အကြိမ်နံပါတ်ကို ရိုက်ထည့်ပါ:",
+                            text = "လက်ရှိ တွက်ချက်မည့် အကြိမ်နံပါတ် ရိုက်ထည့်ပါ:",
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -972,12 +1024,22 @@ fun MenuCard(
     onClick: () -> Unit
 ) {
     val rDimens = rememberResponsiveDimens()
+    val interactionSource = remember { MutableInteractionSource() }
+    val soundContext = androidx.compose.ui.platform.LocalContext.current
+    val soundManager = remember {
+        com.threeDLedger.logic.SoundManager.getInstance(soundContext)
+    }
     Card(
-        onClick = onClick,
+        onClick = {
+            soundManager.playClick()
+            onClick()
+        },
+        interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = if (rDimens.isCompact) 112.dp else 124.dp)
-            .shadow(2.dp, RoundedCornerShape(20.dp)),
+            .shadow(2.dp, RoundedCornerShape(20.dp))
+            .pressScale(interactionSource = interactionSource),
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -1008,23 +1070,21 @@ fun MenuCard(
             Spacer(Modifier.height(8.dp))
 
             Column(modifier = Modifier.fillMaxWidth()) {
-                Text(
+                FitText(
                     text = title,
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = rDimens.responsiveSp(15.5f),
+                    maxFontSize = rDimens.responsiveSp(15.5f),
+                    minFontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurface,
-                    letterSpacing = 0.2.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    letterSpacing = 0.2.sp
                 )
                 Spacer(Modifier.height(2.dp))
-                Text(
+                FitText(
                     text = subtitle,
-                    fontSize = rDimens.responsiveSp(11f),
+                    maxFontSize = rDimens.responsiveSp(11f),
+                    minFontSize = 8.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
@@ -1047,28 +1107,118 @@ fun SummaryStatRow(
         Row(
             modifier = Modifier.weight(1f, fill = false),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(14.dp))
+            Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
             Text(
                 text = label,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = value,
-            fontSize = 11.5.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.ExtraBold,
             color = valueColor,
             fontFamily = FontFamily.Monospace,
             maxLines = 1,
             softWrap = false
         )
+    }
+}
+
+// ── Eye-Catching GitHub Update Banner (Senior-Friendly) ─────────────────────
+@Composable
+fun GitHubUpdateBanner(
+    updateInfo: com.threeDLedger.utils.GitHubUpdater.UpdateInfo,
+    onUpdateClick: () -> Unit
+) {
+    Card(
+        onClick = onUpdateClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(3.dp, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
+        border = BorderStroke(1.5.dp, Color(0xFFF59E0B))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFD97706)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = "Update",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "ဗားရှင်းအသစ် ${updateInfo.version}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF78350F)
+                        )
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFD97706),
+                        ) {
+                            Text(
+                                text = "GitHub",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = "ဒေါင်းလုဒ် ရယူရန် နှိပ်ပါ",
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF92400E)
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Button(
+                onClick = onUpdateClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF027A55),
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text("ရယူမည်", fontSize = 12.5.sp, fontWeight = FontWeight.Black)
+            }
+        }
     }
 }

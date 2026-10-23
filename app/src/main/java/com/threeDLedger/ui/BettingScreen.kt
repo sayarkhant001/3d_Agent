@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.threeDLedger.ui.components.pressScale
+import com.threeDLedger.ui.components.FitText
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -526,6 +528,8 @@ fun BettingScreen(
     val rDimens = rememberResponsiveDimens()
     val haptic = LocalHapticFeedback.current
     val isDark = isSystemInDarkTheme()
+    val screenContext = androidx.compose.ui.platform.LocalContext.current
+    val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(screenContext) }
 
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var detectedClipboardText by remember { mutableStateOf<String?>(null) }
@@ -846,6 +850,7 @@ fun BettingScreen(
                     val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date())
                     viewModel.addVoucherWithBetList(selectedCustomer!!, time, validBets, tempRemark)
                     tempRemark = ""
+                    soundManager.playSuccess()
                     android.widget.Toast.makeText(context, "${validBets.size} ကြောင်း ထိုးကြေး သိမ်းဆည်းပြီး", android.widget.Toast.LENGTH_LONG).show()
                 } else {
                     pendingBets.addAll(validBets)
@@ -854,9 +859,12 @@ fun BettingScreen(
 
             if (removals.isNotEmpty()) {
                 bannedRemovalsNotification = removals
+                soundManager.playError()
             }
-            if (addedCount > 0 && addedCount <= 500)
+            if (addedCount > 0 && addedCount <= 500) {
+                soundManager.playSuccess()
                 android.widget.Toast.makeText(context, "$addedCount ကြောင်း ထည့်သွင်းပြီး", android.widget.Toast.LENGTH_SHORT).show()
+            }
 
             isParsing = false
             parseProgress = 1f
@@ -868,6 +876,7 @@ fun BettingScreen(
     fun submitVoucher() {
         if (selectedCustomer == null) {
             expandedCustomer = true
+            soundManager.playError()
             android.widget.Toast.makeText(context, "ထိုးသူ ရွေးပါ", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
@@ -878,6 +887,7 @@ fun BettingScreen(
         tempRemark = ""
         pendingBets.clear()
         clearAll()
+        soundManager.playSuccess()
         android.widget.Toast.makeText(context, "ဘောင်ချာ သိမ်းဆည်းပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
     }
     
@@ -894,18 +904,69 @@ fun BettingScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         // --- TOP BAR ---
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.primaryContainer)
-                .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        val selectedCustomerObj = remember(selectedCustomer, customers) {
+            customers.find { it.id == selectedCustomer }
+        }
+        val isDark = isSystemInDarkTheme()
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 1.dp
         ) {
-            Text("အကြိမ် : $currentBatch", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-            IconButton(onClick = onNavigateBack) {
-                Icon(Icons.Default.Close, contentDescription = "Close", tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(28.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "ပိတ်မည်",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Column {
+                        Text(
+                            "ထိုးကြေး စာရင်းသွင်းခြင်း",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            if (selectedCustomerObj != null)
+                                "${selectedCustomerObj.name} • ${pendingBets.size} ကွက်"
+                            else
+                                "ကော်မရှင်နှင့် အမြန်ထိုး စနစ်",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Batch Number Pill
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (isDark) MaterialTheme.colorScheme.primaryContainer else EmeraldLight,
+                    border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else EmeraldPrimary.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = "အကြိမ် $currentBatch",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
             }
         }
 
@@ -1407,16 +1468,16 @@ fun BettingScreen(
                     )
                     Spacer(Modifier.width(4.dp))
                     Text(
-                        "ထိုးသူ : ",
-                        fontSize = 14.sp,
+                        "ကော်မရှင် / ထိုးသူ : ",
+                        fontSize = 13.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        customers.find { it.id == selectedCustomer }?.name ?: "ကော်မရှင် ရွေးပါ ▾",
+                        customers.find { it.id == selectedCustomer }?.name ?: "ကော်မရှင် / ထိုးသူ ရွေးပါ ▾",
                         color = if (selectedCustomer != null) primaryBlue else MaterialTheme.colorScheme.error,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp
+                        fontSize = 14.5.sp
                     )
                 }
 
@@ -1516,14 +1577,15 @@ fun BettingScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            "ဂဏန်းထည့်ရန်",
+                            "စာရင်းသွင်းမည့် ဂဏန်း မရှိသေးပါ",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            "ကီးပက်ကို သုံး၍ ထိုးနိုင်သည်",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            "အောက်ပါ ကီးပက် သို့မဟုတ် 'အမြန်ထိုး' ဖြင့် ထည့်သွင်းနိုင်သည်",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                             fontSize = 12.sp
                         )
                     }
@@ -1712,7 +1774,7 @@ fun BettingScreen(
                         onClick = { showClearConfirmDialog = false },
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
                     ) {
-                        Text("မရှင်းပါ (ဖျက်သိမ်း)")
+                        Text("မလုပ်တော့ပါ")
                     }
                 }
             )
@@ -1824,41 +1886,38 @@ fun BettingScreen(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 2.dp),
+                .padding(horizontal = 8.dp, vertical = 3.dp),
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surface,
             shadowElevation = 2.dp,
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
         ) {
-            val actionBarHeight = if (rDimens.isCompact) 42.dp else 46.dp
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = if (rDimens.isCompact) 6.dp else 8.dp, vertical = 4.dp),
+                    .padding(horizontal = if (rDimens.isCompact) 4.dp else 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Summary Badge (Scales cleanly for all number places, height matched with buttons)
+                // Left: Summary Badge (Flexible height, never clips text on large font scale)
                 Surface(
                     modifier = Modifier
                         .weight(1f, fill = false)
-                        .height(actionBarHeight),
+                        .defaultMinSize(minHeight = 44.dp),
                     shape = RoundedCornerShape(9.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.Start
                     ) {
                         Text(
                             "${pendingBets.size} ကွက်",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = if (rDimens.isCompact) 11.sp else 11.5.sp,
-                            lineHeight = 13.sp,
+                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
+                            lineHeight = 14.sp,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
                             softWrap = false
@@ -1882,11 +1941,11 @@ fun BettingScreen(
                     }
                 }
 
-                Spacer(Modifier.width(5.dp))
+                Spacer(Modifier.width(4.dp))
 
                 // Right: Quick Bet (အမြန်ထိုး), Keypad Toggle (ကီးပက်/ဝှက်), & ထိုးမည်
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (rDimens.isCompact) 3.dp else 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     FilledTonalButton(
@@ -1898,16 +1957,16 @@ fun BettingScreen(
                         },
                         shape = RoundedCornerShape(9.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 7.dp else 9.dp,
-                            vertical = 2.dp
+                            horizontal = if (rDimens.isCompact) 6.dp else 9.dp,
+                            vertical = 4.dp
                         ),
-                        modifier = Modifier.height(actionBarHeight)
+                        modifier = Modifier.defaultMinSize(minHeight = 44.dp)
                     ) {
                         Icon(Icons.Default.ElectricBolt, contentDescription = "Quick Bet", modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(2.dp))
                         Text(
                             "အမြန်ထိုး",
-                            fontSize = if (rDimens.isCompact) 11.sp else 11.5.sp,
+                            fontSize = if (rDimens.isCompact) 11.sp else 12.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false
@@ -1922,24 +1981,24 @@ fun BettingScreen(
                         },
                         shape = RoundedCornerShape(9.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 6.dp else 8.dp,
-                            vertical = 2.dp
+                            horizontal = if (rDimens.isCompact) 5.dp else 8.dp,
+                            vertical = 4.dp
                         ),
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = if (showManualKeypad) primaryBlue.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
                             contentColor = if (showManualKeypad) primaryBlue else MaterialTheme.colorScheme.onSurfaceVariant
                         ),
-                        modifier = Modifier.height(actionBarHeight)
+                        modifier = Modifier.defaultMinSize(minHeight = 44.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Keyboard,
                             contentDescription = null,
                             modifier = Modifier.size(15.dp)
                         )
-                        Spacer(Modifier.width(3.dp))
+                        Spacer(Modifier.width(2.dp))
                         Text(
                             if (showManualKeypad) "ဝှက်" else "ကီးပက်",
-                            fontSize = if (rDimens.isCompact) 10.5.sp else 11.sp,
+                            fontSize = if (rDimens.isCompact) 10.5.sp else 11.5.sp,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false
@@ -1958,10 +2017,10 @@ fun BettingScreen(
                         shape = RoundedCornerShape(9.dp),
                         elevation = ButtonDefaults.buttonElevation(defaultElevation = if (pendingBets.isNotEmpty()) 2.dp else 0.dp),
                         contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 9.dp else 12.dp,
-                            vertical = 2.dp
+                            horizontal = if (rDimens.isCompact) 8.dp else 12.dp,
+                            vertical = 4.dp
                         ),
-                        modifier = Modifier.height(actionBarHeight)
+                        modifier = Modifier.defaultMinSize(minHeight = 44.dp)
                     ) {
                         Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(3.dp))
@@ -2318,6 +2377,10 @@ fun TactileKeypadButton(
     val haptic = LocalHapticFeedback.current
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val soundContext = androidx.compose.ui.platform.LocalContext.current
+    val soundManager = remember {
+        com.threeDLedger.logic.SoundManager.getInstance(soundContext)
+    }
 
     val offsetY = if (isPressed) 1.5.dp else 0.dp
     val elevation = if (isPressed) 1.dp else 2.dp
@@ -2326,6 +2389,7 @@ fun TactileKeypadButton(
 
     Box(
         modifier = modifier
+            .pressScale(interactionSource = interactionSource, pressedScale = 0.93f)
             .height(buttonHeight)
             .padding(horizontal = 1.dp, vertical = 0.5.dp)
             .offset(y = offsetY)
@@ -2354,6 +2418,7 @@ fun TactileKeypadButton(
                 indication = ripple(color = Color.White.copy(alpha = 0.3f)),
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    soundManager.playClick()
                     onClick()
                 }
             ),
@@ -2371,27 +2436,31 @@ fun TactileKeypadButton(
                     modifier = Modifier.size(17.dp)
                 )
                 if (subtitle != null) {
-                    Text(
+                    FitText(
                         text = subtitle,
-                        fontSize = 8.sp,
+                        maxFontSize = 8.sp,
+                        minFontSize = 6.sp,
                         fontWeight = FontWeight.Bold,
                         color = contentColor.copy(alpha = 0.85f)
                     )
                 }
             } else {
                 val rDimens = rememberResponsiveDimens()
-                Text(
+                val isDigitText = text.all { it.isDigit() }
+                FitText(
                     text = text,
-                    fontSize = if (text.length > 2) (if (rDimens.isCompact) 11.5.sp else 13.sp) else (if (rDimens.isCompact) 15.sp else 18.sp),
+                    maxFontSize = if (text.length > 2) (if (rDimens.isCompact) 11.5.sp else 13.sp) else (if (rDimens.isCompact) 15.sp else 18.sp),
+                    minFontSize = 8.sp,
                     fontWeight = FontWeight.Black,
                     color = contentColor,
-                    fontFamily = if (text.all { it.isDigit() }) FontFamily.Monospace else FontFamily.Default,
-                    letterSpacing = if (text.all { it.isDigit() }) 1.sp else 0.sp
+                    fontFamily = if (isDigitText) FontFamily.Monospace else FontFamily.Default,
+                    letterSpacing = if (isDigitText) 1.sp else 0.sp
                 )
                 if (subtitle != null) {
-                    Text(
+                    FitText(
                         text = subtitle,
-                        fontSize = if (rDimens.isCompact) 7.5.sp else 8.5.sp,
+                        maxFontSize = if (rDimens.isCompact) 7.5.sp else 8.5.sp,
+                        minFontSize = 6.sp,
                         fontWeight = FontWeight.Bold,
                         color = contentColor.copy(alpha = 0.85f)
                     )

@@ -96,13 +96,52 @@ fun ExportHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("တင်ကွက် မှတ်တမ်း", color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
+                title = {
+                    Column {
+                        Text(
+                            text = "တင်ကွက် မှတ်တမ်းများ",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = if (selectedBatchFilter != null) "အကြိမ် $selectedBatchFilter • ပေးပို့မှု မှတ်တမ်း" else "အထက်ဒိုင် ပေးပို့မှု မှတ်တမ်း စာရင်း",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary)
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                actions = {
+                    if (selectedBatchFilter != null) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isDark) MaterialTheme.colorScheme.primaryContainer else EmeraldLight,
+                            border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else EmeraldPrimary.copy(alpha = 0.5f)),
+                            modifier = Modifier.padding(end = 10.dp)
+                        ) {
+                            Text(
+                                text = "အကြိမ် $selectedBatchFilter",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         },
         bottomBar = {
@@ -169,7 +208,7 @@ fun ExportHistoryScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp)
+                    contentPadding = PaddingValues(start = 12.dp, top = 12.dp, end = 12.dp, bottom = 84.dp)
                 ) {
                     items(displayedRecords, key = { it.record.id }) { export ->
                         val batchChronologicalRecords = remember(exportRecords, export.record.batchNumber) {
@@ -641,7 +680,7 @@ fun UpperAgentSettlementDialog(
         appendLine("------------------------")
         appendLine("တင်ငွေ စုစုပေါင်း = %,d ကျပ်".format(totalSentBet))
         appendLine("ကော်မရှင် ($commPercentText%) = -%,d ကျပ်".format(commDeduction))
-        appendLine("နုတ်ပြီး တင်ငွေ = %,d ကျပ်".format(netSentBet))
+        appendLine("နှုတ်ပြီး တင်ငွေ = %,d ကျပ်".format(netSentBet))
         appendLine("------------------------")
         if (exactBetAmt > 0) {
             appendLine("ဒဲ့ပေါက် ($winningNumber) = %,d ကျပ် (x${exactMult.toInt()}) → %,d ကျပ်".format(exactBetAmt, exactPayout))
@@ -776,7 +815,7 @@ fun UpperAgentSettlementDialog(
                     HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
 
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("နုတ်ပြီး တင်ငွေ", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                        Text("နှုတ်ပြီး တင်ငွေ", fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
                             "%,d ကျပ်".format(netSentBet),
                             fontSize = 12.5.sp,

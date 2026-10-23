@@ -736,28 +736,67 @@ fun OverflowScreen(
         }
     }
 
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("တင်ကွက်", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold) },
+                title = {
+                    Column {
+                        Text(
+                            text = "တင်ကွက်များ",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = "အထက်ဒိုင် တင်ကွက်နှင့် ဘရိတ်စီမံမှု",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "နောက်သို့", tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
                 actions = {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.primaryContainer else emeraldLight,
+                        border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else emeraldPrimary.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "အကြိမ် $currentBatch",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else emeraldPrimary,
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                        )
+                    }
                     IconButton(onClick = { showManageDineDialog = true }) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "ဒိုင်များ စီမံရန်", tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.Default.AccountCircle, contentDescription = "ဒိုင်များ စီမံရန်", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(onClick = onNavigateToExportHistory) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "မှတ်တမ်းများ", tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "မှတ်တမ်းများ", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(bottom = 6.dp)
+        ) {
             // Winning Declared Warning Banner
             if (isWonDeclared) {
                 Surface(
@@ -995,7 +1034,7 @@ fun OverflowScreen(
                         BrakeSummaryRow("စုစုပေါင်း", "%,d".format(totalBraked), bgColor = emeraldDark)
                         val commLabel = if (meCommPercent > 0) "ကော်" else "ကော်"
                         BrakeSummaryRow(commLabel, "%,d".format(commAmount), bgColor = emeraldDark)
-                        BrakeSummaryRow("နုတ်ပြီး", "%,d".format(netAfterComm), bgColor = emeraldDark)
+                        BrakeSummaryRow("နှုတ်ပြီး", "%,d".format(netAfterComm), bgColor = emeraldDark)
                         BrakeSummaryRow("ပေါက်သီး", if (isWonDeclared) "%,d".format(exactPayout) else "-", bgColor = emeraldDark)
                         BrakeSummaryRow("တွတ်", if (isWonDeclared) "%,d".format(tuwtPayout) else "-", bgColor = emeraldDark)
                         BrakeSummaryRow(

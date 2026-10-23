@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Customer
 import com.threeDLedger.ui.theme.*
+import com.threeDLedger.ui.components.FitText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -119,53 +120,70 @@ fun CustomersScreen(
 
         else -> {
             val isDark = isSystemInDarkTheme()
+            val filtered = remember(customers, searchQuery) {
+                customers
+                    .filter { it.name.contains(searchQuery, ignoreCase = true) }
+                    .filter { 
+                        !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) &&
+                        !it.name.contains("upper", ignoreCase = true) && !it.name.contains("အထက်ဒိုင်")
+                    }
+            }
+
             Scaffold(
                 containerColor = MaterialTheme.colorScheme.background,
                 topBar = {
                     Surface(
-                        color = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.fillMaxWidth(),
-                        shadowElevation = if (isDark) 0.dp else 2.dp
+                        shadowElevation = if (isDark) 0.dp else 1.dp,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .statusBarsPadding()
-                                .padding(bottom = 12.dp)
+                                .padding(bottom = 10.dp)
                         ) {
-                            // Header Row: Arrow, Title, Batch
+                            // Header Row: Arrow, Title, Subtitle, Batch
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(onClick = onNavigateBack) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.ArrowBack,
                                         contentDescription = "Back",
-                                        tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
+                                        tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(24.dp)
                                     )
                                 }
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    "ကော်မရှင်များ",
-                                    color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 19.sp,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                Spacer(Modifier.width(2.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        "ကော်မရှင်များ",
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                    Text(
+                                        "စာရင်းသွင်း ကိုယ်စားလှယ် (${filtered.size} ဦး)",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 11.sp
+                                    )
+                                }
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isDark) MaterialTheme.colorScheme.primaryContainer else Color.White.copy(alpha = 0.18f),
-                                    modifier = Modifier.padding(end = 14.dp)
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
+                                    modifier = Modifier.padding(end = 12.dp)
                                 ) {
                                     Text(
-                                        "အကြိမ် : $currentBatch",
-                                        color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else Color.White,
+                                        "အကြိမ် $currentBatch",
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 13.5.sp,
+                                        fontSize = 12.5.sp,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                     )
                                 }
@@ -176,23 +194,22 @@ fun CustomersScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 14.dp, vertical = 2.dp)
-                                    .height(44.dp),
-                                shape = RoundedCornerShape(22.dp),
-                                color = if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White,
-                                border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.outlineVariant else Color.Transparent),
-                                shadowElevation = if (isDark) 0.dp else 1.dp
+                                    .height(42.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(horizontal = 14.dp),
+                                        .padding(horizontal = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
                                         Icons.Default.Search,
                                         contentDescription = "Search",
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Box(
@@ -201,9 +218,9 @@ fun CustomersScreen(
                                     ) {
                                         if (searchQuery.isEmpty()) {
                                             Text(
-                                                "ကော်မရှင် အမည် ရှာရန်...",
+                                                "ကော်မရှင် အမည်ဖြင့် ရှာရန်...",
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                fontSize = 14.sp
+                                                fontSize = 13.5.sp
                                             )
                                         }
                                         BasicTextField(
@@ -212,7 +229,7 @@ fun CustomersScreen(
                                             singleLine = true,
                                             textStyle = TextStyle(
                                                 color = MaterialTheme.colorScheme.onSurface,
-                                                fontSize = 14.sp,
+                                                fontSize = 13.5.sp,
                                                 fontWeight = FontWeight.Medium
                                             ),
                                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -222,13 +239,13 @@ fun CustomersScreen(
                                     if (searchQuery.isNotEmpty()) {
                                         IconButton(
                                             onClick = { searchQuery = "" },
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(26.dp)
                                         ) {
                                             Icon(
                                                 Icons.Default.Clear,
                                                 contentDescription = "Clear",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(18.dp)
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     }
@@ -259,15 +276,6 @@ fun CustomersScreen(
                         .padding(padding)
                         .background(MaterialTheme.colorScheme.background)
                 ) {
-                    val filtered = remember(customers, searchQuery) {
-                        customers
-                            .filter { it.name.contains(searchQuery, ignoreCase = true) }
-                            .filter { 
-                                !it.name.contains("တင်ကွက်") && !it.name.contains("overflow", ignoreCase = true) &&
-                                !it.name.contains("upper", ignoreCase = true) && !it.name.contains("အထက်ဒိုင်")
-                            }
-                    }
-
                     if (filtered.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -294,6 +302,7 @@ fun CustomersScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
+                            contentPadding = PaddingValues(bottom = 76.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             items(filtered, key = { it.id }) { customer ->
@@ -381,13 +390,12 @@ fun CustomerCard(
 
                 // Commissioner ID & Name
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        customer.name,
+                    FitText(
+                        text = customer.name,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        maxFontSize = 15.5.sp,
+                        minFontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
                     )
                     Spacer(Modifier.height(2.dp))
                     Row(
@@ -395,33 +403,21 @@ fun CustomerCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Surface(
-                            shape = RoundedCornerShape(4.dp),
+                            shape = RoundedCornerShape(6.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Text(
-                                "ကော် အိုင်ဒီ: ${customer.id}",
+                                "#${customer.id}",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                            )
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Text(
-                                "ဒဲ့ ${customer.multiplier}ဆ / တွတ် ${customer.tuwtMultiplier}ဆ",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                         if (commPct > 0) {
                             val isDark = isSystemInDarkTheme()
                             Surface(
-                                shape = RoundedCornerShape(4.dp),
+                                shape = RoundedCornerShape(6.dp),
                                 color = if (isDark) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f) else GoldContainer,
                                 border = BorderStroke(0.5.dp, if (isDark) MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f) else Color.Transparent)
                             ) {
@@ -430,9 +426,25 @@ fun CustomerCard(
                                     color = if (isDark) MaterialTheme.colorScheme.secondary else GoldDark,
                                     fontSize = 10.5.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        ) {
+                            Text(
+                                "ဒဲ့ ${customer.multiplier}ဆ • တွတ် ${customer.tuwtMultiplier}ဆ",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
                         }
                     }
                 }
@@ -478,15 +490,13 @@ fun CustomerCard(
                         fontWeight = FontWeight.Medium
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        "%,d ကျပ်".format(totalAmount),
-                        fontSize = 13.sp,
+                    FitText(
+                        text = "%,d ကျပ်".format(totalAmount),
+                        maxFontSize = 13.sp,
+                        minFontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
+                        fontFamily = FontFamily.Monospace
                     )
                 }
 
@@ -504,25 +514,23 @@ fun CustomerCard(
                         softWrap = false
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        "%,d ကျပ်".format(commCut),
-                        fontSize = 13.sp,
+                    FitText(
+                        text = "%,d ကျပ်".format(commCut),
+                        maxFontSize = 13.sp,
+                        minFontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.secondary,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
+                        fontFamily = FontFamily.Monospace
                     )
                 }
 
-                // Column 3: နုတ်ပြီးငွေ (Net Amount)
+                // Column 3: နှုတ်ပြီးငွေ (Net Amount)
                 Column(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        "နုတ်ပြီးငွေ",
+                        "နှုတ်ပြီးငွေ",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
@@ -530,15 +538,13 @@ fun CustomerCard(
                         softWrap = false
                     )
                     Spacer(Modifier.height(2.dp))
-                    Text(
-                        "%,d ကျပ်".format(netAmount),
-                        fontSize = 13.5.sp,
+                    FitText(
+                        text = "%,d ကျပ်".format(netAmount),
+                        maxFontSize = 13.5.sp,
+                        minFontSize = 9.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary,
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
+                        fontFamily = FontFamily.Monospace
                     )
                 }
             }
@@ -615,7 +621,7 @@ fun CustomerCard(
                         horizontalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            "ဘောင်ချာများ ကြည့်ရန်",
+                            "အသေးစိတ် ကြည့်မည်",
                             fontSize = 11.5.sp,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
@@ -657,8 +663,9 @@ fun AddCustomerFullScreen(
                 title = {
                     Text(
                         "ကော်မရှင် အသစ် ထည့်သွင်းရန်",
-                        color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
-                        fontWeight = FontWeight.Bold
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
                     )
                 },
                 navigationIcon = {
@@ -666,12 +673,12 @@ fun AddCustomerFullScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             "Back",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
@@ -790,8 +797,9 @@ fun EditCustomerFullScreen(
                 title = {
                     Text(
                         "ကော်မရှင် ပြင်ဆင်ရန်",
-                        color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
-                        fontWeight = FontWeight.Bold
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
                     )
                 },
                 navigationIcon = {
@@ -799,19 +807,19 @@ fun EditCustomerFullScreen(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             "Back",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 actions = {
                     IconButton(onClick = { showDeleteDialog = true }) {
                         Icon(
                             Icons.Default.Delete,
                             "ဖျက်မည်",
-                            tint = if (isDark) MaterialTheme.colorScheme.error else Color.White
+                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 }
@@ -959,13 +967,13 @@ fun AgentNumbersView(
                     Column {
                         Text(
                             customer.name,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp
+                            fontSize = 17.5.sp
                         )
                         Text(
-                            "အကြိမ်: #$currentBatch  |  ကော်မရှင်: $commPct%  |  ဘောင်ချာ: ${batchVouchers.size} စောင်",
-                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.8f),
+                            "အကြိမ် $currentBatch • ကော်မရှင် $commPct% • ဘောင်ချာ ${batchVouchers.size} စောင်",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp
                         )
                     }
@@ -975,22 +983,22 @@ fun AgentNumbersView(
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             "Back",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                            tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         bottomBar = {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = if (isDark) MaterialTheme.colorScheme.surface else EmeraldPrimary,
-                border = if (isDark) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant) else null,
-                shadowElevation = 8.dp
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+                shadowElevation = if (isDark) 0.dp else 4.dp
             ) {
-                val barTextColor = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
-                val barTextSubColor = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
+                val barTextColor = MaterialTheme.colorScheme.onSurface
+                val barTextSubColor = MaterialTheme.colorScheme.onSurfaceVariant
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1035,12 +1043,12 @@ fun AgentNumbersView(
                         )
                     }
                     HorizontalDivider(
-                        color = if (isDark) MaterialTheme.colorScheme.outlineVariant else Color.White.copy(alpha = 0.25f),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                     val isToGet = netAmount >= 0
                     val netColor = if (isToGet) {
-                        if (isDark) MaterialTheme.colorScheme.primary else Color.White
+                        MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.error
                     }

@@ -18,7 +18,12 @@ import java.net.URL
 
 object GitHubUpdater {
 
-    data class UpdateInfo(val version: String, val releaseNotes: String, val downloadUrl: String)
+    data class UpdateInfo(
+        val version: String,
+        val releaseNotes: String,
+        val downloadUrl: String,
+        val releaseUrl: String? = null
+    )
 
     // ── Check for the latest release (Worker primary, GitHub fallback) ──────
     suspend fun checkForUpdates(owner: String, repo: String): UpdateInfo? = withContext(Dispatchers.IO) {
@@ -37,8 +42,9 @@ object GitHubUpdater {
                     val vName = rel.optString("version_name", "")
                     val dlUrl = rel.optString("download_url", "")
                     val notes = rel.optString("release_notes", "စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ")
+                    val relUrl = rel.optString("release_url", "").ifBlank { null }
                     if (vName.isNotBlank() && dlUrl.isNotBlank()) {
-                        return@withContext UpdateInfo(vName, notes, dlUrl)
+                        return@withContext UpdateInfo(vName, notes, dlUrl, relUrl)
                     }
                 }
             }
@@ -46,12 +52,13 @@ object GitHubUpdater {
             // Fall back to GitHub API on worker network failure
         }
 
-        // 2. Second attempt: GitHub Releases API fallback
+        // 2. Second attempt: GitHub Releases API fallback (or primary)
         try {
             val url = URL("https://api.github.com/repos/$owner/$repo/releases/latest")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+            connection.setRequestProperty("User-Agent", "3D-Agent-App-Updater")
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
 
@@ -60,20 +67,22 @@ object GitHubUpdater {
                 val jsonObject = JSONObject(response)
 
                 val tagName = jsonObject.getString("tag_name")
-                val body = try { jsonObject.getString("body") } catch (e: Exception) { "" }
+                val body = try { jsonObject.getString("body") } catch (_: Exception) { "" }
                 val assets = jsonObject.getJSONArray("assets")
 
                 var apkUrl = ""
                 for (i in 0 until assets.length()) {
                     val asset = assets.getJSONObject(i)
-                    if (asset.getString("name").endsWith(".apk")) {
+                    if (asset.getString("name").endsWith(".apk", ignoreCase = true)) {
                         apkUrl = asset.getString("browser_download_url")
                         break
                     }
                 }
 
                 if (apkUrl.isNotEmpty()) {
-                    return@withContext UpdateInfo(tagName, body, apkUrl)
+                    val friendlyNotes = if (body.isNotBlank()) body else "စနစ် စွမ်းဆောင်ရည်နှင့် မျက်နှာပြင် အဆင့်မြှင့်တင်မှုများ"
+                    val htmlUrl = try { jsonObject.optString("html_url", "").ifBlank { null } } catch (_: Exception) { null }
+                    return@withContext UpdateInfo(tagName, friendlyNotes, apkUrl, htmlUrl)
                 }
             }
         } catch (e: Exception) {

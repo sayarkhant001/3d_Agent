@@ -40,20 +40,31 @@ fun ArchiveScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("မှတ်တမ်းဟောင်းများ", fontWeight = FontWeight.Bold, fontSize = 18.sp,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
-                        Text("${batches.size} ကြိမ် မှတ်တမ်းတင်ထားသည်", fontSize = 11.sp,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f))
+                        Text(
+                            text = "မှတ်တမ်းဟောင်းများ",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = if (batches.isEmpty()) "မှတ်တမ်းဟောင်း မရှိသေးပါ" else "${batches.size} ကြိမ် မှတ်တမ်းတင်ထားသည်",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }

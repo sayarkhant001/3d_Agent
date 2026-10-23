@@ -267,6 +267,7 @@ export default {
 
         let fileId = body.file_id || '';
         const downloadUrl = body.download_url || '';
+        const releaseUrl = body.release_url || (downloadUrl ? downloadUrl.split('/download/')[0] : '');
         const versionName = body.version_name || 'v1.0.100';
         const versionCode = body.version_code || 100;
         const releaseNotes = body.release_notes || 'Official Production Release from GitHub';
@@ -280,7 +281,8 @@ export default {
               downloadUrl,
               `📦 <b>[GitHub Auto-Release Sync]</b>\n\n` +
               `🔖 <b>ဗားရှင်း:</b> <b>${versionName}</b>\n` +
-              `📝 <b>မှတ်ချက်:</b> ${releaseNotes}\n\n` +
+              `📝 <b>မှတ်ချက်:</b> ${releaseNotes}\n` +
+              (releaseUrl ? `🌐 <b>GitHub:</b> ${releaseUrl}\n\n` : '\n') +
               `<i>GitHub Releases မှ Telegram Bot သို့ အလိုအလျောက် ရောက်ရှိလာပါသည်</i>`
             );
             if (tgRes?.result?.document?.file_id) {
@@ -299,6 +301,7 @@ export default {
           version_name: versionName,
           version_code: versionCode,
           download_url: downloadUrl,
+          release_url: releaseUrl || undefined,
           release_notes: releaseNotes,
           uploaded_by: body.uploaded_by || 'GitHub Actions',
           uploaded_at: Date.now()
@@ -522,6 +525,37 @@ export function getLocalDrawDateInfo(): { dateStr: string; day: number; isStanda
   return { dateStr, day, isStandardDrawDay };
 }
 
+/**
+ * Checks whether we're inside the Thai lottery live-draw publication window.
+ * Thai GLO publishes the result at 3:15 PM MMT (3:16 PM ICT), typically landing
+ * on Sanook live feed at ~3:15:10 MMT. We aggressively fast-poll from 3:14:00 PM
+ * through 3:25:00 PM MMT so we capture the number within seconds of publication.
+ */
+/**
+ * Formats an ISO date string (e.g. "2026-10-16") into a clean DD/MM/YYYY
+ * display format for Telegram broadcast (no words, just the date).
+ */
+export function formatDrawDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    return `${d}/${m}/${y}`;
+  }
+  return dateStr;
+}
+
+export function checkDrawWindow(): boolean {
+  const { isStandardDrawDay } = getLocalDrawDateInfo();
+  if (!isStandardDrawDay) return false;
+  const now = new Date();
+  const mmtTime = new Date(now.getTime() + (6.5 * 60 + now.getTimezoneOffset()) * 60000);
+  const h = mmtTime.getHours();
+  const m = mmtTime.getMinutes();
+  // 15:14 – 15:25 MMT window (3:14:00 PM to 3:25:59 PM)
+  return (h === 15 && m >= 14) || (h === 15 && m <= 25);
+}
+
 // ── Main Logic ────────────────────────────────────────────────────────────────
 
 export interface ProcessDrawOptions {
@@ -531,8 +565,24 @@ export interface ProcessDrawOptions {
 export async function processDraw(env: Env, options?: ProcessDrawOptions) {
   const isForce = options?.force === true;
 
-  // 1. Fetch official lottery data from Thai GLO API
-  const result = await fetchFromGloLottery();
+  // ── Fast-Poll Draw Window (reliability around 3:15 PM MMT live result publication) ──
+  // Inside the window (3:14:00 – 3:25:00 PM MMT), retry fetching every ~4 seconds
+  // until the result appears (or window ends). This catches the number within
+  // seconds of it being published, e.g. 3:15:10. Each worker cron run also gets a
+  // fresh attempt, giving full coverage from 3:14:00 onward.
+  const isInDrawWindow = checkDrawWindow();
+  const maxFetchAttempts = isInDrawWindow ? 20 : 2;
+  const fetchDelayMs = isInDrawWindow ? 4000 : 2500;
+
+  // 1. Fetch official lottery data from Thai GLO API (with rapid retries in window)
+  let result: LotteryResult | null = null;
+  for (let attempt = 1; attempt <= maxFetchAttempts; attempt++) {
+    result = await fetchFromGloLottery();
+    if (result) break;
+    if (attempt < maxFetchAttempts) {
+      await new Promise(r => setTimeout(r, fetchDelayMs));
+    }
+  }
   if (!result) {
     if (isForce) {
       await sendTelegramAlert(env, '⚠️ No official Thai 3D result available from GLO API.');
@@ -628,10 +678,12 @@ export async function processDraw(env: Env, options?: ProcessDrawOptions) {
 
   // 8. Telegram Alert (strictly on declaration day or when intentionally tested)
   if (shouldBroadcast) {
-    const sourceName = result.source || result.session || 'Official Thai Lottery';
-    const testTag = isForce && (!isDrawDay || alreadyBroadcast) ? '\n<i>[စမ်းသပ်ပေးပို့ခြင်း / Test Send]</i>' : '';
+    // Minimal broadcast: date, winning number, tuts only — no other words.
+    const testTag = isForce && (!isDrawDay || alreadyBroadcast) ? '\n<i>[Test]</i>' : '';
     await sendTelegramAlert(env,
-      `🇹🇭 <b>Thai 3D Lottery Result (${sourceName})</b>\n\n🎯 <b>3D ပေါက်ဂဏန်း: ${result.threeD}</b>\n🥇 1st Prize: ${result.firstPrize}\n🔢 2D: ${result.twoD}\n📅 Draw Date: ${result.date}\n⏭️ Next Draw: ${nextDate}\n\n🔄 တွတ်ဂဏန်းများ: ${tut.allTut.join(', ')}${testTag}`
+      `📅 ${formatDrawDate(result.date)}\n` +
+      `🎯 <b>${result.threeD}</b>\n` +
+      `🔄 ${tut.allTut.join(', ')}${testTag}`
     );
   } else {
     console.log(`Skipped Telegram broadcast: draw date is ${result.date} (today: ${localInfo.dateStr}, isDrawDay: ${isDrawDay}, alreadyBroadcast: ${alreadyBroadcast})`);

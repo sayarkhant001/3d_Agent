@@ -14,6 +14,7 @@ data class AppUpdateInfo(
     val latestVersionCode: Int,
     val releaseNotes: String,
     val downloadUrl: String? = null,
+    val releaseUrl: String? = null,
     val telegramBotUrl: String = "https://t.me/threed_ledger_bot?start=download"
 )
 
@@ -37,6 +38,7 @@ object AppUpdateChecker {
                     val remoteVersionName = release.optString("version_name", "Latest")
                     val releaseNotes = release.optString("release_notes", "စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ")
                     val downloadUrl = release.optString("download_url", "").ifBlank { null }
+                    val releaseUrl = release.optString("release_url", "").ifBlank { null }
 
                     val currentVersionCode = BuildConfig.VERSION_CODE
                     val hasUpdate = remoteVersionCode > currentVersionCode
@@ -46,7 +48,8 @@ object AppUpdateChecker {
                         latestVersionName = remoteVersionName,
                         latestVersionCode = remoteVersionCode,
                         releaseNotes = releaseNotes,
-                        downloadUrl = downloadUrl
+                        downloadUrl = downloadUrl,
+                        releaseUrl = releaseUrl
                     )
                 }
             }

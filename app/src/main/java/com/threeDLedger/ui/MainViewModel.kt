@@ -58,7 +58,8 @@ data class BatchFinancialSummary3D(
 class MainViewModel(private val repository: LotteryRepository, private val prefs: android.content.SharedPreferences) : ViewModel() {
 
     val fontScales = listOf(0.85f, 1.0f, 1.15f, 1.30f)
-    private val _fontScaleIndex = MutableStateFlow(prefs.getInt("font_scale_index", 0).coerceIn(0, 3))
+    // Default to index 1 (1.0f Normal) for clear readability especially for older users
+    private val _fontScaleIndex = MutableStateFlow(prefs.getInt("font_scale_index", 1).coerceIn(0, 3))
     val fontScaleIndex: StateFlow<Int> = _fontScaleIndex.asStateFlow()
 
     fun setFontScaleIndex(index: Int) {
@@ -66,6 +67,49 @@ class MainViewModel(private val repository: LotteryRepository, private val prefs
         _fontScaleIndex.value = safeIndex
         prefs.edit().putInt("font_scale_index", safeIndex).apply()
     }
+
+    // ── GitHub Updates State Management ──────────────────────────────────────
+    private val _availableUpdate = MutableStateFlow<com.threeDLedger.utils.GitHubUpdater.UpdateInfo?>(null)
+    val availableUpdate: StateFlow<com.threeDLedger.utils.GitHubUpdater.UpdateInfo?> = _availableUpdate.asStateFlow()
+
+    private val _isCheckingUpdate = MutableStateFlow(false)
+    val isCheckingUpdate: StateFlow<Boolean> = _isCheckingUpdate.asStateFlow()
+
+    private val _showUpdateDialogTrigger = MutableStateFlow(false)
+    val showUpdateDialogTrigger: StateFlow<Boolean> = _showUpdateDialogTrigger.asStateFlow()
+
+    fun triggerUpdateDialog(show: Boolean) {
+        _showUpdateDialogTrigger.value = show
+    }
+
+    fun setAvailableUpdate(info: com.threeDLedger.utils.GitHubUpdater.UpdateInfo?) {
+        _availableUpdate.value = info
+    }
+
+    fun checkForGitHubUpdates(currentVersion: String, owner: String = "sayarkhant001", repo: String = "3d_Agent") {
+        viewModelScope.launch(Dispatchers.IO) {
+            _isCheckingUpdate.value = true
+            try {
+                val info = com.threeDLedger.utils.GitHubUpdater.checkForUpdates(owner, repo)
+                if (info != null) {
+                    val fetchedRun = info.version.trimStart('v').split(".", "-")
+                        .lastOrNull { s -> s.all { c -> c.isDigit() } }?.toIntOrNull() ?: 0
+                    val currentRun = currentVersion.trimStart('v').split(".", "-")
+                        .lastOrNull { s -> s.all { c -> c.isDigit() } }?.toIntOrNull() ?: 0
+                    if (fetchedRun > currentRun) {
+                        _availableUpdate.value = info
+                    } else {
+                        _availableUpdate.value = null
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                _isCheckingUpdate.value = false
+            }
+        }
+    }
+
 
 
     val customers: StateFlow<List<Customer>> = repository.allCustomers

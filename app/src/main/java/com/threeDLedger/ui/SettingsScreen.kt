@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -87,19 +88,32 @@ fun SettingsScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("ဆက်တင်", fontWeight = FontWeight.Bold, fontSize = 18.sp,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
-                        Text("3D စာရင်း စနစ်", fontSize = 11.sp,
-                            color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f))
+                        Text(
+                            text = "ဆက်တင်နှင့် ဒေတာစီမံမှု",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "3D ဒိုင်ချုပ် စနစ်",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else androidx.compose.ui.graphics.Color.White)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -111,19 +125,20 @@ fun SettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { SettingsSectionHeader("မီနူး", Icons.Default.Menu) }
+            item { SettingsSectionHeader("အဓိက စနစ်များ", Icons.Default.Menu) }
             item {
                 SettingsCard {
-                    SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "မရဂဏန်းများ",         "ပိတ်ထားသော ဂဏန်းများ") { showBannedDialog = true }
+                    SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "ပိတ်ဂဏန်းများ",         "ပိတ်ဂဏန်းနှင့် ကန့်သတ်ငွေ သတ်မှတ်ရန်") { showBannedDialog = true }
                     SettingsDivider()
-                    SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ထွက်ဂဏန်းများ",        "ပေါက်ဂဏန်း စာရင်း",        onClick = onNavigateToWinner)
+                    SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ပေါက်ဂဏန်းများ",        "ပေါက်သီးတွက်ချက်မှုနှင့် မှတ်တမ်း",        onClick = onNavigateToWinner)
                 }
             }
 
-            item { SettingsSectionHeader("စာလုံး အရွယ်အစား (အမြင်အာရုံ အထောက်အကူ)", Icons.Default.FormatSize) }
+            item { SettingsSectionHeader("စာလုံး အရွယ်အစား", Icons.Default.FormatSize) }
             item {
                 val fontScaleIndex by viewModel.fontScaleIndex.collectAsStateWithLifecycle()
-                val scaleLabels = listOf("အသေးဆုံး", "ပုံမှန်", "အကြီး", "အကြီးဆုံး")
+                val scaleLabels = listOf("အသေး (၀.၈၅)", "ပုံမှန် (၁.၀)", "အကြီး (၁.၁၅)", "အကြီးဆုံး (၁.၃၀)")
+                val scaleShortLabels = listOf("၀.၈၅", "၁.၀", "၁.၁၅", "၁.၃၀")
                 SettingsCard {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -140,13 +155,13 @@ fun SettingsScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("စာလုံး အရွယ်အစား ချိန်ညှိရန်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = onSurface)
+                                    Text("စာလုံး အရွယ်အစား", fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = onSurface)
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
                                         color = EmeraldPrimary.copy(alpha = 0.12f)
                                     ) {
                                         Text(
-                                            scaleLabels.getOrElse(fontScaleIndex) { "အသေးဆုံး" },
+                                            scaleLabels.getOrElse(fontScaleIndex) { "ပုံမှန်" },
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = EmeraldPrimary,
@@ -154,7 +169,7 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
-                                Text("ဖုန်းစနစ် ဆက်တင်ထက် ဤဆက်တင်က တိုက်ရိုက် ဦးစားပေး အသက်ဝင်ပါမည် (မူလ: အသေးဆုံး)", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("ဖတ်ရှုရ လွယ်ကူစေရန် စာလုံးအရွယ်အစား ချိန်ညှိနိုင်သည်", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
@@ -186,10 +201,10 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            scaleLabels.forEachIndexed { idx, label ->
+                            scaleShortLabels.forEachIndexed { idx, label ->
                                 Text(
                                     text = label,
-                                    fontSize = 10.sp,
+                                    fontSize = 11.sp,
                                     fontWeight = if (idx == fontScaleIndex) FontWeight.Bold else FontWeight.Normal,
                                     color = if (idx == fontScaleIndex) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -207,7 +222,7 @@ fun SettingsScreen(
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
-                                    text = "နမူနာ စာသား အရွယ်အစား ပြသချက်:",
+                                    text = "နမူနာ ပြသချက်:",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -223,6 +238,9 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            item { SettingsSectionHeader("အသံ နှင့် တုန့်ပြန်မှု", Icons.Default.VolumeUp) }
+            item { SoundSettingsCard() }
 
             item { SettingsSectionHeader("ဖွဲ့စည်းပုံ", Icons.Default.Settings) }
             item {
@@ -399,6 +417,66 @@ fun SettingsScreen(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 @Composable
+private fun SoundSettingsCard() {
+    val context = LocalContext.current
+    val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(context) }
+    var soundEnabled by remember { mutableStateOf(soundManager.isSoundEnabled()) }
+
+    SettingsCard {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    val newState = !soundEnabled
+                    soundEnabled = newState
+                    soundManager.setSoundEnabled(newState)
+                    if (newState) soundManager.playClick()
+                }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(EmeraldPrimary),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.VolumeUp, null, tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    "အသံ ဖွင့်/ပိတ်",
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.5.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "ခလုတ်နှိပ်သည့်အခါ အသံထွက်မည်",
+                    fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = soundEnabled,
+                onCheckedChange = { isChecked ->
+                    soundEnabled = isChecked
+                    soundManager.setSoundEnabled(isChecked)
+                    if (isChecked) soundManager.playClick()
+                },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = EmeraldPrimary,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color(0xFFCBD5E1)
+                )
+            )
+        }
+    }
+}
+
+@Composable
 private fun SettingsSectionHeader(title: String, icon: ImageVector, headerColor: Color = MaterialTheme.colorScheme.primary) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
         Icon(icon, null, tint = headerColor, modifier = Modifier.size(15.dp))
@@ -444,41 +522,107 @@ private fun SettingsRow(
 @Composable
 private fun UpdateCard(currentVersion: String, updateCheckStatus: String, onCheckUpdate: () -> Unit) {
     val statusColor = when (updateCheckStatus) {
-        "available" -> Color(0xFF43AA8B); "error" -> MaterialTheme.colorScheme.error
-        "uptodate"  -> Color(0xFF4ECDC4); else    -> MaterialTheme.colorScheme.onSurfaceVariant
+        "available" -> Color(0xFF059669)
+        "error"     -> MaterialTheme.colorScheme.error
+        "uptodate"  -> Color(0xFF0284C7)
+        else        -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(2.dp)) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF6C63FF)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.SystemUpdate, null, tint = Color.White, modifier = Modifier.size(20.dp))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFD97706).copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SystemUpdate,
+                    contentDescription = null,
+                    tint = Color(0xFFD97706),
+                    modifier = Modifier.size(24.dp)
+                )
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("ဗားရှင်းအသစ် စစ်ဆေးရန်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                Text("လက်ရှိ ဗားရှင်း : $currentVersion", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "ဗားရှင်း စစ်ဆေးရန်",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFFEF3C7)
+                    ) {
+                        Text(
+                            text = "GitHub",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF92400E),
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "လက်ရှိ ဗားရှင်း: v$currentVersion",
+                    fontSize = 12.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Medium
+                )
                 if (updateCheckStatus.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(5.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(7.dp).clip(CircleShape).background(statusColor))
-                        Spacer(Modifier.width(5.dp))
-                        Text(when (updateCheckStatus) {
-                            "checking"  -> "စစ်ဆေးနေသည်..."
-                            "uptodate"  -> "နောက်ဆုံး Version ဖြစ်နေပါသည်"
-                            "available" -> "Update ရှိနေပါသည်! ↓ နှိပ်ပါ"
-                            else        -> "Network error — Internet စစ်ဆေးပါ"
-                        }, fontSize = 11.sp, color = statusColor, fontWeight = FontWeight.SemiBold)
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(statusColor))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            when (updateCheckStatus) {
+                                "checking"  -> "စစ်ဆေးနေသည်..."
+                                "uptodate"  -> "နောက်ဆုံးဗားရှင်း ဖြစ်ပါသည်"
+                                "available" -> "Update အသစ် ရယူပါ"
+                                else        -> "အင်တာနက် စစ်ဆေးပါ"
+                            },
+                            fontSize = 12.sp,
+                            color = statusColor,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Button(onClick = onCheckUpdate, enabled = updateCheckStatus != "checking",
-                shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                if (updateCheckStatus == "checking")
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                else Text("စစ်ဆေး", fontSize = 12.sp)
+            Button(
+                onClick = onCheckUpdate,
+                enabled = updateCheckStatus != "checking",
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+            ) {
+                if (updateCheckStatus == "checking") {
+                    CircularProgressIndicator(
+                        Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                } else {
+                    Text("စစ်ဆေးမည်", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

@@ -82,7 +82,7 @@ private fun buildClipText(s: AgentSettlement, batch: Int, winNum: String): Strin
         appendLine("အမည် = ${s.customer.name}")
         appendLine("ရောင်းကြေး = ${fmt(s.totalBet)} Ks")
         appendLine("ကော်မရှင် = ${fmt(s.commission)} Ks")
-        appendLine("နုတ်ပြီးငွေ = ${fmt(s.netAfterComm)} Ks")
+        appendLine("နှုတ်ပြီးငွေ = ${fmt(s.netAfterComm)} Ks")
         if (s.exactBetAmt > 0) appendLine("ဒဲ့ ထိုးငွေ = ${fmt(s.exactBetAmt)} Ks (လျော် = ${fmt(s.exactPayout)} Ks)")
         if (s.tuwtPayout  > 0) appendLine("တွတ် လျော်ငွေ = ${fmt(s.tuwtPayout)} Ks")
         appendLine("စုစုပေါင်း လျော်ငွေ = ${fmt(s.totalPayout)} Ks")
@@ -218,16 +218,48 @@ fun CommissionerResultScreen(
             TopAppBar(
                 title = { 
                     Column {
-                        Text("ကော်မရှင်ဆိုင်ရာ ရလဒ်", color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("အကြိမ် $batchNumber ရှင်းတမ်း", color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                        Text(
+                            text = "ကော်မရှင်ဆိုင်ရာ ရလဒ်",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = "အကြိမ် $batchNumber ရှင်းတမ်း",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 11.5.sp
+                        )
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White)
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDark) MaterialTheme.colorScheme.surface else ResPrimary)
+                actions = {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.primaryContainer else ResGreenBg,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else ResGreen.copy(alpha = 0.5f)),
+                        modifier = Modifier.padding(end = 10.dp)
+                    ) {
+                        Text(
+                            text = "အကြိမ် $batchNumber",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else ResGreen,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
             )
         }
     ) { padding ->
@@ -342,7 +374,9 @@ fun CommissionerResultScreen(
 
             // Footer totals with polished Emerald-Gold styling
             Surface(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
                 color = ResPrimary,
                 shadowElevation = 8.dp
             ) {
@@ -397,7 +431,7 @@ fun CommissionerResultScreen(
                     HorizontalDivider(color = CardBorderSubtle)
                     DialogRow("ရောင်းကြေး", fmt(s.totalBet))
                     DialogRow("ကော်မရှင်", fmt(s.commission))
-                    DialogRow("နုတ်ပြီးငွေ", fmt(s.netAfterComm))
+                    DialogRow("နှုတ်ပြီးငွေ", fmt(s.netAfterComm))
                     HorizontalDivider(color = CardBorderSubtle)
                     if (s.exactBetAmt > 0) DialogRow("ဒဲ့ (ပေါက်သီး)", fmt(s.exactBetAmt), ResRed)
                     if (s.tuwtPayout  > 0) DialogRow("တွတ် လျော်ငွေ", fmt(s.tuwtPayout), ResGold)
@@ -637,7 +671,7 @@ fun AgentSettlementCard(
                     Box(Modifier.width(0.8.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
                     SmallCol("ကော်မရှင်", fmt(s.commission), ResGold, modifier = Modifier.weight(1f))
                     Box(Modifier.width(0.8.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                    SmallCol("နုတ်ပြီးငွေ", fmt(s.netAfterComm), ResPrimary, modifier = Modifier.weight(1f))
+                    SmallCol("နှုတ်ပြီးငွေ", fmt(s.netAfterComm), ResPrimary, modifier = Modifier.weight(1f))
                 }
 
                 // Row 2: Winning breakdown if any

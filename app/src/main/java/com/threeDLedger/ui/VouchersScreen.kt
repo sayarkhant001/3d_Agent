@@ -69,29 +69,61 @@ fun VouchersScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        "ဘောင်ချာများ (အကြိမ် #$currentBatch)",
-                        color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = "ဘောင်ချာများ",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = if (filteredVouchers.isEmpty()) "အကြိမ် $currentBatch • ဘောင်ချာ မရှိသေးပါ" else "အကြိမ် $currentBatch • ဘောင်ချာ ${filteredVouchers.size} စောင်",
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                actions = {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.primaryContainer else com.threeDLedger.ui.theme.EmeraldLight,
+                        border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else com.threeDLedger.ui.theme.EmeraldPrimary.copy(alpha = 0.5f)),
+                        modifier = Modifier.padding(end = 10.dp)
+                    ) {
+                        Text(
+                            text = "အကြိမ် $currentBatch",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else com.threeDLedger.ui.theme.EmeraldPrimary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).fillMaxSize().padding(dimens.responsiveDp(8.dp, 12.dp, 16.dp))) {
+        LazyColumn(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(horizontal = dimens.responsiveDp(8.dp, 12.dp, 16.dp)),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
+        ) {
             items(filteredVouchers) { voucherWithBets ->
                 val customerName = vouchers.find { it.voucher.id == voucherWithBets.voucher.id }?.customer?.name ?: "Unknown"
                 

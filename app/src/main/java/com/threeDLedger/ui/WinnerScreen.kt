@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import com.threeDLedger.ui.components.FitText
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -385,27 +386,29 @@ fun WinnerScreen(
                     Column {
                         if (isDeclared) {
                             Text(
-                                "အကြိမ် $targetBatch ပေါက်သီး ကြေညာပြီး",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                                text = "ပေါက်ဂဏန်း ကြေညာချက်",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "${results.size} ကြိမ် ပေါက် — %,.0f ကျပ်".format(grandTotal),
+                                text = "အကြိမ် $targetBatch • ${results.size} ကွက် ပေါက် (%,.0f Ks)".format(grandTotal),
                                 fontSize = 11.5.sp,
-                                color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.9f)
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         } else {
                             Text(
-                                "ပေါက်ဂဏန်း စာရင်း",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 17.sp,
-                                color = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                                text = "ပေါက်ဂဏန်း စာရင်း",
+                                fontWeight = FontWeight.Black,
+                                fontSize = 18.sp,
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "အကြိမ် $targetBatch • မကြေညာရသေးပါ",
+                                text = "အကြိမ် $targetBatch • မကြေညာရသေးပါ",
                                 fontSize = 11.5.sp,
-                                color = if (isDark) MaterialTheme.colorScheme.onSurfaceVariant else Color.White.copy(alpha = 0.85f)
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -413,18 +416,30 @@ fun WinnerScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            "နောက်သို့",
-                            tint = if (isDark) MaterialTheme.colorScheme.onSurface else Color.White
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "နောက်သို့",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                },
+                actions = {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDark) MaterialTheme.colorScheme.primaryContainer else EmeraldLight,
+                        border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else EmeraldPrimary.copy(alpha = 0.5f)),
+                        modifier = Modifier.padding(end = 10.dp)
+                    ) {
+                        Text(
+                            text = "အကြိမ် $targetBatch",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDeclared) {
-                        if (isDark) MaterialTheme.colorScheme.surface else Color(0xFF047857)
-                    } else {
-                        if (isDark) MaterialTheme.colorScheme.surface else com.threeDLedger.ui.theme.EmeraldPrimary
-                    }
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }
@@ -1726,7 +1741,7 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                 }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                    Text(agent.customerName, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    FitText(agent.customerName, fontWeight = FontWeight.Bold, maxFontSize = 15.sp, minFontSize = 10.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         if (agent.exactCount > 0) WinTypeBadge("ဒဲ့ ×${agent.exactCount}", Color(0xFF43AA8B))
                         if (agent.tuwtCount  > 0) WinTypeBadge("တွတ် ×${agent.tuwtCount}", Color(0xFF6C63FF))
@@ -1745,17 +1760,17 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (agent.totalPayout > 0) {
-                        Text("%,.0f ကျပ်".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp, fontFamily = FontFamily.Monospace,
+                        FitText("%,.0f ကျပ်".format(agent.totalPayout), fontWeight = FontWeight.ExtraBold,
+                            maxFontSize = 15.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace,
                             color = Color(0xFFDC2626))
                     } else {
-                        Text("၀ ကျပ်", fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp, fontFamily = FontFamily.Monospace,
+                        FitText("၀ ကျပ်", fontWeight = FontWeight.Bold,
+                            maxFontSize = 15.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Text(
+                    FitText(
                         "${agent.vouchers.size} ဘောင်ချာ  •  ထိုးငွေ %,d ကျပ်".format(agent.totalBet),
-                        fontSize = 10.sp,
+                        maxFontSize = 10.sp, minFontSize = 8.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -1864,22 +1879,22 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                             fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                     if (!compact)
-                        Text(vs.customerName, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        FitText(vs.customerName, fontWeight = FontWeight.SemiBold, maxFontSize = 13.sp, minFontSize = 10.sp)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     if (vs.totalPayout > 0) {
-                        Text("%,.0f ကျပ်".format(vs.totalPayout), fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                        FitText("%,.0f ကျပ်".format(vs.totalPayout), fontWeight = FontWeight.Bold,
+                            maxFontSize = 13.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace,
                             color = Color(0xFFDC2626),
                             modifier = Modifier.padding(end = 4.dp))
                     } else {
-                        Text("၀ ကျပ်", fontWeight = FontWeight.SemiBold,
-                            fontSize = 13.sp, fontFamily = FontFamily.Monospace,
+                        FitText("၀ ကျပ်", fontWeight = FontWeight.SemiBold,
+                            maxFontSize = 13.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(end = 4.dp))
                     }
-                    Text("ထိုးငွေ: %,d ကျပ်".format(vs.totalBetAmount),
-                        fontSize = 10.sp,
+                    FitText("ထိုးငွေ: %,d ကျပ်".format(vs.totalBetAmount),
+                        maxFontSize = 10.sp, minFontSize = 8.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -1918,10 +1933,10 @@ private fun BetResultRow(result: WinnerResult) {
         WinTypeBadge(label, color)
         Spacer(Modifier.weight(1f))
         Column(horizontalAlignment = Alignment.End) {
-            Text("%,d ကျပ်".format(result.betAmount), fontSize = 11.sp,
+            FitText("%,d ကျပ်".format(result.betAmount), maxFontSize = 11.sp, minFontSize = 8.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
-            Text("→ %,.0f ကျပ်".format(result.payoutAmount), fontWeight = FontWeight.Bold,
-                fontSize = 13.sp, fontFamily = FontFamily.Monospace, color = color)
+            FitText("→ %,.0f ကျပ်".format(result.payoutAmount), fontWeight = FontWeight.Bold,
+                maxFontSize = 13.sp, minFontSize = 9.sp, fontFamily = FontFamily.Monospace, color = color)
         }
     }
 }

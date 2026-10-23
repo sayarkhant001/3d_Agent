@@ -8,8 +8,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 enum class WindowSizeClass {
-    COMPACT,   // < 360 dp (small / budget smartphones or larger display scaling)
-    STANDARD,  // 360 dp .. 420 dp (standard smartphones)
+    COMPACT,   // < 360 dp (small smartphones or high display zoom)
+    STANDARD,  // 360 dp .. 420 dp (standard modern smartphones)
     EXPANDED   // > 420 dp (large devices, foldables, tablets)
 }
 
@@ -34,6 +34,11 @@ data class ResponsiveDimens(
         WindowSizeClass.STANDARD -> standard
         WindowSizeClass.EXPANDED -> expanded
     }
+
+    // Senior-accessible touch target minimum: 48dp (WCAG 2.1 AA requirement)
+    val minTouchTarget: Dp get() = 48.dp
+    val compactButtonHeight: Dp get() = if (isCompact) 44.dp else 48.dp
+    val cardCornerRadius: Dp get() = if (isCompact) 14.dp else 16.dp
 }
 
 @Composable
@@ -47,8 +52,9 @@ fun rememberResponsiveDimens(): ResponsiveDimens {
         else -> WindowSizeClass.EXPANDED
     }
 
+    // Keep font scale safe (never shrink text too aggressively for senior legibility)
     val (fontScale, paddingScale) = when (sizeClass) {
-        WindowSizeClass.COMPACT -> 0.88f to 0.85f
+        WindowSizeClass.COMPACT -> 0.94f to 0.90f
         WindowSizeClass.STANDARD -> 1.0f to 1.0f
         WindowSizeClass.EXPANDED -> 1.05f to 1.1f
     }
@@ -61,3 +67,4 @@ fun rememberResponsiveDimens(): ResponsiveDimens {
         isExpanded = sizeClass == WindowSizeClass.EXPANDED
     )
 }
+
