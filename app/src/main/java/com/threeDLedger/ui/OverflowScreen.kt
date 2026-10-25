@@ -150,7 +150,7 @@ fun OverflowScreen(
     val totalOverflow = overflowExposures.sumOf { it.overflowAmount }
 
     // 3D Emerald Theme Palette
-    val emeraldPrimary = Color(0xFF047857)
+    val emeraldPrimary = themeEmerald()
     val emeraldDark = Color(0xFF065F46)
     val emeraldLight = Color(0xFFECFDF5)
     val orangeButton = Color(0xFFF97316)
@@ -193,12 +193,11 @@ fun OverflowScreen(
                 )
             },
             confirmButton = {
-                Button(
+                com.threeDLedger.ui.components.PrimaryGradientButton(
                     onClick = {
                         brakeInput.toIntOrNull()?.let { viewModel.saveBrakeLimit(it) }
                         showBrakeDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = emeraldPrimary)
+                    }
                 ) { Text("သိမ်းမည်", fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
@@ -318,13 +317,13 @@ fun OverflowScreen(
                                         ) {
                                             Text(
                                                 text = "ဒဲ့: ${dine.exactMultiplier} ဆ",
-                                                fontSize = 11.5.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = emeraldPrimary
                                             )
                                             Text(
                                                 text = "တွတ်: ${dine.tuwtMultiplier} ဆ",
-                                                fontSize = 11.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = Color(0xFF4338CA)
                                             )
@@ -495,7 +494,7 @@ fun OverflowScreen(
                             Text("မလုပ်တော့ပါ", color = Color.White, fontWeight = FontWeight.Bold)
                         }
 
-                        Button(
+                        com.threeDLedger.ui.components.PrimaryGradientButton(
                             onClick = {
                                 if (newDineName.isNotBlank()) {
                                     val comm = newDineComm.toDoubleOrNull() ?: 15.0
@@ -509,7 +508,6 @@ fun OverflowScreen(
                                 }
                             },
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = emeraldPrimary),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("ထည့်မည်", color = Color.White, fontWeight = FontWeight.Bold)
@@ -630,7 +628,7 @@ fun OverflowScreen(
                             if (snapshot.dineName.isNotBlank()) {
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text("ဒိုင် : ${snapshot.dineName}", fontWeight = FontWeight.Bold, color = emeraldPrimary)
-                                    Text("ဒဲ့: ${snapshot.exactMultiplier}ဆ / တွတ်: ${snapshot.tuwtMultiplier}ဆ", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text("ဒဲ့: ${snapshot.exactMultiplier}ဆ / တွတ်: ${snapshot.tuwtMultiplier}ဆ", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                             Text(snapshot.timestamp, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -720,12 +718,11 @@ fun OverflowScreen(
                             Text("ကော်ပီ", color = emeraldPrimary, fontWeight = FontWeight.Bold)
                         }
 
-                        Button(
+                        com.threeDLedger.ui.components.PrimaryGradientButton(
                             onClick = {
                                 overflowSnapshot = null
                             },
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = emeraldPrimary),
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Text("ပြီးပါပြီ", color = Color.White, fontWeight = FontWeight.Bold)
@@ -750,7 +747,7 @@ fun OverflowScreen(
                         )
                         Text(
                             text = "အထက်ဒိုင် တင်ကွက်နှင့် ဘရိတ်စီမံမှု",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -899,7 +896,7 @@ fun OverflowScreen(
                             .padding(vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("စုစုပေါင်း", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("စုစုပေါင်း", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text("%,d".format(grossBatchTotal), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = emeraldPrimary, fontFamily = FontFamily.Monospace)
                     }
                     Box(
@@ -914,10 +911,10 @@ fun OverflowScreen(
                             .padding(vertical = 4.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("ခေါင်းချိုး/ဖြတ်", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("ခေါင်းချိုး/ဖြတ်", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
                             "%,d / -%,d".format(totalBraked, totalOverflow),
-                            fontSize = 11.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFB45309),
                             fontFamily = FontFamily.Monospace
@@ -1134,7 +1131,7 @@ fun OverflowScreen(
                             .padding(vertical = 5.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 11.5.sp)
+                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Box(
                             modifier = Modifier
                                 .height(16.dp)
@@ -1205,7 +1202,7 @@ private fun BrakeSummaryRow(
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.sp
+            fontSize = 13.sp
         )
         Box(
             modifier = Modifier
@@ -1221,7 +1218,7 @@ private fun BrakeSummaryRow(
                 .padding(end = 6.dp),
             textAlign = TextAlign.End,
             fontWeight = FontWeight.Bold,
-            fontSize = 11.5.sp,
+            fontSize = 13.sp,
             fontFamily = FontFamily.Monospace
         )
     }

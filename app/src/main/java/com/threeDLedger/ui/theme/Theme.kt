@@ -7,7 +7,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.Shapes
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
@@ -71,6 +74,13 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = md_theme_dark_outlineVariant,
 )
 
+// Modern rounded shape system — softer corners on dialogs, cards & buttons
+private val AppShapes = Shapes(
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp)
+)
+
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -107,6 +117,7 @@ fun MyApplicationTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = Typography,
+            shapes = AppShapes,
             content = content
         )
     }

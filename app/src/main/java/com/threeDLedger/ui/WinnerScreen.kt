@@ -381,6 +381,13 @@ fun WinnerScreen(
     }
 
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(context) }
+    androidx.compose.runtime.LaunchedEffect(isDeclared) {
+        if (isDeclared) soundManager.playSuccess()
+    }
+    androidx.compose.runtime.LaunchedEffect(fetchStatus) {
+        if (fetchStatus == "error") soundManager.playError()
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -395,7 +402,7 @@ fun WinnerScreen(
                             )
                             Text(
                                 text = "အကြိမ် $targetBatch • ${results.size} ကွက် ပေါက် (%,.0f Ks)".format(grandTotal),
-                                fontSize = 11.5.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -408,7 +415,7 @@ fun WinnerScreen(
                             )
                             Text(
                                 text = "အကြိမ် $targetBatch • မကြေညာရသေးပါ",
-                                fontSize = 11.5.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -553,25 +560,25 @@ fun WinnerScreen(
                         Tab(
                             selected = selectedTab == 0,
                             onClick = { selectedTab = 0 },
-                            text = { Text("ကိုယ်စားလှယ် (${agentSummaries.size})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
+                            text = { Text("ကိုယ်စားလှယ် (${agentSummaries.size})", fontSize = 13.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.Group, null, Modifier.size(16.dp)) }
                         )
                         Tab(
                             selected = selectedTab == 1,
                             onClick = { selectedTab = 1 },
-                            text = { Text("ဘောင်ချာ (${agentSummaries.sumOf { it.vouchers.size }})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
+                            text = { Text("ဘောင်ချာ (${agentSummaries.sumOf { it.vouchers.size }})", fontSize = 13.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.Receipt, null, Modifier.size(16.dp)) }
                         )
                         Tab(
                             selected = selectedTab == 2,
                             onClick = { selectedTab = 2 },
-                            text = { Text("တင်ကွက် (${overflowResults.size})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
+                            text = { Text("တင်ကွက် (${overflowResults.size})", fontSize = 13.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.Payment, null, Modifier.size(16.dp)) }
                         )
                         Tab(
                             selected = selectedTab == 3,
                             onClick = { selectedTab = 3 },
-                            text = { Text("ဒိုင်ရှင်းတမ်း (${dineSettlements.size})", fontSize = 11.5.sp, maxLines = 1, softWrap = false) },
+                            text = { Text("ဒိုင်ရှင်းတမ်း (${dineSettlements.size})", fontSize = 13.sp, maxLines = 1, softWrap = false) },
                             icon = { Icon(Icons.Default.AccountBalance, null, Modifier.size(16.dp)) }
                         )
                     }
@@ -655,7 +662,7 @@ fun WinnerScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                    border = BorderStroke(1.dp, Color(0xFF047857).copy(alpha = 0.4f)),
+                                    border = BorderStroke(1.dp, themeEmerald().copy(alpha = 0.4f)),
                                     elevation = CardDefaults.cardElevation(2.dp)
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -663,7 +670,7 @@ fun WinnerScreen(
                                             "ဒိုင်များ အားလုံး စုစည်းရှင်းတမ်း",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 14.sp,
-                                            color = Color(0xFF047857)
+                                            color = themeEmerald()
                                         )
                                         HorizontalDivider(thickness = 0.5.dp)
                                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -735,7 +742,7 @@ fun DineSettlementCard(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(2.dp),
-        border = BorderStroke(1.dp, Color(0xFF047857).copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, themeEmerald().copy(alpha = 0.3f))
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Dine Header
@@ -749,12 +756,12 @@ fun DineSettlementCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF047857).copy(alpha = 0.15f)),
+                            .background(themeEmerald().copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = settlement.dineName.take(1),
-                            color = Color(0xFF047857),
+                            color = themeEmerald(),
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
@@ -769,7 +776,7 @@ fun DineSettlementCard(
                         )
                         Text(
                             text = "ကော်မရှင် ${settlement.commissionRate}% • ဒဲ့ ${settlement.exactMultiplier}ဆ / တွတ် ${settlement.tuwtMultiplier}ဆ",
-                            fontSize = 11.sp,
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -805,11 +812,11 @@ fun DineSettlementCard(
                     shape = RoundedCornerShape(8.dp),
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                     modifier = Modifier.height(32.dp),
-                    border = BorderStroke(1.dp, Color(0xFF047857))
+                    border = BorderStroke(1.dp, themeEmerald())
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(13.dp), tint = Color(0xFF047857))
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(13.dp), tint = themeEmerald())
                     Spacer(Modifier.width(4.dp))
-                    Text("ရှင်းတမ်း ကော်ပီ", fontSize = 11.sp, color = Color(0xFF047857), fontWeight = FontWeight.Bold)
+                    Text("ရှင်းတမ်း ကော်ပီ", fontSize = 13.sp, color = themeEmerald(), fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -832,26 +839,26 @@ fun DineSettlementCard(
             // Payout breakdown
             if (settlement.exactWinBets.isNotEmpty() || settlement.tuwtWinBets.isNotEmpty()) {
                 Surface(
-                    color = Color(0xFFECFDF5),
+                    color = com.threeDLedger.ui.theme.themeEmeraldContainer(),
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (settlement.exactWinBets.isNotEmpty()) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("ပေါက်သီး (ဒဲ့) အလျော်", fontSize = 11.5.sp, color = Color(0xFF047857), fontWeight = FontWeight.Medium)
-                                Text("+%,d ကျပ်".format(settlement.exactPayout), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857), fontFamily = FontFamily.Monospace)
+                                Text("ပေါက်သီး (ဒဲ့) အလျော်", fontSize = 13.sp, color = themeEmerald(), fontWeight = FontWeight.Medium)
+                                Text("+%,d ကျပ်".format(settlement.exactPayout), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeEmerald(), fontFamily = FontFamily.Monospace)
                             }
                         }
                         if (settlement.tuwtWinBets.isNotEmpty()) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("တွတ် အလျော်", fontSize = 11.5.sp, color = Color(0xFF4338CA), fontWeight = FontWeight.Medium)
-                                Text("+%,d ကျပ်".format(settlement.tuwtPayout), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF4338CA), fontFamily = FontFamily.Monospace)
+                                Text("တွတ် အလျော်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Medium)
+                                Text("+%,d ကျပ်".format(settlement.tuwtPayout), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = FontFamily.Monospace)
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("စုစုပေါင်း အလျော်ရငွေ", fontSize = 11.5.sp, color = Color(0xFF047857), fontWeight = FontWeight.Bold)
-                            Text("+%,d ကျပ်".format(settlement.winningPayout), fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF047857), fontFamily = FontFamily.Monospace)
+                            Text("စုစုပေါင်း အလျော်ရငွေ", fontSize = 13.sp, color = themeEmerald(), fontWeight = FontWeight.Bold)
+                            Text("+%,d ကျပ်".format(settlement.winningPayout), fontSize = 12.5.sp, fontWeight = FontWeight.Black, color = themeEmerald(), fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -998,7 +1005,7 @@ fun ThreeDRealtimeLiveDialog(
                             "LIVE",
                             color = Color(0xFFDC2626),
                             fontWeight = FontWeight.Black,
-                            fontSize = 10.5.sp
+                            fontSize = 12.5.sp
                         )
                     }
                 }
@@ -1012,9 +1019,9 @@ fun ThreeDRealtimeLiveDialog(
             ) {
                 // Schedule Banner (Full Date prominently visible without truncation)
                 Surface(
-                    color = Color(0xFFECFDF5),
+                    color = com.threeDLedger.ui.theme.themeEmeraldContainer(),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                    border = BorderStroke(1.dp, com.threeDLedger.ui.theme.themeEmeraldBorder()),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -1022,13 +1029,13 @@ fun ThreeDRealtimeLiveDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.CalendarMonth, null, tint = Color(0xFF047857), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.CalendarMonth, null, tint = themeEmerald(), modifier = Modifier.size(22.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (drawSchedule.isDrawDay) "ထိုင်း 3D ပေါက်ဂဏန်း ထွက်မည့်ရက်" else "နောက်တစ်ကြိမ် ထွက်မည့်ရက်",
-                                fontSize = 11.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF047857).copy(alpha = 0.85f),
+                                color = themeEmerald().copy(alpha = 0.85f),
                                 maxLines = 1
                             )
                             Text(
@@ -1048,16 +1055,16 @@ fun ThreeDRealtimeLiveDialog(
                         modifier = Modifier.fillMaxWidth().padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        CircularProgressIndicator(color = Color(0xFF047857), modifier = Modifier.size(36.dp))
+                        CircularProgressIndicator(color = themeEmerald(), modifier = Modifier.size(36.dp))
                         Spacer(Modifier.height(10.dp))
                         Text("ရလဒ် စစ်ဆေးနေပါသည်...", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else if (!isCurrentRoundDeclared) {
                     // Current round NOT yet declared
                     Surface(
-                        color = Color(0xFFFFFBEB),
+                        color = com.threeDLedger.ui.theme.themeCreamContainer(),
                         shape = RoundedCornerShape(14.dp),
-                        border = BorderStroke(1.dp, Color(0xFFFDE68A)),
+                        border = BorderStroke(1.dp, com.threeDLedger.ui.theme.themeAmberBorder()),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -1065,24 +1072,24 @@ fun ThreeDRealtimeLiveDialog(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Default.HourglassTop, null, tint = Color(0xFFD97706), modifier = Modifier.size(32.dp))
+                            Icon(Icons.Default.HourglassTop, null, tint = com.threeDLedger.ui.theme.themeGold(), modifier = Modifier.size(32.dp))
                             Text(
                                 "ထွက်ဂဏန်း မထွက်သေးပါ",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp,
-                                color = Color(0xFF92400E)
+                                color = com.threeDLedger.ui.theme.themeGoldDeep()
                             )
                             Text(
                                 "${drawSchedule.nextDrawStr} အတွက် ထွက်ဂဏန်း စောင့်ဆိုင်းနေပါသည်...",
                                 fontSize = 12.5.sp,
-                                color = Color(0xFFB45309),
+                                color = com.threeDLedger.ui.theme.themeGold(),
                                 textAlign = TextAlign.Center
                             )
                             if (!fetchedNumber.isNullOrEmpty()) {
                                 Text(
                                     "(ယခင်အကြိမ် ထွက်ဂဏန်း: $fetchedNumber - ရက်စွဲ: ${fetchedDate ?: ""})",
-                                    fontSize = 11.sp,
-                                    color = Color(0xFFB45309).copy(alpha = 0.8f),
+                                    fontSize = 13.sp,
+                                    color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.8f),
                                     textAlign = TextAlign.Center
                                 )
                             }
@@ -1092,7 +1099,7 @@ fun ThreeDRealtimeLiveDialog(
                     // Current round IS declared!
                     val num = fetchedNumber ?: ""
                     Surface(
-                        color = Color(0xFFECFDF5),
+                        color = com.threeDLedger.ui.theme.themeEmeraldContainer(),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.5.dp, Color(0xFF10B981)),
                         modifier = Modifier.fillMaxWidth()
@@ -1105,7 +1112,7 @@ fun ThreeDRealtimeLiveDialog(
                                 "အတည်ပြု ပေါက်ဂဏန်း",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF047857)
+                                color = themeEmerald()
                             )
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1131,7 +1138,7 @@ fun ThreeDRealtimeLiveDialog(
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "ရက်စွဲ: ${fetchedDate ?: ""}",
-                                fontSize = 11.5.sp,
+                                fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -1141,13 +1148,12 @@ fun ThreeDRealtimeLiveDialog(
         },
         confirmButton = {
             if (isCurrentRoundDeclared && !fetchedNumber.isNullOrEmpty()) {
-                Button(
+                com.threeDLedger.ui.components.PrimaryGradientButton(
                     onClick = {
                         fetchedNumber?.let { onSelectNumber(it) }
                     },
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF047857))
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Text("ဂဏန်းအကွက်ထဲ ထည့်မည်", fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
@@ -1242,7 +1248,7 @@ private fun InputCard(
                         Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
                         Text(
                             text = drawSchedule.statusBannerText,
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -1263,7 +1269,7 @@ private fun InputCard(
                     ),
                     modifier = Modifier.height(36.dp)
                 ) {
-                    Text("တိုက်ရိုက် LIVE", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("တိုက်ရိုက် LIVE", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1291,16 +1297,16 @@ private fun InputCard(
                                 if (isPastResult) {
                                     Text(
                                         "(ယခင်အကြိမ်)",
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFB45309)
+                                        color = Color(0xFF92400E)
                                     )
                                 }
                             }
                             Text(
                                 if (isPastResult) "ရက်စွဲ: ${fetchedGloDate ?: ""} (ယခင်အကြိမ် ပြီးဆုံးပြီး ဖြစ်ပါသည်)"
                                 else "ရက်စွဲ: ${fetchedGloDate ?: ""} (ယနေ့ ထွက်ရှိပြီး)",
-                                fontSize = 10.5.sp,
+                                fontSize = 12.5.sp,
                                 color = if (isPastResult) Color(0xFFB45309) else MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
                                 maxLines = 1,
                                 softWrap = false,
@@ -1314,7 +1320,7 @@ private fun InputCard(
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                             modifier = Modifier.height(34.dp)
                         ) {
-                            Text("ရွေးမည်", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("ရွေးမည်", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1340,7 +1346,7 @@ private fun InputCard(
                                 "checking" -> "ရလဒ် စစ်ဆေးနေပါသည်..."
                                 "ok"       -> if (isFinalResult) "အတည် ($resultSession)" else "စောင့်ဆိုင်းဆဲ ($resultSession)"
                                 else       -> "ချိတ်ဆက်မရပါ — ကိုယ်တိုင် ရိုက်ထည့်ပါ"
-                            }, fontSize = 11.sp, color = dotColor, fontWeight = FontWeight.SemiBold)
+                            }, fontSize = 13.sp, color = dotColor, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -1362,15 +1368,11 @@ private fun InputCard(
             }
 
             // ── Declare button ───────────────────────────────────────────────────
-            Button(
+            com.threeDLedger.ui.components.PrimaryGradientButton(
                 onClick = onRecalc,
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(12.dp),
-                enabled = winningNumber.length == 3,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF047857),
-                    contentColor   = Color.White
-                )
+                enabled = winningNumber.length == 3
             ) {
                 Icon(Icons.Default.Calculate, null, Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
@@ -1436,7 +1438,7 @@ private fun DeclaredHeroCard(
                         Text(
                             "အောင်မြင်စွာ ကြေညာပြီး",
                             color = Color(0xFF6EE7B7),
-                            fontSize = 10.5.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
                         )
@@ -1466,7 +1468,7 @@ private fun DeclaredHeroCard(
                     winningNumber.forEach { digit ->
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFECFDF5),
+                            color = com.threeDLedger.ui.theme.themeEmeraldContainer(),
                             border = BorderStroke(1.5.dp, Color(0xFF10B981)),
                             shadowElevation = 3.dp
                         ) {
@@ -1494,14 +1496,14 @@ private fun DeclaredHeroCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Surface(
-                        color = Color(0xFFECFDF5),
+                        color = com.threeDLedger.ui.theme.themeEmeraldContainer(),
                         shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color(0xFFA7F3D0))
+                        border = BorderStroke(1.dp, com.threeDLedger.ui.theme.themeEmeraldBorder())
                     ) {
                         Text(
                             "ပေါက်သီး (ဒဲ့): ×$exactMult ဆ",
-                            fontSize = 11.sp,
-                            color = Color(0xFF047857),
+                            fontSize = 13.sp,
+                            color = themeEmerald(),
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
@@ -1513,8 +1515,8 @@ private fun DeclaredHeroCard(
                     ) {
                         Text(
                             "တွတ် (အလှည့်): ×$tuwtMult ဆ",
-                            fontSize = 11.sp,
-                            color = Color(0xFF4338CA),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
@@ -1563,8 +1565,8 @@ private fun PendingBatchBanner(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
-        border = BorderStroke(1.dp, Color(0xFFFDE68A))
+        colors = CardDefaults.cardColors(containerColor = com.threeDLedger.ui.theme.themeCreamContainer()),
+        border = BorderStroke(1.dp, com.threeDLedger.ui.theme.themeAmberBorder())
     ) {
         Row(
             modifier = Modifier.padding(14.dp),
@@ -1574,10 +1576,10 @@ private fun PendingBatchBanner(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFFEF3C7)),
+                    .background(com.threeDLedger.ui.theme.themeAmberContainer()),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Default.HourglassTop, null, tint = Color(0xFFD97706), modifier = Modifier.size(22.dp))
+                Icon(Icons.Default.HourglassTop, null, tint = com.threeDLedger.ui.theme.themeGold(), modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -1585,13 +1587,13 @@ private fun PendingBatchBanner(
                     "အကြိမ် ($batchNumber) — ပေါက်သီး မကြေညာရသေးပါ",
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.5.sp,
-                    color = Color(0xFF92400E)
+                    color = com.threeDLedger.ui.theme.themeGoldDeep()
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
                     "လက်ရှိ ထိုးငွေ စုစုပေါင်း: %,d ကျပ် (${voucherCount} ဘောင်ချာ)".format(totalBets),
-                    fontSize = 11.sp,
-                    color = Color(0xFFB45309)
+                    fontSize = 13.sp,
+                    color = com.threeDLedger.ui.theme.themeGold()
                 )
             }
         }
@@ -1729,7 +1731,7 @@ private fun GrandTotalBar(
 private fun WinChip(label: String, count: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(count, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = color)
-        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -1760,7 +1762,7 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                                 Text(
                                     "မပေါက်ပါ",
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                 )
@@ -1838,7 +1840,7 @@ private fun OverflowWinCard(item: OverflowWinResult) {
                     Spacer(Modifier.width(6.dp))
                     Text(
                         item.type,
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -1853,7 +1855,7 @@ private fun OverflowWinCard(item: OverflowWinResult) {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     "အထက်ဒိုင်မှ ရရန်",
-                    fontSize = 10.sp,
+                    fontSize = 12.sp,
                     color = Color(0xFF059669),
                     fontWeight = FontWeight.SemiBold
                 )
@@ -1886,7 +1888,7 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
                         .background(MaterialTheme.colorScheme.primary),
                         contentAlignment = Alignment.Center) {
                         Text("${vs.voucherId}", color = MaterialTheme.colorScheme.onPrimary,
-                            fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     if (!compact)
                         FitText(vs.customerName, fontWeight = FontWeight.SemiBold, maxFontSize = 13.sp, minFontSize = 10.sp)
@@ -1957,13 +1959,13 @@ private fun BetResultRow(result: WinnerResult) {
 private fun WinTypeBadge(label: String, color: Color) {
     Surface(shape = RoundedCornerShape(6.dp), color = color.copy(alpha = 0.15f)) {
         Text(label, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
-            fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = color)
+            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
     }
 }
 
 @Composable
 private fun MultiplierField(label: String, value: String, accent: Color, modifier: Modifier, onChange: (String) -> Unit) {
-    OutlinedTextField(value = value, onValueChange = onChange, label = { Text(label, fontSize = 10.sp) },
+    OutlinedTextField(value = value, onValueChange = onChange, label = { Text(label, fontSize = 12.sp) },
         modifier = modifier, shape = RoundedCornerShape(12.dp), singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = accent, focusedLabelColor = accent))
 }

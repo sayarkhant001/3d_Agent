@@ -1,6 +1,8 @@
 package com.threeDLedger.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.Composable
+import androidx.compose.foundation.isSystemInDarkTheme
 
 // ── Ultra-Clean High-Contrast Palette for Seniors & Older Users ──────────────
 // Light theme: Clean, high-contrast canvas with vibrant emerald, warm eye-catching gold, and crisp slate-black text
@@ -24,11 +26,11 @@ val md_theme_light_errorContainer     = Color(0xFFFEE2E2)
 val md_theme_light_onError            = Color(0xFFFFFFFF)
 val md_theme_light_onErrorContainer   = Color(0xFF7F1D1D)
 
-val md_theme_light_background         = Color(0xFFFEFBF6)  // Bright warm ivory canvas — cheerful, low glare
+val md_theme_light_background         = Color(0xFFF6F1E5)  // Deeper warm ivory canvas — rich, low glare
 val md_theme_light_onBackground       = Color(0xFF0F172A)  // Maximum legibility slate-black
 val md_theme_light_surface            = Color(0xFFFFFFFF)  // Pure white card canvas
 val md_theme_light_onSurface          = Color(0xFF0F172A)  // Deep slate-black (high contrast for numbers & labels)
-val md_theme_light_surfaceVariant     = Color(0xFFF5F1E9)  // Warm subtle card separator
+val md_theme_light_surfaceVariant     = Color(0xFFEFE8D8)  // Warm card separator (distinct on deeper ivory)
 val md_theme_light_onSurfaceVariant   = Color(0xFF334155)  // Highly legible dark slate (not pale grey!)
 val md_theme_light_outline            = Color(0xFFCBD5E1)  // Crisp defining borders
 val md_theme_light_outlineVariant     = Color(0xFFE2E8F0)
@@ -54,7 +56,7 @@ val md_theme_dark_errorContainer      = Color(0xFF7F1D1D)
 val md_theme_dark_onError             = Color(0xFF450A0A)
 val md_theme_dark_onErrorContainer    = Color(0xFFFECACA)
 
-val md_theme_dark_background          = Color(0xFF0F172A)  // Deep slate navy canvas
+val md_theme_dark_background          = Color(0xFF0B1220)  // Deeper midnight navy canvas
 val md_theme_dark_onBackground        = Color(0xFFFFFFFF)  // Brilliant pure white text
 val md_theme_dark_surface             = Color(0xFF1E293B)  // Elevated slate surface
 val md_theme_dark_onSurface           = Color(0xFFFFFFFF)  // Pure white for numbers & amounts
@@ -105,5 +107,55 @@ val KeypadClearAmber     = Color(0xFFD97706)  // ရှင်း Clear key
 val KeypadSubmitGold     = Color(0xFFEAB308)  // OK / Enter key
 val KeypadSubmitBg       = Color(0xFF047857)  // Bright Emerald Submit
 val KeypadFocusRing      = Color(0xFF10B981)  // Glowing focus ring
+
+// ── Dark-Aware Brand Accent Helpers (Senior Legibility) ─────────────────────
+// The deep brand tones (047857 emerald, B45309/92400E gold, DC2626 red) have
+// poor contrast on dark surfaces, so these helpers swap to brighter variants
+// in dark mode while keeping the exact brand tone in light mode.
+@Composable
+fun themeEmerald(): Color = if (isSystemInDarkTheme()) Color(0xFF10B981) else Color(0xFF047857)
+
+@Composable
+fun themeGold(): Color = if (isSystemInDarkTheme()) Color(0xFFFBBF24) else Color(0xFFB45309)
+
+@Composable
+fun themeGoldDeep(): Color = if (isSystemInDarkTheme()) Color(0xFFFBBF24) else Color(0xFF92400E)
+
+@Composable
+fun themeWinRed(): Color = if (isSystemInDarkTheme()) Color(0xFFF87171) else Color(0xFFDC2626)
+
+// ── Rich Gradient & Dominant Border Tokens (theme refresh) ───────────────────
+val PrimaryGradientLight = listOf(Color(0xFF065F46), Color(0xFF047857), Color(0xFF0A9D6E))
+val PrimaryGradientDark  = listOf(Color(0xFF059669), Color(0xFF10B981), Color(0xFF34D399))
+
+@Composable
+fun themePrimaryGradient(): List<Color> =
+    if (isSystemInDarkTheme()) PrimaryGradientDark else PrimaryGradientLight
+
+// Dominant button border — deep emerald in light mode, glowing mint in dark
+@Composable
+fun themeButtonBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF34D399) else Color(0xFF065F46)
+
+// Dominant table-cell border — clearly visible slate separators for data tables
+@Composable
+fun themeTableBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF64748B) else Color(0xFF94A3B8)
+
+// Dark-aware container/border tints for banners, badges & callouts.
+// Light mode keeps the soft pastel containers; dark mode swaps to the deep
+// Material containers so white-on-dark text/accents stay fully legible.
+@Composable
+fun themeEmeraldContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF064E3B) else Color(0xFFECFDF5)
+
+@Composable
+fun themeAmberContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF78350F) else Color(0xFFFEF3C7)
+
+@Composable
+fun themeCreamContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF78350F) else Color(0xFFFFFBEB)
+
+@Composable
+fun themeEmeraldBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF10B981) else Color(0xFFA7F3D0)
+
+@Composable
+fun themeAmberBorder(): Color = if (isSystemInDarkTheme()) Color(0xFFF59E0B) else Color(0xFFFDE68A)
 
 

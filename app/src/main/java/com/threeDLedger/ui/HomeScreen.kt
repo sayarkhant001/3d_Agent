@@ -469,7 +469,7 @@ fun HomeScreen(
                                     ) {
                                         Text(
                                             text = "ပေါက်: ${stats.winningNumber}",
-                                            fontSize = 11.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.Black,
                                             color = Color(0xFFB91C1C),
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
@@ -485,7 +485,7 @@ fun HomeScreen(
                                     ) {
                                         Text(
                                             text = "ဖွင့်လှစ်ဆဲ",
-                                            fontSize = 11.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = Color(0xFF15803D),
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
@@ -617,10 +617,7 @@ fun HomeScreen(
                             .fillMaxWidth()
                             .background(
                                 Brush.horizontalGradient(
-                                    colors = listOf(
-                                        Color(0xFF046A4E),
-                                        Color(0xFF065F46)
-                                    )
+                                    colors = com.threeDLedger.ui.theme.themePrimaryGradient()
                                 )
                             )
                             .padding(horizontal = 18.dp, vertical = 14.dp)
@@ -703,7 +700,7 @@ fun HomeScreen(
                                     )
                                     Text(
                                         text = "ပိတ်ဂဏန်း / ကန့်သတ်ဂဏန်းများ (${bannedNumbers.size})",
-                                        fontSize = 11.5.sp,
+                                        fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.error
                                     )
@@ -734,7 +731,7 @@ fun HomeScreen(
                                             )
                                             Text(
                                                 text = if (isFullBan) "(ပိတ်)" else "(≤ %,d)".format(bn.amountLimit),
-                                                fontSize = 10.5.sp,
+                                                fontSize = 12.5.sp,
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = if (isFullBan) Color(0xFFBE123C) else Color(0xFF92400E)
                                             )
@@ -859,7 +856,7 @@ fun HomeScreen(
                                 )
                                 Text(
                                     "လိုင်စင်၊ လျှို့ဝှက်နံပါတ်၊ အရန်သိမ်းဆည်းမှု စီမံရန်",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -931,7 +928,7 @@ fun HomeScreen(
                     }
                 },
                 confirmButton = {
-                    Button(
+                    com.threeDLedger.ui.components.PrimaryGradientButton(
                         onClick = {
                             val num = editBatchInput.toIntOrNull()
                             if (num != null && num > 0) {
@@ -940,7 +937,6 @@ fun HomeScreen(
                             }
                             showEditBatchDialog = false
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("သိမ်းမည်", fontWeight = FontWeight.Bold)
@@ -993,7 +989,7 @@ fun BatchStatItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = label,
-                    fontSize = 11.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -1145,8 +1141,8 @@ fun GitHubUpdateBanner(
             .fillMaxWidth()
             .shadow(3.dp, RoundedCornerShape(16.dp)),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF3C7)),
-        border = BorderStroke(1.5.dp, Color(0xFFF59E0B))
+        colors = CardDefaults.cardColors(containerColor = com.threeDLedger.ui.theme.themeAmberContainer()),
+        border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeAmberBorder())
     ) {
         Row(
             modifier = Modifier
@@ -1183,7 +1179,7 @@ fun GitHubUpdateBanner(
                             text = "ဗားရှင်းအသစ် ${updateInfo.version}",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFF78350F)
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                         Surface(
                             shape = RoundedCornerShape(6.dp),
@@ -1191,7 +1187,7 @@ fun GitHubUpdateBanner(
                         ) {
                             Text(
                                 text = "GitHub",
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
@@ -1201,7 +1197,7 @@ fun GitHubUpdateBanner(
                     Spacer(Modifier.height(2.dp))
                     Text(
                         text = "ဒေါင်းလုဒ် ရယူရန် နှိပ်ပါ",
-                        fontSize = 11.5.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(0xFF92400E)
                     )

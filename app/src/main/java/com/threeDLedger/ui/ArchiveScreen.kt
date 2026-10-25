@@ -48,7 +48,7 @@ fun ArchiveScreen(
                         )
                         Text(
                             text = if (batches.isEmpty()) "မှတ်တမ်းဟောင်း မရှိသေးပါ" else "${batches.size} ကြိမ် မှတ်တမ်းတင်ထားသည်",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -143,7 +143,7 @@ private fun TotalStat(label: String, value: String, icon: androidx.compose.ui.gr
             modifier = Modifier.size(20.dp))
         Text(value, fontWeight = FontWeight.Bold, fontSize = 15.sp,
             color = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(label, fontSize = 11.sp,
+        Text(label, fontSize = 13.sp,
             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
     }
 }
@@ -192,7 +192,7 @@ private fun ArchiveBatchCard(
                         fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
                     val dateLabel = if (batch.minDate == batch.maxDate) batch.minDate
                                     else "${batch.minDate} – ${batch.maxDate}"
-                    Text(dateLabel, fontSize = 11.sp,
+                    Text(dateLabel, fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 // Amount badge
@@ -261,7 +261,7 @@ private fun BatchStat(icon: androidx.compose.ui.graphics.vector.ImageVector, val
             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
         Text(value, fontWeight = FontWeight.Bold, fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurface)
-        Text(label, fontSize = 10.sp,
+        Text(label, fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

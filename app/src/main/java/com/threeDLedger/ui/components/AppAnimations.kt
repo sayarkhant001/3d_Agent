@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.scale
@@ -78,10 +80,16 @@ fun AnimatedEntrance(
         dampingRatio = Spring.DampingRatioLowBouncy,
         stiffness = Spring.StiffnessMediumLow
     )
-    val animationState = remember { Animatable(0f) }
+    // Animate only the FIRST time the item appears. rememberSaveable keeps the
+    // flag alive across LazyColumn item disposal, so scrolling away and back
+    // never re-triggers the animation (prevents flicker on long lists).
+    val hasAnimated = rememberSaveable { mutableStateOf(false) }
+    val animationState = remember { Animatable(if (hasAnimated.value) 1f else 0f) }
     LaunchedEffect(Unit) {
+        if (hasAnimated.value) return@LaunchedEffect
         delay((index.coerceAtLeast(0) * 40L).coerceAtMost(400L))
         animationState.animateTo(1f, animationSpec)
+        hasAnimated.value = true
     }
     val offsetY = (1f - animationState.value) * initialOffsetDp * density.density
     Box(modifier = Modifier.graphicsLayer {

@@ -78,7 +78,7 @@ fun VouchersScreen(
                         )
                         Text(
                             text = if (filteredVouchers.isEmpty()) "အကြိမ် $currentBatch • ဘောင်ချာ မရှိသေးပါ" else "အကြိမ် $currentBatch • ဘောင်ချာ ${filteredVouchers.size} စောင်",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -148,7 +148,7 @@ fun VouchersScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.outlineVariant else Color(0xFF059669).copy(alpha = 0.5f)),
+                            border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder()),
                             shadowElevation = 1.dp
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
@@ -223,6 +223,14 @@ fun VouchersScreen(
                                             )
                                         }
 
+                                        // Dominant cell divider between number & amount columns
+                                        Surface(
+                                            modifier = Modifier
+                                                .width(1.dp)
+                                                .height(20.dp),
+                                            color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f)
+                                        ) {}
+
                                         // Right: Amount & Ks (never wraps)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically
@@ -244,6 +252,12 @@ fun VouchersScreen(
                                                 fontFamily = FontFamily.Monospace,
                                                 maxLines = 1,
                                                 softWrap = false
+                                            )
+                                        }
+                                        if (idx < voucherWithBets.bets.size - 1) {
+                                            HorizontalDivider(
+                                                color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f),
+                                                thickness = 0.75.dp
                                             )
                                         }
                                     }

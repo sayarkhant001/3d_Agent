@@ -120,7 +120,7 @@ fun LedgerScreen(
                         )
                         Text(
                             text = if (isAfterMode) "ပေါက်သီး / တွတ် တိုက်စစ်ချက်" else "ထိုးထားသော ဂဏန်းများနှင့် ပမာဏ",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -222,7 +222,7 @@ fun LedgerScreen(
                                     if (exactWonCount > 0 || tuwtWonCount > 0) "ဒဲ့ $exactWonCount | တွတ် $tuwtWonCount"
                                     else "ပေါက်သီး မရှိပါ",
                                     color = if (exactWonCount > 0 || tuwtWonCount > 0) EmeraldDark else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                                 )
@@ -437,7 +437,7 @@ fun LedgerScreen(
                                                 Text(
                                                     "ဒဲ့ (ပေါက်)",
                                                     color = MaterialTheme.colorScheme.onErrorContainer,
-                                                    fontSize = 11.sp,
+                                                    fontSize = 13.sp,
                                                     fontWeight = FontWeight.ExtraBold,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                 )
@@ -470,7 +470,7 @@ fun LedgerScreen(
                                                 Text(
                                                     cat.label,
                                                     color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                    fontSize = 11.sp,
+                                                    fontSize = 13.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                                 )

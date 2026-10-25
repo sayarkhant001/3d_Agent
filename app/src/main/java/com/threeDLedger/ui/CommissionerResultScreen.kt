@@ -228,7 +228,7 @@ fun CommissionerResultScreen(
                             text = "အကြိမ် $batchNumber ရှင်းတမ်း",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 11.5.sp
+                            fontSize = 13.sp
                         )
                     }
                 },
@@ -420,7 +420,7 @@ fun CommissionerResultScreen(
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(s.customer.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MaterialTheme.colorScheme.onSurface)
-                        Text("အကြိမ် $batchNumber • ထွက်ဂဏန်း: $winningNumber", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+                        Text("အကြိမ် $batchNumber • ထွက်ဂဏန်း: $winningNumber", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                     }
                 }
             },
@@ -449,7 +449,7 @@ fun CommissionerResultScreen(
                     ) {
                         Icon(Icons.Default.Check, null, tint = ResGreen, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("ကော်ပီ ကူးယူပြီးပါပြီ", color = ResGreen, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text("ကော်ပီ ကူးယူပြီးပါပြီ", color = ResGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             },
@@ -624,7 +624,7 @@ fun AgentSettlementCard(
                         fontSize = 14.sp
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("အမှတ်စဉ်: ${s.customer.id}", color = Color.White.copy(0.75f), fontSize = 10.sp)
+                        Text("အမှတ်စဉ်: ${s.customer.id}", color = Color.White.copy(0.75f), fontSize = 12.sp)
                         if (s.customer.commissionRate > 0) {
                             Surface(
                                 shape = RoundedCornerShape(5.dp),
@@ -717,23 +717,23 @@ fun AgentSettlementCard(
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("လျော်ငွေ", fontSize = 9.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${fmt(s.totalPayout)} Ks", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                        Text("လျော်ငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${fmt(s.totalPayout)} Ks", fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         val balLabel = if (s.balance < 0) "ကျန်ငွေ (ပေးရန်)" else "ကျန်ငွေ (ရရန်)"
-                        Text(balLabel, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, color = if (s.balance < 0) ResRed else ResGreen)
-                        Text("${fmt(s.balance)} Ks", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.balance < 0) ResRed else ResGreen)
+                        Text(balLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (s.balance < 0) ResRed else ResGreen)
+                        Text("${fmt(s.balance)} Ks", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.balance < 0) ResRed else ResGreen)
                     }
                     HorizontalDivider(color = CardBorderSubtle.copy(alpha = 0.4f), thickness = 0.5.dp)
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("ပေးငွေ", fontSize = 9.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${fmt(s.paidAmount)} Ks", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                        Text("ပေးငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${fmt(s.paidAmount)} Ks", fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         val remLabel = if (s.remaining < 0) "ကြွေးကျန် (ပေးရန်)" else "ကြွေးကျန် (ရရန်)"
-                        Text(remLabel, fontSize = 9.5.sp, fontWeight = FontWeight.SemiBold, color = if (s.remaining < 0) ResRed else ResGreen)
-                        Text("${fmt(s.remaining)} Ks", fontSize = 11.5.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.remaining < 0) ResRed else ResGreen)
+                        Text(remLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (s.remaining < 0) ResRed else ResGreen)
+                        Text("${fmt(s.remaining)} Ks", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.remaining < 0) ResRed else ResGreen)
                     }
                 }
 
@@ -803,7 +803,7 @@ private fun WinRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = iconTint, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(5.dp))
-            Text(label, color = iconTint, fontWeight = FontWeight.Bold, fontSize = 10.5.sp)
+            Text(label, color = iconTint, fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             val amountText = "$bet Ks  →  $payout Ks"
@@ -841,7 +841,7 @@ private fun DialogRow(label: String, value: String, valueColor: Color = Color(0x
 private fun SummaryPill(label: String, value: String, valueColor: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = valueColor, fontFamily = FontFamily.Monospace)
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = valueColor, fontFamily = FontFamily.Monospace)
     }
 }
 
@@ -918,7 +918,7 @@ fun WinBreakdownDialog(
                             Text(
                                 "×${multiplier.toInt()} ဆ",
                                 color = iconTint,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -952,17 +952,17 @@ fun WinBreakdownDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("ပေါက်ကွက်", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("ပေါက်ကွက်", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${details.size} ကွက်", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = iconTint)
                         }
                         Box(Modifier.width(1.dp).height(24.dp).background(CardBorderSubtle))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("ထိုးငွေ စုစုပေါင်း", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("ထိုးငွေ စုစုပေါင်း", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${fmt(totalBet)} Ks", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                         }
                         Box(Modifier.width(1.dp).height(24.dp).background(CardBorderSubtle))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("လျော်ငွေ စုစုပေါင်း", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("လျော်ငွေ စုစုပေါင်း", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text("${fmt(totalPayout)} Ks", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp, color = iconTint, fontFamily = FontFamily.Monospace)
                         }
                     }
@@ -988,10 +988,10 @@ fun WinBreakdownDialog(
                                 .padding(horizontal = 10.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("စဉ်", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = iconTint, modifier = Modifier.width(28.dp))
-                            Text("ဂဏန်း", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = iconTint, modifier = Modifier.width(60.dp))
-                            Text("ထိုးငွေ", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = iconTint, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                            Text("လျော်ငွေ", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = iconTint, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
+                            Text("စဉ်", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.width(28.dp))
+                            Text("ဂဏန်း", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.width(60.dp))
+                            Text("ထိုးငွေ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
+                            Text("လျော်ငွေ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
                         }
                     }
 
@@ -1001,7 +1001,7 @@ fun WinBreakdownDialog(
                             .fillMaxWidth()
                             .heightIn(max = 260.dp)
                             .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
-                            .border(1.dp, CardBorderSubtle, RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                            .border(1.25.dp, com.threeDLedger.ui.theme.themeTableBorder(), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
                     ) {
                         itemsIndexed(details) { index, item ->
                             val isEven = index % 2 == 0
@@ -1015,7 +1015,7 @@ fun WinBreakdownDialog(
                             ) {
                                 Text(
                                     "${index + 1}",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.width(28.dp)
                                 )
@@ -1057,7 +1057,7 @@ fun WinBreakdownDialog(
                                 )
                             }
                             if (index < details.lastIndex) {
-                                HorizontalDivider(color = CardBorderSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f), thickness = 0.75.dp)
                             }
                         }
                     }
@@ -1075,7 +1075,7 @@ fun WinBreakdownDialog(
                     ) {
                         Icon(Icons.Default.Check, null, tint = ResGreen, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("ဂဏန်းအသေးစိတ် ကူးယူပြီးပါပြီ", color = ResGreen, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text("ဂဏန်းအသေးစိတ် ကူးယူပြီးပါပြီ", color = ResGreen, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

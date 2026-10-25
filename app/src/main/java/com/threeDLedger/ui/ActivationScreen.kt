@@ -320,8 +320,8 @@ fun ActivationScreen(
                     if (migrationNotice != null) {
                         Card(
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFECFDF5)),
-                            border = BorderStroke(1.5.dp, EmeraldPrimary),
+                            colors = CardDefaults.cardColors(containerColor = com.threeDLedger.ui.theme.themeEmeraldContainer()),
+                            border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeEmerald()),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 18.dp)
@@ -333,7 +333,7 @@ fun ActivationScreen(
                                 Icon(
                                     Icons.Default.CheckCircle,
                                     contentDescription = "Success",
-                                    tint = EmeraldPrimary,
+                                    tint = com.threeDLedger.ui.theme.themeEmerald(),
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(Modifier.width(10.dp))
@@ -341,7 +341,7 @@ fun ActivationScreen(
                                     text = migrationNotice!!,
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = EmeraldDark
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                             }
                         }

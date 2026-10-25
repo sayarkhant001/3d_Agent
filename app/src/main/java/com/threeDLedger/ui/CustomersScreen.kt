@@ -171,7 +171,7 @@ fun CustomersScreen(
                                     Text(
                                         "စာရင်းသွင်း ကိုယ်စားလှယ် (${filtered.size} ဦး)",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 11.sp
+                                        fontSize = 13.sp
                                     )
                                 }
                                 Surface(
@@ -412,7 +412,7 @@ fun CustomerCard(
                             Text(
                                 "#${customer.id}",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 11.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -427,7 +427,7 @@ fun CustomerCard(
                                 Text(
                                     "ကော် $commPct%",
                                     color = if (isDark) MaterialTheme.colorScheme.secondary else GoldDark,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
                                     softWrap = false,
@@ -442,7 +442,7 @@ fun CustomerCard(
                             Text(
                                 "ဒဲ့ ${customer.multiplier}ဆ • တွတ် ${customer.tuwtMultiplier}ဆ",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 10.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                                 softWrap = false,
@@ -488,7 +488,7 @@ fun CustomerCard(
                 ) {
                     Text(
                         "စုစုပေါင်း",
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
@@ -510,7 +510,7 @@ fun CustomerCard(
                 ) {
                     Text(
                         "ကော်မရှင်",
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -534,7 +534,7 @@ fun CustomerCard(
                 ) {
                     Text(
                         "နှုတ်ပြီးငွေ",
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -571,15 +571,15 @@ fun CustomerCard(
                     )
                     Text(
                         "ဘောင်ချာ : $voucherCount စောင်",
-                        fontSize = 11.5.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
                     if (customer.paidAmount > 0) {
-                        Text("•", fontSize = 10.sp, color = MaterialTheme.colorScheme.outlineVariant)
+                        Text("•", fontSize = 12.sp, color = MaterialTheme.colorScheme.outlineVariant)
                         Text(
                             "ပေးငွေ : %,d ကျပ်".format(customer.paidAmount.toInt()),
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.secondary,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -610,7 +610,7 @@ fun CustomerCard(
                             Spacer(Modifier.width(4.dp))
                             Text(
                                 "ပြင်မည်",
-                                fontSize = 11.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,
@@ -625,7 +625,7 @@ fun CustomerCard(
                     ) {
                         Text(
                             "အသေးစိတ် ကြည့်မည်",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -977,7 +977,7 @@ fun AgentNumbersView(
                         Text(
                             "အကြိမ် $currentBatch • ကော်မရှင် $commPct% • ဘောင်ချာ ${batchVouchers.size} စောင်",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp
+                            fontSize = 13.sp
                         )
                     }
                 },

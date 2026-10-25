@@ -32,6 +32,7 @@ import com.threeDLedger.data.ThreeDWinningHistory
 import com.threeDLedger.logic.NumberGenerator
 import java.text.SimpleDateFormat
 import java.util.Locale
+import com.threeDLedger.ui.theme.themeEmerald
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -45,7 +46,7 @@ fun WinningHistoryScreen(
     val clipboardManager = LocalClipboardManager.current
     var searchQuery by remember { mutableStateOf("") }
 
-    val emeraldPrimary = Color(0xFF047857)
+    val emeraldPrimary = themeEmerald()
     val emeraldDark = Color(0xFF065F46)
     val emeraldLight = Color(0xFFECFDF5)
 
@@ -90,7 +91,7 @@ fun WinningHistoryScreen(
                         )
                         Text(
                             text = "ပြီးခဲ့သော ၁ နှစ်စာ 3D ပေါက်ဂဏန်း မှတ်တမ်း",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -165,9 +166,8 @@ fun WinningHistoryScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("ရလဒ်မှတ်တမ်း မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = { viewModel.fetch3DHistory() },
-                            colors = ButtonDefaults.buttonColors(containerColor = emeraldPrimary)
+                        com.threeDLedger.ui.components.PrimaryGradientButton(
+                            onClick = { viewModel.fetch3DHistory() }
                         ) {
                             Text("ပြန်လည် ရယူမည်")
                         }
@@ -200,7 +200,7 @@ fun ThreeDHistoryCard(
     history: ThreeDWinningHistory,
     onCopy: () -> Unit
 ) {
-    val emeraldPrimary = Color(0xFF047857)
+    val emeraldPrimary = themeEmerald()
     val emeraldDark = Color(0xFF065F46)
     val emeraldLight = Color(0xFFECFDF5)
 
@@ -245,7 +245,7 @@ fun ThreeDHistoryCard(
                         )
                         Text(
                             text = history.drawDate,
-                            fontSize = 11.sp,
+                            fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -260,7 +260,7 @@ fun ThreeDHistoryCard(
                 ) {
                     Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(13.dp), tint = emeraldPrimary)
                     Spacer(Modifier.width(4.dp))
-                    Text("ကော်ပီ", fontSize = 11.sp, color = emeraldPrimary, fontWeight = FontWeight.Bold)
+                    Text("ကော်ပီ", fontSize = 13.sp, color = emeraldPrimary, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -275,7 +275,7 @@ fun ThreeDHistoryCard(
                 Column {
                     Text(
                         text = "အတည်ပြု ပေါက်ဂဏန်း",
-                        fontSize = 11.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -283,7 +283,7 @@ fun ThreeDHistoryCard(
                         Spacer(Modifier.height(2.dp))
                         Text(
                             text = "ပထမဆု (၆ လုံး): ${history.firstPrize6D}",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Medium,
                             color = emeraldPrimary
@@ -327,13 +327,13 @@ fun ThreeDHistoryCard(
                     ) {
                         Text(
                             text = "အလှည့် (တွတ်): ",
-                            fontSize = 11.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = tutNumbers.joinToString(", "),
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.SemiBold,
                             color = Color(0xFF4338CA),

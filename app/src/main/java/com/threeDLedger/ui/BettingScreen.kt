@@ -736,7 +736,10 @@ fun BettingScreen(
         }
 
         if (betsToAdd.isNotEmpty()) {
+            soundManager.playSuccess()
             addBets(betsToAdd)
+        } else {
+            soundManager.playError()
         }
     }
 
@@ -947,7 +950,7 @@ fun BettingScreen(
                                 "${selectedCustomerObj.name} • ${pendingBets.size} ကွက်"
                             else
                                 "ကော်မရှင်နှင့် အမြန်ထိုး စနစ်",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -995,7 +998,7 @@ fun BettingScreen(
                                     Text(
                                         "%,d မျဉ်း".format(lineCount),
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        fontSize = 11.sp,
+                                        fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.primary,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -1039,7 +1042,7 @@ fun BettingScreen(
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                                     modifier = Modifier.height(28.dp)
                                 ) {
-                                    Text("စာသား ပြန်ရှင်းမည်", fontSize = 11.sp, color = Color(0xFFEF4444))
+                                    Text("စာသား ပြန်ရှင်းမည်", fontSize = 13.sp, color = Color(0xFFEF4444))
                                 }
                             }
                         }
@@ -1086,7 +1089,7 @@ fun BettingScreen(
                                         ) {
                                             Text(
                                                 "${detectedVal.validBets.size} ကွက် (%,d Ks)".format(detectedVal.validBets.sumOf { it.second }),
-                                                fontSize = 11.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.ExtraBold,
                                                 color = EmeraldPrimary,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1094,7 +1097,7 @@ fun BettingScreen(
                                         }
                                     }
 
-                                    Button(
+                                    com.threeDLedger.ui.components.PrimaryGradientButton(
                                         onClick = {
                                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                             pasteText = detectedText
@@ -1103,7 +1106,7 @@ fun BettingScreen(
                                             .fillMaxWidth()
                                             .height(38.dp),
                                         shape = RoundedCornerShape(9.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                                     ) {
                                         Icon(
                                             Icons.Default.ContentPaste,
@@ -1191,7 +1194,7 @@ fun BettingScreen(
                                         "အမှား ${liveValidation.errors.size} ခု တွေ့ရှိပါသည် (ထိုးကြေးကို = ဖြင့် သေချာ ထည့်ပေးပါ)",
                                         color = MaterialTheme.colorScheme.error,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.5.sp,
+                                        fontSize = 13.sp,
                                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                                     )
                                 }
@@ -1219,7 +1222,7 @@ fun BettingScreen(
                         if (lineCount > 500)
                             Text(
                                 "${"%,d".format(lineCount)} မျဉ်း — ထိုးသူ ရွေးထားလျှင် ပေါက်သီး DB သိမ်းမည်",
-                                fontSize = 11.sp, color = Color(0xFFFF9800),
+                                fontSize = 13.sp, color = Color(0xFFFF9800),
                                 fontWeight = FontWeight.SemiBold
                             )
                     }
@@ -1319,7 +1322,7 @@ fun BettingScreen(
                 icon = {
                     Surface(
                         shape = CircleShape,
-                        color = Color(0xFFFEE2E2),
+                        color = MaterialTheme.colorScheme.errorContainer,
                         modifier = Modifier.size(52.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
@@ -1394,7 +1397,7 @@ fun BettingScreen(
                                                 ) {
                                                     Text(
                                                         err.reason,
-                                                        fontSize = 11.sp,
+                                                        fontSize = 13.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = MaterialTheme.colorScheme.error,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1413,7 +1416,7 @@ fun BettingScreen(
                                                 Spacer(Modifier.height(2.dp))
                                                 Text(
                                                     "မှားယွင်းနေသော ဂဏန်း: ${err.invalidTokens.joinToString(", ")}",
-                                                    fontSize = 11.5.sp,
+                                                    fontSize = 13.sp,
                                                     color = MaterialTheme.colorScheme.error,
                                                     fontWeight = FontWeight.Medium
                                                 )
@@ -1612,7 +1615,7 @@ fun BettingScreen(
                             // Row number
                             Text(
                                 "${i + 1}.",
-                                fontSize = 11.5.sp,
+                                fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 modifier = Modifier.width(26.dp),
@@ -1654,7 +1657,7 @@ fun BettingScreen(
                             // "Ks" suffix
                             Text(
                                 " Ks",
-                                fontSize = 11.5.sp,
+                                fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
@@ -2006,32 +2009,57 @@ fun BettingScreen(
                         )
                     }
 
-                    Button(
-                        onClick = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onAttemptBet()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (pendingBets.isNotEmpty()) EmeraldPrimary else MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = if (pendingBets.isNotEmpty()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        ),
-                        shape = RoundedCornerShape(9.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = if (pendingBets.isNotEmpty()) 2.dp else 0.dp),
-                        contentPadding = PaddingValues(
-                            horizontal = if (rDimens.isCompact) 8.dp else 12.dp,
-                            vertical = 4.dp
-                        ),
-                        modifier = Modifier.defaultMinSize(minHeight = 44.dp)
-                    ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(3.dp))
-                        Text(
-                            "ထိုးမည်",
-                            fontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp,
-                            fontWeight = FontWeight.Black,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                    if (pendingBets.isNotEmpty()) {
+                        com.threeDLedger.ui.components.PrimaryGradientButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onAttemptBet()
+                            },
+                            shape = RoundedCornerShape(9.dp),
+                            contentPadding = PaddingValues(
+                                horizontal = if (rDimens.isCompact) 10.dp else 14.dp,
+                                vertical = 10.dp
+                            ),
+                            modifier = Modifier.defaultMinSize(minHeight = 44.dp)
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                "ထိုးမည်",
+                                fontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onAttemptBet()
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            shape = RoundedCornerShape(9.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+                            contentPadding = PaddingValues(
+                                horizontal = if (rDimens.isCompact) 8.dp else 12.dp,
+                                vertical = 4.dp
+                            ),
+                            modifier = Modifier.defaultMinSize(minHeight = 44.dp)
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                "ထိုးမည်",
+                                fontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp,
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }
@@ -2388,7 +2416,7 @@ fun TactileKeypadButton(
     val offsetY = if (isPressed) 1.5.dp else 0.dp
     val elevation = if (isPressed) 1.dp else 2.dp
     val rDimens = rememberResponsiveDimens()
-    val buttonHeight = if (rDimens.isCompact) 42.dp else 46.dp
+    val buttonHeight = if (rDimens.isCompact) 48.dp else 52.dp
 
     Box(
         modifier = modifier
@@ -2531,7 +2559,7 @@ fun BannedRemovalNotificationDialog(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "$numbersCount ဂဏန်း ကန့်သတ်ငွေ ပြည့်သဖြင့် အလိုအလျောက် ဖယ်ထုတ်လိုက်ပါသည်",
-                    fontSize = 11.5.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center
                 )
@@ -2598,7 +2626,7 @@ fun BannedRemovalNotificationDialog(
                                         ) {
                                             Text(
                                                 if (item.limitAmount <= 0) "လုံးဝပိတ်" else "ကန့်သတ်: %,d Ks".format(item.limitAmount),
-                                                fontSize = 9.5.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = if (item.limitAmount <= 0) Color(0xFFFF5252) else Color(0xFFFFB300),
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -2616,14 +2644,14 @@ fun BannedRemovalNotificationDialog(
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     item.reason,
-                                    fontSize = 10.5.sp,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     lineHeight = 14.sp
                                 )
                                 if (item.acceptedAmount > 0) {
                                     Text(
                                         "လက်ခံရရှိငွေ: %,d Ks".format(item.acceptedAmount),
-                                        fontSize = 10.sp,
+                                        fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = Color(0xFF10B981)
                                     )

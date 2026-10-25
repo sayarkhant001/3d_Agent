@@ -96,7 +96,7 @@ fun SettingsScreen(
                         )
                         Text(
                             text = "3D ဒိုင်ချုပ် စနစ်",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -162,14 +162,14 @@ fun SettingsScreen(
                                     ) {
                                         Text(
                                             scaleLabels.getOrElse(fontScaleIndex) { "ပုံမှန်" },
-                                            fontSize = 11.5.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = EmeraldPrimary,
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
                                     }
                                 }
-                                Text("ဖတ်ရှုရ လွယ်ကူစေရန် စာလုံးအရွယ်အစား ချိန်ညှိနိုင်သည်", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("ဖတ်ရှုရ လွယ်ကူစေရန် စာလုံးအရွယ်အစား ချိန်ညှိနိုင်သည်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
@@ -204,7 +204,7 @@ fun SettingsScreen(
                             scaleShortLabels.forEachIndexed { idx, label ->
                                 Text(
                                     text = label,
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = if (idx == fontScaleIndex) FontWeight.Bold else FontWeight.Normal,
                                     color = if (idx == fontScaleIndex) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -223,7 +223,7 @@ fun SettingsScreen(
                             Column(modifier = Modifier.padding(10.dp)) {
                                 Text(
                                     text = "နမူနာ ပြသချက်:",
-                                    fontSize = 11.sp,
+                                    fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(Modifier.height(4.dp))
@@ -263,7 +263,7 @@ fun SettingsScreen(
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text("အာမခံပေးသူ", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = onSurface)
-                                Text("ဘောင်ချာ အောက်ဆုံး ဖော်ပြမည့် နာမည်", fontSize = 11.sp,
+                                Text("ဘောင်ချာ အောက်ဆုံး ဖော်ပြမည့် နာမည်", fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
@@ -341,7 +341,7 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("ယခု ဒေါင်းလုဒ်လုပ်ပြီး ထည့်သွင်းမည်လား?")
                     if (info.releaseNotes.isNotBlank()) {
-                        Text(info.releaseNotes.take(150), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(info.releaseNotes.take(150), fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },
@@ -454,7 +454,7 @@ private fun SoundSettingsCard() {
                 )
                 Text(
                     "ခလုတ်နှိပ်သည့်အခါ အသံထွက်မည်",
-                    fontSize = 11.5.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -513,7 +513,7 @@ private fun SettingsRow(
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
             Text(label, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-            Text(sublabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(sublabel, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.Default.ChevronRight, null, tint = trailingColor.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
     }
@@ -568,13 +568,13 @@ private fun UpdateCard(currentVersion: String, updateCheckStatus: String, onChec
                     )
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = Color(0xFFFEF3C7)
+                        color = com.threeDLedger.ui.theme.themeAmberContainer()
                     ) {
                         Text(
                             text = "GitHub",
-                            fontSize = 10.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color(0xFF92400E),
+                            color = com.threeDLedger.ui.theme.themeGoldDeep(),
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
@@ -607,18 +607,17 @@ private fun UpdateCard(currentVersion: String, updateCheckStatus: String, onChec
                 }
             }
             Spacer(Modifier.width(8.dp))
-            Button(
+            com.threeDLedger.ui.components.PrimaryGradientButton(
                 onClick = onCheckUpdate,
                 enabled = updateCheckStatus != "checking",
                 shape = RoundedCornerShape(12.dp),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
             ) {
                 if (updateCheckStatus == "checking") {
                     CircularProgressIndicator(
                         Modifier.size(18.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = androidx.compose.ui.graphics.Color.White
                     )
                 } else {
                     Text("စစ်ဆေးမည်", fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -650,14 +649,14 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFFEE2E2)),
+                        .background(MaterialTheme.colorScheme.errorContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Default.Block, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Block, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
                 }
                 Column {
                     Text("ပိတ်ဂဏန်း / ကန့်သတ်ငွေ", fontWeight = FontWeight.Bold, fontSize = 15.5.sp, maxLines = 1, softWrap = false)
-                    Text("မရောင်းချလိုသော ဂဏန်းများ သတ်မှတ်ရန်", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    Text("မရောင်းချလိုသော ဂဏန်းများ သတ်မှတ်ရန်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
             }
         },
@@ -665,7 +664,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
             Column(modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                 Text(
                     "ဂဏန်းနှင့် ကန့်သတ်လိုသော ပမာဏကို ထည့်ပါ။ ပမာဏ ၀ သို့မဟုတ် အလွတ်ထားပါက လုံးဝပိတ်ပါမည်။",
-                    fontSize = 11.5.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 16.sp
                 )
@@ -677,8 +676,8 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         value = newNumber,
                         onValueChange = { newNumber = it.filter { c -> c.isDigit() || c == ',' || c == ' ' } },
                         modifier = Modifier.weight(1.1f),
-                        label = { Text("ဂဏန်း", fontSize = 11.sp, maxLines = 1, softWrap = false) },
-                        placeholder = { Text("123", fontSize = 11.sp) },
+                        label = { Text("ဂဏန်း", fontSize = 13.sp, maxLines = 1, softWrap = false) },
+                        placeholder = { Text("123", fontSize = 13.sp) },
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
@@ -687,13 +686,13 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                         value = newLimit,
                         onValueChange = { newLimit = it.filter { c -> c.isDigit() } },
                         modifier = Modifier.weight(1.3f),
-                        label = { Text("ကန့်သတ်ငွေ", fontSize = 11.sp, maxLines = 1, softWrap = false) },
-                        placeholder = { Text("၀ = လုံးဝပိတ်", fontSize = 10.sp) },
+                        label = { Text("ကန့်သတ်ငွေ", fontSize = 13.sp, maxLines = 1, softWrap = false) },
+                        placeholder = { Text("၀ = လုံးဝပိတ်", fontSize = 12.sp) },
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
                     )
-                    Button(
+                    com.threeDLedger.ui.components.PrimaryGradientButton(
                         onClick = {
                             val nums = newNumber.split(",", " ").map { it.trim() }.filter { it.length == 3 }
                             val limit = newLimit.toIntOrNull() ?: 0
@@ -707,7 +706,6 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                 newLimit = ""
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                         shape = RoundedCornerShape(10.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
                         modifier = Modifier.height(52.dp)
@@ -748,7 +746,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                             ) {
                                                 Text(
                                                     "လုံးဝပိတ်",
-                                                    fontSize = 10.sp,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFFFF5252),
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -761,7 +759,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                             ) {
                                                 Text(
                                                     "ကန့်သတ်: %,d Ks".format(banned.amountLimit),
-                                                    fontSize = 10.sp,
+                                                    fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color(0xFFFFB300),
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -775,7 +773,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                                 currentBet,
                                                 (banned.amountLimit - currentBet).coerceAtLeast(0)
                                             ),
-                                            fontSize = 10.sp,
+                                            fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -806,10 +804,9 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            Button(
+            com.threeDLedger.ui.components.PrimaryGradientButton(
                 onClick = onDismiss,
                 shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                 contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
             ) {
                 Text("အတည်ပြုသည်", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, maxLines = 1, softWrap = false)
@@ -917,7 +914,7 @@ fun ResetDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                 )
                 Text(
                     "အကြိမ်နံပါတ်ကို နောက်ပိုင်းတွင် ပင်မမျက်နှာပြင်မှလည်း အချိန်မရွေး ပြန်လည်ပြင်ဆင်နိုင်ပါသည်။",
-                    fontSize = 11.5.sp,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -1005,7 +1002,7 @@ fun PrinterSettingsDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                     Spacer(Modifier.width(10.dp))
                                     Column {
                                         Text(device.name ?: "အမည်မသိ ကိရိယာ", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                        Text(device.address, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(device.address, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
                                     if (sel) { Spacer(Modifier.weight(1f)); Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp)) }
                                 }

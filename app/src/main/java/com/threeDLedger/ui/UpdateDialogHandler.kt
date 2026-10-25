@@ -220,14 +220,14 @@ fun UpdateDialogHandler(
                     Spacer(Modifier.height(4.dp))
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFFEF3C7),
-                        border = BorderStroke(1.dp, Color(0xFFF59E0B))
+                        color = com.threeDLedger.ui.theme.themeAmberContainer(),
+                        border = BorderStroke(1.dp, com.threeDLedger.ui.theme.themeAmberBorder())
                     ) {
                         Text(
                             text = "GitHub Releases",
-                            fontSize = 11.5.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF92400E),
+                            color = com.threeDLedger.ui.theme.themeGoldDeep(),
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
@@ -255,12 +255,12 @@ fun UpdateDialogHandler(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("လက်ရှိ ဗားရှင်း", fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("လက်ရှိ ဗားရှင်း", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Text(currentVersion, fontWeight = FontWeight.Bold, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
                             }
                             Text("➜", fontSize = 16.sp, color = EmeraldPrimary, fontWeight = FontWeight.Bold)
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("ဗားရှင်း အသစ်", fontSize = 11.5.sp, color = EmeraldPrimary, fontWeight = FontWeight.SemiBold)
+                                Text("ဗားရှင်း အသစ်", fontSize = 13.sp, color = EmeraldPrimary, fontWeight = FontWeight.SemiBold)
                                 Text(info.version, fontWeight = FontWeight.Black, fontSize = 15.sp, color = EmeraldPrimary, fontFamily = FontFamily.Monospace)
                             }
                         }
@@ -295,7 +295,7 @@ fun UpdateDialogHandler(
                     Text(
                         "GitHub သို့မဟုတ် Telegram Bot မှ ရယူနိုင်ပါသည်။",
                         style = MaterialTheme.typography.labelSmall,
-                        fontSize = 11.5.sp,
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         lineHeight = 16.sp
                     )
@@ -306,15 +306,11 @@ fun UpdateDialogHandler(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
+                    com.threeDLedger.ui.components.PrimaryGradientButton(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(rDimens.compactButtonHeight),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldPrimary,
-                            contentColor = Color.White
-                        ),
                         onClick = {
                             startDownloadAndInstall(info)
                         }
@@ -405,10 +401,9 @@ fun UpdateDialogHandler(
                 )
             },
             confirmButton = {
-                Button(
+                com.threeDLedger.ui.components.PrimaryGradientButton(
                     modifier = Modifier.fillMaxWidth().height(rDimens.compactButtonHeight),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
                     onClick = {
                         GitHubUpdater.openInstallUnknownAppsSettings(context)
                         showPermissionDialog = false

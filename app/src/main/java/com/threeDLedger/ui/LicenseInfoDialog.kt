@@ -108,7 +108,7 @@ fun LicenseStatusBadge(
             Text(
                 text = if (licenseDetails.isClockTampered) "အချိန်စစ်ဆေးရန်" else licenseDetails.badgeText,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 color = badgeTextColor
             )
         }
@@ -151,7 +151,7 @@ fun LicenseDetailsDialog(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text("3D စာရင်း လိုင်စင်", fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
-                    Text("လိုင်စင်နှင့် သက်တမ်း အချက်အလက်", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    Text("လိုင်စင်နှင့် သက်တမ်း အချက်အလက်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
                 Surface(
                     shape = RoundedCornerShape(6.dp),
@@ -163,7 +163,7 @@ fun LicenseDetailsDialog(
                 ) {
                     Text(
                         text = currentDetails.badgeText,
-                        fontSize = 10.5.sp,
+                        fontSize = 12.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = when (currentDetails.planType) {
                             LicensePlanType.TRIAL -> Color(0xFFB45309)
@@ -242,7 +242,7 @@ fun LicenseDetailsDialog(
                                             )
                                             Text(
                                                 text = "လိုင်စင် CD-Key",
-                                                fontSize = 11.5.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
@@ -255,7 +255,7 @@ fun LicenseDetailsDialog(
                                         ) {
                                             Text(
                                                 text = "စက်ပြောင်းနိုင် ✅",
-                                                fontSize = 9.5.sp,
+                                                fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF15803D),
                                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
@@ -273,7 +273,7 @@ fun LicenseDetailsDialog(
                                         Text(
                                             text = rawKey,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 11.5.sp,
+                                            fontSize = 13.sp,
                                             fontFamily = FontFamily.Monospace,
                                             color = EmeraldPrimary,
                                             letterSpacing = 0.3.sp,
@@ -310,7 +310,7 @@ fun LicenseDetailsDialog(
                                             Spacer(Modifier.width(5.dp))
                                             Text(
                                                 "CD-Key ကုတ်နံပါတ် ကူးယူမည်",
-                                                fontSize = 11.sp,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = EmeraldPrimary
                                             )
@@ -319,7 +319,7 @@ fun LicenseDetailsDialog(
 
                                     Text(
                                         text = "ℹ️ အခြားဖုန်းသို့ ၇ ရက်လျှင် ၁ ကြိမ်သာ ပြောင်းလဲလွှဲပြောင်းနိုင်ပါသည်",
-                                        fontSize = 9.5.sp,
+                                        fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -350,7 +350,7 @@ fun LicenseDetailsDialog(
                                         )
                                         Text(
                                             text = "ဖုန်း ၁ လုံးသာ (စက်ပြောင်းမရပါ)",
-                                            fontSize = 11.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -377,7 +377,7 @@ fun LicenseDetailsDialog(
                                     Text(
                                         text = "သက်တမ်း ကန့်သတ်ချက် မရှိပါ",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.5.sp,
+                                        fontSize = 13.sp,
                                         color = Color(0xFF15803D),
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
@@ -433,8 +433,8 @@ fun LicenseDetailsDialog(
                         val lastSync = currentDetails.lastSyncMmtFormatted
                         if (!lastSync.isNullOrBlank()) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("မြန်မာစံတော်ချိန် (MMT) :", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(lastSync, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                                Text("မြန်မာစံတော်ချိန် (MMT) :", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(lastSync, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
                             }
                         }
                     }
