@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import com.threeDLedger.ui.components.FitText
+import com.threeDLedger.ui.components.AnimatedEntrance
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -590,8 +592,10 @@ fun WinnerScreen(
                                 }
                             }
                         } else {
-                            items(agentSummaries) { agent ->
-                                AgentSummaryCard(agent)
+                            itemsIndexed(agentSummaries) { index, agent ->
+                                AnimatedEntrance(index = index) {
+                                    AgentSummaryCard(agent)
+                                }
                             }
                         }
                     }
@@ -603,8 +607,10 @@ fun WinnerScreen(
                                 }
                             }
                         } else {
-                            items(allVouchers2) { vs ->
-                                VoucherDetailCard(vs, winningNumber)
+                            itemsIndexed(allVouchers2) { index, vs ->
+                                AnimatedEntrance(index = index) {
+                                    VoucherDetailCard(vs, winningNumber)
+                                }
                             }
                         }
                     }
@@ -622,8 +628,10 @@ fun WinnerScreen(
                                 }
                             }
                         } else {
-                            items(overflowResults) { ov ->
-                                OverflowWinCard(ov)
+                            itemsIndexed(overflowResults) { index, ov ->
+                                AnimatedEntrance(index = index) {
+                                    OverflowWinCard(ov)
+                                }
                             }
                         }
                     }
@@ -694,12 +702,14 @@ fun WinnerScreen(
                                 }
                             }
 
-                            items(dineSettlements, key = { "dine_${it.dineId}_${it.dineName}" }) { settlement ->
-                                DineSettlementCard(
-                                    settlement = settlement,
-                                    batchNumber = batchInt,
-                                    winningNumber = winningNumber
-                                )
+                            itemsIndexed(dineSettlements, key = { _, item -> "dine_${item.dineId}_${item.dineName}" }) { index, settlement ->
+                                AnimatedEntrance(index = index) {
+                                    DineSettlementCard(
+                                        settlement = settlement,
+                                        batchNumber = batchInt,
+                                        winningNumber = winningNumber
+                                    )
+                                }
                             }
                         }
                     }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.threeDLedger.ui.components.pressScale
+import com.threeDLedger.ui.components.pulseEffect
 import com.threeDLedger.ui.components.FitText
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
@@ -2350,7 +2351,9 @@ fun BettingScreen(
                             subtitle = "ထည့်မည်",
                             bgColor = KeypadSubmitBg,
                             bevelColor = Color(0xFF022C22),
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f).then(
+                                if (pendingBets.isNotEmpty()) Modifier.pulseEffect() else Modifier
+                            )
                         ) { submit() }
                     }
                 }

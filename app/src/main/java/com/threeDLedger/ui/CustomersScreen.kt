@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Customer
 import com.threeDLedger.ui.theme.*
 import com.threeDLedger.ui.components.FitText
+import com.threeDLedger.ui.components.AnimatedEntrance
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -305,7 +306,7 @@ fun CustomersScreen(
                             contentPadding = PaddingValues(bottom = 76.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(filtered, key = { it.id }) { customer ->
+                            itemsIndexed(filtered, key = { _, item -> item.id }) { index, customer ->
                                 val (total, cut, net) = customerTotals[customer.id]
                                     ?: Triple(0, 0, 0)
                                 val commPct = if (customer.commissionRate > 1.0) customer.commissionRate.toInt() else (customer.commissionRate * 100).toInt()
@@ -317,17 +318,19 @@ fun CustomersScreen(
                                     !it.voucher.remark.contains("overflow", ignoreCase = true)
                                 }
 
-                                CustomerCard(
-                                    customer     = customer,
-                                    totalAmount  = total,
-                                    commCut      = cut,
-                                    netAmount    = net,
-                                    commPct      = commPct,
-                                    voucherCount = voucherCount,
-                                    onEditTap    = { editCustomer = customer },
-                                    onBetsTap    = { viewingCustomer = customer },
-                                    onAddBetTap  = { onNavigateToBetting(customer.id) }
-                                )
+                                AnimatedEntrance(index = index) {
+                                    CustomerCard(
+                                        customer     = customer,
+                                        totalAmount  = total,
+                                        commCut      = cut,
+                                        netAmount    = net,
+                                        commPct      = commPct,
+                                        voucherCount = voucherCount,
+                                        onEditTap    = { editCustomer = customer },
+                                        onBetsTap    = { viewingCustomer = customer },
+                                        onAddBetTap  = { onNavigateToBetting(customer.id) }
+                                    )
+                                }
                             }
                         }
                     }
