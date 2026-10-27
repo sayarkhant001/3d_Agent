@@ -1670,26 +1670,23 @@ fun BettingScreen(
                 ) {
                     items(pendingBets.size) { i ->
                         val bet = pendingBets[i]
-                        val isEven = i % 2 == 0
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(
-                                    if (isEven) MaterialTheme.colorScheme.surface
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                )
+                                .background(MaterialTheme.colorScheme.surface)
                                 .padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Row number
+                            // Row number — fixed width, centred: key runs straight top to bottom
                             Text(
                                 "${i + 1}.",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                                 modifier = Modifier.width(26.dp),
-                                textAlign = TextAlign.End
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.SemiBold
                             )
                             Spacer(Modifier.width(6.dp))
 
@@ -1747,8 +1744,8 @@ fun BettingScreen(
                         }
                         if (i < pendingBets.lastIndex)
                             HorizontalDivider(
-                                color = primaryBlue.copy(alpha = 0.08f),
-                                thickness = 0.5.dp
+                                color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f),
+                                thickness = 1.dp
                             )
                     }
                 }

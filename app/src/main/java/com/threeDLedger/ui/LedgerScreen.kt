@@ -244,6 +244,16 @@ fun LedgerScreen(
                 }
             }
 
+            // ── Table (unified: solid background + distinct borders) ───────────
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder())
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
             // ── Table header ──────────────────────────────────────────────────
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -300,14 +310,10 @@ fun LedgerScreen(
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         itemsIndexed(allExposures) { idx, exposure ->
-                            val isEven = idx % 2 == 0
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(
-                                        if (isEven) MaterialTheme.colorScheme.surface
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                                    )
+                                    .background(MaterialTheme.colorScheme.surface)
                                     .clickable(onClick = onNavigateToResult)
                                     .padding(horizontal = 16.dp, vertical = 11.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -364,7 +370,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                         }
                     }
                 }
@@ -389,11 +395,10 @@ fun LedgerScreen(
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         itemsIndexed(relevantRows) { idx, (exposure, cat) ->
-                            val isEven = idx % 2 == 0
                             val rowBg = when (cat) {
                                 NumCat.EXACT -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
                                 NumCat.TUWT  -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                                else         -> if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                else         -> MaterialTheme.colorScheme.surface
                             }
                             Row(
                                 modifier = Modifier
@@ -535,9 +540,11 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                         }
                     }
+                }
+            }
                 }
             }
 

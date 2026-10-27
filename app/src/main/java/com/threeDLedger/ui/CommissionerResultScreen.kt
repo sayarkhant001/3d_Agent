@@ -1004,12 +1004,10 @@ fun WinBreakdownDialog(
                             .border(1.25.dp, com.threeDLedger.ui.theme.themeTableBorder(), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
                     ) {
                         itemsIndexed(details) { index, item ->
-                            val isEven = index % 2 == 0
-                            val rowBg = if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(rowBg)
+                                    .background(MaterialTheme.colorScheme.surface)
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1017,6 +1015,9 @@ fun WinBreakdownDialog(
                                     "${index + 1}",
                                     fontSize = 13.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = FontFamily.Monospace,
                                     modifier = Modifier.width(28.dp)
                                 )
                                 // Number badge
@@ -1057,7 +1058,7 @@ fun WinBreakdownDialog(
                                 )
                             }
                             if (index < details.lastIndex) {
-                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f), thickness = 0.75.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f), thickness = 1.dp)
                             }
                         }
                     }

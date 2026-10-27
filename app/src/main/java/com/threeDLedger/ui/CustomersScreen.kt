@@ -1096,7 +1096,15 @@ fun AgentNumbersView(
                         .padding(horizontal = 16.dp, vertical = 10.dp)
                 ) {
                     Text(
-                        "စဉ်   ဂဏန်း",
+                        "စဉ်",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(34.dp)
+                    )
+                    Text(
+                        "ဂဏန်း",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
@@ -1107,7 +1115,6 @@ fun AgentNumbersView(
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        modifier = Modifier.weight(1f),
                         textAlign = TextAlign.End
                     )
                 }
@@ -1127,37 +1134,53 @@ fun AgentNumbersView(
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     itemsIndexed(numberTotals) { idx, (number, amount) ->
-                        val isEven = idx % 2 == 0
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                                .background(MaterialTheme.colorScheme.surface)
                                 .padding(horizontal = 16.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Straight index column — same width & centring every row, top to bottom
                             Text(
-                                "${idx + 1}.   $number",
+                                "${idx + 1}.",
+                                textAlign = TextAlign.Center,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                fontFamily = FontFamily.Monospace,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.width(34.dp)
+                            )
+                            // Number column
+                            Text(
+                                number,
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.Black,
                                 fontSize = 18.sp,
                                 fontFamily = FontFamily.Monospace,
-                                letterSpacing = 1.sp,
+                                letterSpacing = 1.5.sp,
                                 modifier = Modifier.weight(1f)
                             )
+                            // Amount column — right-aligned on the same edge for every row
                             Text(
-                                "%,d Ks".format(amount),
+                                "%,d".format(amount),
                                 color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.ExtraBold,
                                 fontSize = 17.sp,
                                 fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.weight(1f),
                                 textAlign = TextAlign.End
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                "Ks",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
                             )
                         }
                         HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                            thickness = 0.5.dp
+                            color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f),
+                            thickness = 1.dp
                         )
                     }
                 }

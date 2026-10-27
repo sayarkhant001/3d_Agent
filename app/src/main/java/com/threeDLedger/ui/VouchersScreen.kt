@@ -184,19 +184,17 @@ fun VouchersScreen(
                                     thickness = 1.25.dp
                                 )
 
-                                // Alternating rows (color lines)
+                                // Solid rows — straight index & number columns, distinct lines
                                 voucherWithBets.bets.forEachIndexed { idx, bet ->
-                                    val isEven = idx % 2 == 0
-                                    val rowBg = if (isEven) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(rowBg)
+                                            .background(MaterialTheme.colorScheme.surface)
                                             .padding(horizontal = 14.dp, vertical = 7.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Left: Index & Number (never wraps even on large display sizes)
+                                        // Left: Index & Number — index column fixed width so every row's key runs straight top to bottom
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier.weight(1f, fill = false)
@@ -206,7 +204,9 @@ fun VouchersScreen(
                                                 fontSize = 13.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 fontFamily = FontFamily.Monospace,
-                                                modifier = Modifier.widthIn(min = 28.dp),
+                                                textAlign = TextAlign.Center,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.width(30.dp),
                                                 maxLines = 1,
                                                 softWrap = false
                                             )
@@ -259,7 +259,7 @@ fun VouchersScreen(
                                     if (idx < voucherWithBets.bets.size - 1) {
                                         HorizontalDivider(
                                             color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f),
-                                            thickness = 0.75.dp
+                                            thickness = 1.dp
                                         )
                                     }
                                 }

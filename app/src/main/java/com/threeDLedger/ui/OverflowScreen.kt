@@ -549,14 +549,10 @@ fun OverflowScreen(
                                 }
                             } else {
                                 allDines.forEachIndexed { dIdx, dine ->
-                                    val isEvenRow = dIdx % 2 == 0
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(
-                                                if (isEvenRow) MaterialTheme.colorScheme.surface
-                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                            )
+                                            .background(MaterialTheme.colorScheme.surface)
                                             .padding(vertical = 9.dp, horizontal = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -665,7 +661,7 @@ fun OverflowScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(if (index % 2 == 0) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                    .background(MaterialTheme.colorScheme.surface)
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -673,7 +669,7 @@ fun OverflowScreen(
                                 Text(num, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
                                 Text("%,d".format(amt), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             }
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                         }
                     }
 
@@ -950,7 +946,7 @@ fun OverflowScreen(
                                 }
                             }
                             items(brakedWinRows) { row ->
-                                val rowBg = if (row.isExact) Color(0xFFDC2626) else Color.Transparent
+                                val rowBg = if (row.isExact) Color(0xFFDC2626) else MaterialTheme.colorScheme.surface
                                 val textColor = if (row.isExact) Color.White else MaterialTheme.colorScheme.onSurface
                                 Row(
                                     modifier = Modifier
@@ -962,7 +958,7 @@ fun OverflowScreen(
                                     Text(row.number, color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                                     Text("%,d".format(row.amount), color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                                 }
-                                HorizontalDivider(thickness = 0.5.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                             }
                         } else {
                             if (brakedExposures.isEmpty()) {
@@ -977,12 +973,13 @@ fun OverflowScreen(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surface)
                                         .padding(vertical = 4.dp, horizontal = 4.dp)
                                     ) {
                                     Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                                     Text("%,d".format(kept), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                                 }
-                                HorizontalDivider(thickness = 0.5.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                             }
                         }
                     }
@@ -1080,12 +1077,13 @@ fun OverflowScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surface)
                                     .padding(vertical = 4.dp, horizontal = 4.dp)
                             ) {
                                 Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                                 Text("%,d".format(exposure.overflowAmount), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                             }
-                            HorizontalDivider(thickness = 0.5.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                         }
                     }
                     // Subtotal
