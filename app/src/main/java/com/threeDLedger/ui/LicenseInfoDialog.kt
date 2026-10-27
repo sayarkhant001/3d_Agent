@@ -55,23 +55,23 @@ fun LicenseStatusBadge(
     val haptic = LocalHapticFeedback.current
 
     val badgeBg = when {
-        licenseDetails.isClockTampered -> Color(0xFFFEE2E2)
-        licenseDetails.planType == LicensePlanType.TRIAL -> Color(0xFFFEF3C7)
-        licenseDetails.planType == LicensePlanType.LIFETIME -> Color(0xFFD1FAE5)
+        licenseDetails.isClockTampered -> MaterialTheme.colorScheme.errorContainer
+        licenseDetails.planType == LicensePlanType.TRIAL -> themeAmberContainer()
+        licenseDetails.planType == LicensePlanType.LIFETIME -> themeEmeraldContainer()
         else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f)
     }
 
     val badgeBorder = when {
-        licenseDetails.isClockTampered -> Color(0xFFEF4444)
-        licenseDetails.planType == LicensePlanType.TRIAL -> Color(0xFFF59E0B)
-        licenseDetails.planType == LicensePlanType.LIFETIME -> Color(0xFF10B981)
+        licenseDetails.isClockTampered -> MaterialTheme.colorScheme.error
+        licenseDetails.planType == LicensePlanType.TRIAL -> themeAmberBorder()
+        licenseDetails.planType == LicensePlanType.LIFETIME -> themeEmeraldBorder()
         else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
     }
 
     val badgeTextColor = when {
-        licenseDetails.isClockTampered -> Color(0xFFDC2626)
-        licenseDetails.planType == LicensePlanType.TRIAL -> Color(0xFFB45309)
-        licenseDetails.planType == LicensePlanType.LIFETIME -> Color(0xFF047857)
+        licenseDetails.isClockTampered -> MaterialTheme.colorScheme.error
+        licenseDetails.planType == LicensePlanType.TRIAL -> themeGold()
+        licenseDetails.planType == LicensePlanType.LIFETIME -> themeEmerald()
         else -> MaterialTheme.colorScheme.onPrimaryContainer
     }
 
@@ -156,8 +156,8 @@ fun LicenseDetailsDialog(
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = when (currentDetails.planType) {
-                        LicensePlanType.TRIAL -> Color(0xFFFEF3C7)
-                        LicensePlanType.LIFETIME -> Color(0xFFD1FAE5)
+                        LicensePlanType.TRIAL -> themeAmberContainer()
+                        LicensePlanType.LIFETIME -> themeEmeraldContainer()
                         LicensePlanType.ONE_YEAR -> MaterialTheme.colorScheme.primaryContainer
                     }
                 ) {
@@ -166,8 +166,8 @@ fun LicenseDetailsDialog(
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = when (currentDetails.planType) {
-                            LicensePlanType.TRIAL -> Color(0xFFB45309)
-                            LicensePlanType.LIFETIME -> Color(0xFF047857)
+                            LicensePlanType.TRIAL -> themeGold()
+                            LicensePlanType.LIFETIME -> themeEmerald()
                             LicensePlanType.ONE_YEAR -> MaterialTheme.colorScheme.onPrimaryContainer
                         },
                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
@@ -216,7 +216,7 @@ fun LicenseDetailsDialog(
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
                                 color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.4f)),
+                                border = BorderStroke(1.dp, themeEmerald().copy(alpha = 0.4f)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
@@ -237,7 +237,7 @@ fun LicenseDetailsDialog(
                                             Icon(
                                                 Icons.Default.VpnKey,
                                                 contentDescription = null,
-                                                tint = EmeraldPrimary,
+                                                tint = themeEmerald(),
                                                 modifier = Modifier.size(15.dp)
                                             )
                                             Text(
@@ -249,15 +249,15 @@ fun LicenseDetailsDialog(
                                         }
 
                                         Surface(
-                                            color = Color(0xFFDCFCE7),
+                                            color = themeEmeraldContainer(),
                                             shape = RoundedCornerShape(4.dp),
-                                            border = BorderStroke(0.5.dp, Color(0xFF86EFAC))
+                                            border = BorderStroke(0.5.dp, themeEmeraldBorder())
                                         ) {
                                             Text(
                                                 text = "စက်ပြောင်းနိုင် ✅",
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF15803D),
+                                                color = themeEmerald(),
                                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
                                             )
                                         }
@@ -275,7 +275,7 @@ fun LicenseDetailsDialog(
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             fontFamily = FontFamily.Monospace,
-                                            color = EmeraldPrimary,
+                                            color = themeEmerald(),
                                             letterSpacing = 0.3.sp,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier
@@ -292,8 +292,8 @@ fun LicenseDetailsDialog(
                                             android.widget.Toast.makeText(context, "CD Key ($rawKey) ကူးယူပြီးပါပြီ။ အခြားစက်များတွင် ၇ ရက်ပြည့်ပါက ပြောင်းလဲအသုံးပြုနိုင်ပါသည်", android.widget.Toast.LENGTH_LONG).show()
                                         },
                                         shape = RoundedCornerShape(6.dp),
-                                        color = EmeraldLight.copy(alpha = 0.7f),
-                                        border = BorderStroke(0.8.dp, EmeraldPrimary.copy(alpha = 0.5f)),
+                                        color = themeEmeraldContainer().copy(alpha = 0.7f),
+                                        border = BorderStroke(0.8.dp, themeEmerald().copy(alpha = 0.5f)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
@@ -304,7 +304,7 @@ fun LicenseDetailsDialog(
                                             Icon(
                                                 Icons.Default.ContentCopy,
                                                 contentDescription = "Copy CD Key",
-                                                tint = EmeraldPrimary,
+                                                tint = themeEmerald(),
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Spacer(Modifier.width(5.dp))
@@ -312,7 +312,7 @@ fun LicenseDetailsDialog(
                                                 "CD-Key ကုတ်နံပါတ် ကူးယူမည်",
                                                 fontSize = 13.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = EmeraldPrimary
+                                                color = themeEmerald()
                                             )
                                         }
                                     }
@@ -370,15 +370,15 @@ fun LicenseDetailsDialog(
                             ) {
                                 Text("ကျန်ရှိသော ရက်ပေါင်း :", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Surface(
-                                    color = Color(0xFFDCFCE7),
+                                    color = themeEmeraldContainer(),
                                     shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(0.8.dp, Color(0xFF86EFAC))
+                                    border = BorderStroke(0.8.dp, themeEmeraldBorder())
                                 ) {
                                     Text(
                                         text = "သက်တမ်း ကန့်သတ်ချက် မရှိပါ",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        color = Color(0xFF15803D),
+                                        color = themeEmerald(),
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -389,7 +389,7 @@ fun LicenseDetailsDialog(
                                     text = "အမြဲတမ်း Pro အသုံးပြုခွင့် ရရှိထားပါသည်",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = Color(0xFF047857)
+                                    color = themeEmerald()
                                 )
                             }
                         } else {
@@ -401,15 +401,15 @@ fun LicenseDetailsDialog(
                             ) {
                                 Text("ကျန်ရှိသော ရက်ပေါင်း :", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Surface(
-                                    color = if (remDays <= 3L) Color(0xFFFEE2E2) else MaterialTheme.colorScheme.primaryContainer,
+                                    color = if (remDays <= 3L) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer,
                                     shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(0.8.dp, if (remDays <= 3L) Color(0xFFFCA5A5) else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                                    border = BorderStroke(0.8.dp, if (remDays <= 3L) MaterialTheme.colorScheme.error.copy(alpha = 0.55f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
                                 ) {
                                     Text(
                                         text = "%,d ရက် ကျန်ပါသည်".format(remDays),
                                         fontWeight = FontWeight.Black,
                                         fontSize = 12.sp,
-                                        color = if (remDays <= 3L) Color(0xFFDC2626) else MaterialTheme.colorScheme.primary,
+                                        color = if (remDays <= 3L) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                     )
                                 }
@@ -527,7 +527,7 @@ fun ClockTamperedBlockDialog(
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.2.dp, Color(0xFFEF4444)),
+            border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.error),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -541,14 +541,14 @@ fun ClockTamperedBlockDialog(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = Color(0xFFFEE2E2),
+                    color = MaterialTheme.colorScheme.errorContainer,
                     modifier = Modifier.size(64.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.HourglassDisabled,
                             contentDescription = null,
-                            tint = Color(0xFFDC2626),
+                            tint = MaterialTheme.colorScheme.error,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -558,7 +558,7 @@ fun ClockTamperedBlockDialog(
                     text = "အချိန်နှင့် နေ့စွဲ မှားယွင်းနေပါသည်",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = Color(0xFFDC2626),
+                    color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center
                 )
 

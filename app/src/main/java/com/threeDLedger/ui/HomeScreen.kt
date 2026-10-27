@@ -126,6 +126,7 @@ fun HomeScreen(
     var showLicenseDetailsDialog by remember { mutableStateOf(false) }
     var licenseDetails by remember { mutableStateOf(licenseManager.getLicenseDetails()) }
     var isBatchSummaryExpanded by remember { mutableStateOf(false) }
+    var isBannedExpanded by remember { mutableStateOf(false) }
     var showEditBatchDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -656,13 +657,17 @@ fun HomeScreen(
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { isBannedExpanded = !isBannedExpanded }
+                                    .padding(vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.weight(1f, fill = false)
                                 ) {
                                     Icon(
                                         Icons.Default.Block,
@@ -677,11 +682,24 @@ fun HomeScreen(
                                         color = MaterialTheme.colorScheme.error
                                     )
                                 }
+                                Spacer(modifier = Modifier.weight(1f))
+                                Icon(
+                                    if (isBannedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                    contentDescription = if (isBannedExpanded) "ပိတ်မည်" else "ဖွင့်မည်",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            LazyRow(
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = isBannedExpanded,
+                                enter = androidx.compose.animation.expandVertically(),
+                                exit = androidx.compose.animation.shrinkVertically()
                             ) {
+                                Column {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LazyRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
                                 items(bannedNumbers) { bn ->
                                     val isFullBan = bn.amountLimit <= 0
                                     Surface(
@@ -710,7 +728,9 @@ fun HomeScreen(
                                         }
                                     }
                                 }
+                                }
                             }
+                        }
                         }
                     }
                     Spacer(modifier = Modifier.height(14.dp))
