@@ -709,9 +709,6 @@ fun BettingScreen(
             "လယ်" -> {
                 if (num != null && digits.length == 1) betsToAdd = NumberGenerator.middle(num)
             }
-            "ပိတ်" -> {
-                if (num != null && digits.length == 1) betsToAdd = NumberGenerator.tail(num)
-            }
             "အပါ" -> {
                 if (num != null && digits.length == 1) betsToAdd = NumberGenerator.include(num)
             }
@@ -762,11 +759,6 @@ fun BettingScreen(
             }
             "လယ်" -> {
                 currentBetType = "လယ်"
-                focusedField = FocusField.AMOUNT
-                isFreshAmountInput = true
-            }
-            "ပိတ်" -> {
-                currentBetType = "ပိတ်"
                 focusedField = FocusField.AMOUNT
                 isFreshAmountInput = true
             }
@@ -1596,35 +1588,35 @@ fun BettingScreen(
                 .weight(1f)
                 .padding(horizontal = 8.dp)
                 .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
-                .border(2.dp, primaryBlue, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                .border(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder(), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
         ) {
-            // ── Header ────────────────────────────────────────────────────────
+            // ── Header — unified emerald band (VouchersScreen pattern) ────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        primaryBlue,
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp)
+                        com.threeDLedger.ui.theme.themeEmeraldContainer(),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp)
                     )
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     "စဉ်   ဂဏန်း",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    "ပမာဏ",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                    fontSize = 12.sp,
+                    "ထိုးငွေ ပမာဏ",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(90.dp)
+                    modifier = Modifier.width(96.dp)
                 )
                 if (pendingBets.isNotEmpty()) {
                     IconButton(
@@ -1634,7 +1626,7 @@ fun BettingScreen(
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "အားလုံး ရှင်းမည်",
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -1642,6 +1634,11 @@ fun BettingScreen(
                     Spacer(Modifier.width(28.dp))  // room for delete icon column
                 }
             }
+
+            HorizontalDivider(
+                color = com.threeDLedger.ui.theme.themeEmeraldBorder(),
+                thickness = 1.25.dp
+            )
 
             // ── Rows ──────────────────────────────────────────────────────────
             if (pendingBets.isEmpty()) {
@@ -2191,7 +2188,7 @@ fun BettingScreen(
                             )
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                val cycleList = listOf("ဒဲ့", "ထွိုင်", "ထိပ်", "လယ်", "ပိတ်", "အပါ")
+                                val cycleList = listOf("ဒဲ့", "ထွိုင်", "ထိပ်", "လယ်", "အပါ")
                                 val nextIdx = (cycleList.indexOf(currentBetType) + 1) % cycleList.size
                                 currentBetType = cycleList[nextIdx]
                             },
@@ -2330,7 +2327,6 @@ fun BettingScreen(
                     Triple("ထွိုင်",       false, { handleSpecial("ထွိုင်") }),
                     Triple("ထိပ်",        true,  { currentBetType = "ထိပ်" }),
                     Triple("လယ်",         true,  { currentBetType = "လယ်" }),
-                    Triple("ပိတ်",        true,  { currentBetType = "ပိတ်" }),
                     Triple("အပါ",         true,  { currentBetType = "အပါ" }),
                     Triple("ရှေ့စီးရီး",  false, { handleSpecial("ရှေ့စီးရီး") }),
                     Triple("လယ်စီးရီး",   false, { handleSpecial("လယ်စီးရီး") }),

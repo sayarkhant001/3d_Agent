@@ -18,6 +18,7 @@ import {
   calculateTutNumbers,
   broadcastAppUpdate,
   broadcastTextMessage,
+  sanitizeReleaseNotes,
   sendTelegramDocument,
   saveAppRelease,
   getAppRelease,
@@ -270,7 +271,7 @@ export default {
         const releaseUrl = body.release_url || (downloadUrl ? downloadUrl.split('/download/')[0] : '');
         const versionName = body.version_name || 'v1.0.100';
         const versionCode = body.version_code || 100;
-        const releaseNotes = body.release_notes || 'Official Production Release from GitHub';
+        const releaseNotes = sanitizeReleaseNotes(body.release_notes);
 
         // If file_id is empty but download_url is provided, send to Admin chat to convert into native Telegram file_id
         if (!fileId && downloadUrl) {
@@ -344,7 +345,7 @@ export default {
           release.download_url,
           `📦 <b>[Official 3D Ledger Production APK]</b>\n\n` +
           `🔖 <b>ဗားရှင်း:</b> <b>${release.version_name}</b>\n` +
-          `📝 <b>မှတ်ချက်:</b> ${release.release_notes}\n\n` +
+          `📝 <b>မှတ်ချက်:</b> ${sanitizeReleaseNotes(release.release_notes)}\n\n` +
           `<i>ဆာဗာမှ Telegram CDN သို့ အောင်မြင်စွာ တင်သွင်းပြီးဖြစ်ပါသည်</i>`,
           undefined,
           'HTML',

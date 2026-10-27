@@ -1173,18 +1173,6 @@ fun GitHubUpdateBanner(
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFD97706),
-                        ) {
-                            Text(
-                                text = "GitHub",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
-                            )
-                        }
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(

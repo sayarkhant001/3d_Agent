@@ -36,7 +36,7 @@ object AppUpdateChecker {
                     val release = root.getJSONObject("release")
                     val remoteVersionCode = release.optInt("version_code", 0)
                     val remoteVersionName = release.optString("version_name", "Latest")
-                    val releaseNotes = release.optString("release_notes", "စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ")
+                    val releaseNotes = com.threeDLedger.utils.GitHubUpdater.sanitizeReleaseNotes(release.optString("release_notes", ""))
                     val downloadUrl = release.optString("download_url", "").ifBlank { null }
                     val releaseUrl = release.optString("release_url", "").ifBlank { null }
 

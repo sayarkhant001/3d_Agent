@@ -217,20 +217,7 @@ fun UpdateDialogHandler(
                         fontSize = 18.sp,
                         textAlign = TextAlign.Center
                     )
-                    Spacer(Modifier.height(4.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = com.threeDLedger.ui.theme.themeAmberContainer(),
-                        border = BorderStroke(1.dp, com.threeDLedger.ui.theme.themeAmberBorder())
-                    ) {
-                        Text(
-                            text = "GitHub Releases",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = com.threeDLedger.ui.theme.themeGoldDeep(),
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
+                    Spacer(Modifier.height(2.dp))
                 }
             },
             text = {
@@ -293,7 +280,7 @@ fun UpdateDialogHandler(
                     }
 
                     Text(
-                        "GitHub သို့မဟုတ် Telegram Bot မှ ရယူနိုင်ပါသည်။",
+                        "အက်ပ်ကို တိုက်ရိုက် ဒေါင်းလုဒ်ဆွဲ၍ တပ်ဆင်နိုင်ပါသည်။",
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -317,7 +304,7 @@ fun UpdateDialogHandler(
                     ) {
                         Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("GitHub မှ ဒေါင်းလုဒ်လုပ်မည်", fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
+                        Text("ဒေါင်းလုဒ်လုပ်မည်", fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
                     }
 
                     OutlinedButton(
@@ -342,7 +329,7 @@ fun UpdateDialogHandler(
                         Text("Telegram Bot မှ ရယူမည်", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
                     }
 
-                    if (info.releaseUrl != null) {
+                    if (info.releaseUrl != null && info.releaseUrl.startsWith("https://t.me/")) {
                         TextButton(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -358,9 +345,9 @@ fun UpdateDialogHandler(
                                 }
                             }
                         ) {
-                            Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("GitHub Release စာမျက်နှာ ဖွင့်မည်", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("Telegram Bot မှ ရယူမည်", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         }
                     }
 
@@ -438,7 +425,7 @@ fun UpdateDialogHandler(
             onDismissRequest = { /* Not dismissible during download */ },
             title = {
                 Text(
-                    if (isInstalling) "Installer ဖွင့်နေသည်…" else "GitHub မှ ဒေါင်းလုဒ်လုပ်နေသည်…",
+                    if (isInstalling) "Installer ဖွင့်နေသည်…" else "ဒေါင်းလုဒ်လုပ်နေသည်…",
                     fontWeight = FontWeight.Bold,
                     fontSize = 17.sp,
                     textAlign = TextAlign.Center,

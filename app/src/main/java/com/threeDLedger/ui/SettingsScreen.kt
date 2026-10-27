@@ -566,18 +566,6 @@ private fun UpdateCard(currentVersion: String, updateCheckStatus: String, onChec
                         fontSize = 15.sp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = com.threeDLedger.ui.theme.themeAmberContainer()
-                    ) {
-                        Text(
-                            text = "GitHub",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = com.threeDLedger.ui.theme.themeGoldDeep(),
-                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
-                    }
                 }
                 Spacer(Modifier.height(2.dp))
                 Text(

@@ -8,6 +8,18 @@
 
 import { Env, fetchFromGloLottery, getFirebaseToken } from './index';
 
+// ── Friendly release notes ───────────────────────────────────────────────────
+// Users must never see raw GitHub text (English commit subjects / CI output).
+// If the notes contain no Myanmar glyph (U+1000–U+109F), return the friendly
+// default Myanmar note instead.
+const DEFAULT_RELEASE_NOTES = 'စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ';
+
+export function sanitizeReleaseNotes(raw: string | null | undefined): string {
+  const notes = (raw ?? '').trim();
+  if (!notes) return DEFAULT_RELEASE_NOTES;
+  return /[\u1000-\u109F]/.test(notes) ? notes : DEFAULT_RELEASE_NOTES;
+}
+
 // ── Telegram Update Data Types ────────────────────────────────────────────────
 
 export interface TelegramUser {
@@ -1553,21 +1565,19 @@ export async function broadcastAppUpdate(
   const recipientIds = await getAllRecipientIds(env);
 
   let successCount = 0;
-  const githubLink = release?.release_url || '';
   const customNote = customMessage?.trim()
     ? `\n💬 <b>မှတ်ချက်:</b> ${customMessage.trim()}\n`
     : '';
   const updateCaption =
     `🚀 <b>3D LEDGER အက်ပ် ဗားရှင်းအသစ် [${release?.version_name || 'Latest'}] ထွက်ရှိပါပြီ!</b>\n\n` +
     (release ? `📦 <b>ဖိုင်အမည်:</b> <code>${release.file_name}</code>\n` : '') +
-    `📝 <b>အပြောင်းအလဲများ:</b> ${release?.release_notes || 'Physical Tactile Keypad, Haptic Feedback နှင့် Active License ပိတ်သိမ်းနိုင်သော စနစ်သစ်များ ပါဝင်ပါသည်'}${customNote}\n\n` +
+    `📝 <b>အပြောင်းအလဲများ:</b> ${sanitizeReleaseNotes(release?.release_notes)}${customNote}\n\n` +
     `အောက်ပါ APK ဖိုင်ကို ဒေါင်းလုဒ်ဆွဲ၍ ယခင်အက်ပ်ပေါ်တွင် အဆင့်မြှင့်တင် (Update) တပ်ဆင်နိုင်ပါပြီ 👇`;
 
   const kb: InlineKeyboardMarkup = {
     inline_keyboard: [
       [
         { text: '📲 အက်ပ် ဒေါင်းလုဒ်ရယူရန်', callback_data: 'b_app_download' },
-        ...(githubLink ? [{ text: '🌐 GitHub Release', url: githubLink }] : []),
         { text: '🛒 လိုင်စင် ဝယ်ယူမည်', callback_data: 'b_buy_menu' }
       ]
     ]
@@ -3068,7 +3078,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         `• <b>Telegram File ID:</b> <code>${release.file_id || 'မရှိပါ (Download link သုံးထားသည်)'}</code>\n` +
         (release.download_url ? `• <b>Download Link:</b> ${release.download_url}\n` : '') +
         `• <b>တင်သည့်အချိန်:</b> ${new Date(release.uploaded_at).toLocaleString('my-MM')}\n` +
-        `• <b>မှတ်ချက်:</b> ${release.release_notes || '-'}` :
+        `• <b>မှတ်ချက်:</b> ${sanitizeReleaseNotes(release.release_notes)}` :
         `<i>လက်ရှိတွင် အက်ပ်ဗားရှင်း မတင်ရသေးပါ</i>`;
 
       const msgText = `📱 <b>[အက်ပ်ဗားရှင်း စီမံခန့်ခွဲမှု] APK Release Control</b>\n\n` +
@@ -3077,7 +3087,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
         `၁။ <b>Direct Upload:</b> APK ဖိုင်ကို ဤ Bot ထံ File (Document) အဖြစ် တိုက်ရိုက် ပို့ပါ\n` +
         `၂။ <b>File ID ဖြင့် သတ်မှတ်ရန်:</b> <code>/setappid [file_id] [version] [notes]</code>\n` +
         `၃။ <b>Direct Link ဖြင့် သတ်မှတ်ရန်:</b> <code>/setapplink [url] [version] [notes]</code>\n` +
-        `၄။ <b>GitHub Auto-Sync:</b> GitHub Release ထွက်တိုင်း ဤနေရာသို့ အလိုအလျောက် ရောက်ရှိပါမည်။`;
+        `၄။ <b>အလိုအလျောက် တိုက်ဆိုင်မှု:</b> ဗားရှင်းအသစ် ထွက်တိုင်း ဤနေရာသို့ အလိုအလျောက် ရောက်ရှိပါမည်။`;
 
       const manageKb: InlineKeyboardMarkup = {
         inline_keyboard: [
@@ -4305,7 +4315,7 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
           file_size: doc.file_size || 0,
           version_name: versionName,
           version_code: versionCode,
-          release_notes: releaseNotes,
+          release_notes: sanitizeReleaseNotes(releaseNotes),
           uploaded_by: senderId,
           uploaded_at: Date.now()
         };

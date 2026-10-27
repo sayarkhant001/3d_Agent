@@ -18,6 +18,20 @@ import java.net.URL
 
 object GitHubUpdater {
 
+    private const val DEFAULT_RELEASE_NOTES = "စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ"
+
+    /**
+     * Users must never see raw GitHub text (English commit subjects / CI output).
+     * If the notes contain no Myanmar glyph (U+1000–U+109F), return the friendly
+     * default Myanmar note instead.
+     */
+    fun sanitizeReleaseNotes(raw: String?): String {
+        val notes = raw?.trim().orEmpty()
+        if (notes.isEmpty()) return DEFAULT_RELEASE_NOTES
+        val hasMyanmar = notes.any { it.code in 0x1000..0x109F }
+        return if (hasMyanmar) notes else DEFAULT_RELEASE_NOTES
+    }
+
     data class UpdateInfo(
         val version: String,
         val releaseNotes: String,
@@ -41,7 +55,7 @@ object GitHubUpdater {
                     val rel = root.getJSONObject("release")
                     val vName = rel.optString("version_name", "")
                     val dlUrl = rel.optString("download_url", "")
-                    val notes = rel.optString("release_notes", "စနစ် စွမ်းဆောင်ရည်နှင့် လုံခြုံရေး မြှင့်တင်မှုများ")
+                    val notes = sanitizeReleaseNotes(rel.optString("release_notes", ""))
                     val relUrl = rel.optString("release_url", "").ifBlank { null }
                     if (vName.isNotBlank() && dlUrl.isNotBlank()) {
                         return@withContext UpdateInfo(vName, notes, dlUrl, relUrl)
@@ -80,7 +94,7 @@ object GitHubUpdater {
                 }
 
                 if (apkUrl.isNotEmpty()) {
-                    val friendlyNotes = if (body.isNotBlank()) body else "စနစ် စွမ်းဆောင်ရည်နှင့် မျက်နှာပြင် အဆင့်မြှင့်တင်မှုများ"
+                    val friendlyNotes = sanitizeReleaseNotes(body)
                     val htmlUrl = try { jsonObject.optString("html_url", "").ifBlank { null } } catch (_: Exception) { null }
                     return@withContext UpdateInfo(tagName, friendlyNotes, apkUrl, htmlUrl)
                 }

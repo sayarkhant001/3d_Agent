@@ -524,10 +524,7 @@ private fun ExportRecordCard(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(
-                                        if (index % 2 == 0) Color.Transparent
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                    )
+                                    .background(MaterialTheme.colorScheme.surface)
                                     .padding(horizontal = 6.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
