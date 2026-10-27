@@ -1064,36 +1064,103 @@ fun BettingScreen(
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        Icon(
+                                            Icons.Default.ContentPaste,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            "Clipboard မှ စာရင်း တွေ့ရှိပါသည်",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.5.sp,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        IconButton(
+                                            onClick = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                                detectedClipboardText = null
+                                                detectedValidation = null
+                                            },
+                                            modifier = Modifier.size(24.dp)
                                         ) {
                                             Icon(
-                                                Icons.Default.ContentPaste,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
+                                                Icons.Default.Close,
+                                                contentDescription = "ပယ်ဖျက်မည်",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(16.dp)
                                             )
-                                            Text(
-                                                "Clipboard မှ စာရင်း တွေ့ရှိပါသည်",
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.5.sp,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                        }
+                                    }
+
+                                    // Stat tiles — two equal cells, never wraps or overlaps
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Surface(
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    "တွေ့ရှိ ကွက်ရေ",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                                Text(
+                                                    "${detectedVal.validBets.size} ကွက်",
+                                                    fontSize = 17.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = com.threeDLedger.ui.theme.themeEmerald(),
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
                                         }
                                         Surface(
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = EmeraldPrimary.copy(alpha = 0.15f)
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                                            border = BorderStroke(0.8.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
                                         ) {
-                                            Text(
-                                                "${detectedVal.validBets.size} ကွက် (%,d Ks)".format(detectedVal.validBets.sumOf { it.second }),
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                color = EmeraldPrimary,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
+                                            Column(
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(
+                                                    "စုစုပေါင်း ပမာဏ",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                                Text(
+                                                    "%,d Ks".format(detectedVal.validBets.sumOf { it.second }),
+                                                    fontSize = 17.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    maxLines = 1,
+                                                    softWrap = false
+                                                )
+                                            }
                                         }
                                     }
 
@@ -1164,7 +1231,7 @@ fun BettingScreen(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
@@ -1172,7 +1239,10 @@ fun BettingScreen(
                                             "${liveValidation.validBets.size} ကွက် စစ်ဆေးပြီး",
                                             color = MaterialTheme.colorScheme.primary,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.weight(1f, fill = false),
+                                            maxLines = 1,
+                                            softWrap = false
                                         )
                                         Text(
                                             "= %,d Ks".format(liveValidation.validBets.sumOf { it.second }),
