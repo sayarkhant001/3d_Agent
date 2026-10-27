@@ -155,7 +155,7 @@ fun VouchersScreen(
                                 // Table Header
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
-                                    color = MaterialTheme.colorScheme.primaryContainer
+                                    color = com.threeDLedger.ui.theme.themeEmeraldContainer()
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -180,8 +180,8 @@ fun VouchersScreen(
                                 }
 
                                 HorizontalDivider(
-                                    color = if (isDark) MaterialTheme.colorScheme.outlineVariant else Color(0xFF6EE7B7),
-                                    thickness = 1.dp
+                                    color = com.threeDLedger.ui.theme.themeEmeraldBorder(),
+                                    thickness = 1.25.dp
                                 )
 
                                 // Alternating rows (color lines)
@@ -254,18 +254,12 @@ fun VouchersScreen(
                                                 softWrap = false
                                             )
                                         }
-                                        if (idx < voucherWithBets.bets.size - 1) {
-                                            HorizontalDivider(
-                                                color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f),
-                                                thickness = 0.75.dp
-                                            )
-                                        }
                                     }
 
                                     if (idx < voucherWithBets.bets.size - 1) {
                                         HorizontalDivider(
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                                            thickness = 0.5.dp
+                                            color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f),
+                                            thickness = 0.75.dp
                                         )
                                     }
                                 }

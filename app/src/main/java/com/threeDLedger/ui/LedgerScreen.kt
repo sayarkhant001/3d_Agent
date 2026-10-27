@@ -247,7 +247,7 @@ fun LedgerScreen(
             // ── Table header ──────────────────────────────────────────────────
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primaryContainer
+                color = com.threeDLedger.ui.theme.themeEmeraldContainer()
             ) {
                 Row(
                     modifier = Modifier
@@ -339,6 +339,14 @@ fun LedgerScreen(
                                     )
                                 }
                                 Spacer(Modifier.weight(1f))
+                                // Distinct cell divider between number & amount columns
+                                Surface(
+                                    modifier = Modifier
+                                        .width(1.5.dp)
+                                        .height(22.dp),
+                                    color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.7f)
+                                ) {}
+                                Spacer(Modifier.width(10.dp))
                                 // Amount
                                 Text(
                                     "%,d".format(exposure.totalBetAmount),
@@ -499,6 +507,13 @@ fun LedgerScreen(
                                 }
 
                                 // Amount
+                                Surface(
+                                    modifier = Modifier
+                                        .width(1.5.dp)
+                                        .height(22.dp),
+                                    color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.7f)
+                                ) {}
+                                Spacer(Modifier.width(10.dp))
                                 Text(
                                     "%,d".format(exposure.totalBetAmount),
                                     color = when {

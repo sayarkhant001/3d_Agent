@@ -888,46 +888,6 @@ fun OverflowScreen(
                 }
             }
 
-            // Subheader Bar 2 (Matching Screenshot 1: စုစုပေါင်း & ခေါင်းချိုး/ဖြတ်)
-            val grossBatchTotal = totalBraked + totalOverflow
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                border = BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
-            ) {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("စုစုပေါင်း", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("%,d".format(grossBatchTotal), fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, color = emeraldPrimary, fontFamily = FontFamily.Monospace)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(34.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 4.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text("ခေါင်းချိုး/ဖြတ်", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "%,d / -%,d".format(totalBraked, totalOverflow),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFB45309),
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
-            }
-
             // Tables Section (Matching 3D Emerald style 2-column layout with Left Summary)
             Row(
                 modifier = Modifier
