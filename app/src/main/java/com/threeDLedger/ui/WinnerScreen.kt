@@ -1220,20 +1220,18 @@ private fun InputCard(
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Batch
-            OutlinedTextField(value = targetBatch, onValueChange = onBatchChange,
-                label = { Text("အကြိမ်") },
-                leadingIcon = { Icon(Icons.Default.Numbers, null) },
-                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), singleLine = true)
-
             val drawSchedule = remember { getNext3DDrawInfo() }
 
-            // 3D Draw Schedule Banner & Live Button
+            // ── Compact single row: Batch | Draw schedule | LIVE (decluttered) ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                OutlinedTextField(value = targetBatch, onValueChange = onBatchChange,
+                    label = { Text("အကြိမ်") },
+                    modifier = Modifier.width(92.dp), shape = RoundedCornerShape(12.dp), singleLine = true)
+
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(10.dp),
@@ -1248,7 +1246,7 @@ private fun InputCard(
                         Icon(Icons.Default.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
                         Text(
                             text = drawSchedule.statusBannerText,
-                            fontSize = 13.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -1258,18 +1256,18 @@ private fun InputCard(
                     }
                 }
 
-                // Live View Button
+                // Live View Button (compact)
                 FilledTonalButton(
                     onClick = onOpenLiveView,
                     shape = RoundedCornerShape(10.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = Color(0xFFFEE2E2),
-                        contentColor = Color(0xFFDC2626)
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.error
                     ),
-                    modifier = Modifier.height(36.dp)
+                    modifier = Modifier.height(38.dp)
                 ) {
-                    Text("တိုက်ရိုက် LIVE", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("LIVE", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1359,12 +1357,48 @@ private fun InputCard(
                 }
             }
 
-            // Multipliers
-            Text("အဆနှုန်းထားများ", fontWeight = FontWeight.SemiBold, fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MultiplierField("ပေါက်သီး (ဒဲ့)", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
-                MultiplierField("တွတ်",       tuwtMult,  Color(0xFF6C63FF), Modifier.weight(1f), onTuwtChange)
+            // ── Rates: hidden behind tap (rarely changed) ────────────────────────
+            var showRates by remember { mutableStateOf(false) }
+            Surface(
+                onClick = { showRates = !showRates },
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(Icons.Default.Settings, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                    Text(
+                        "အဆနှုန်း — ဒဲ့ ${exactMult}ဆ • တွတ် ${tuwtMult}ဆ",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Icon(
+                        if (showRates) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (showRates) "ပိတ်မည်" else "ဖွင့်မည်",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showRates,
+                enter = androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.shrinkVertically()
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
+                    MultiplierField("ပေါက်သီး (ဒဲ့)", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
+                    MultiplierField("တွတ်",       tuwtMult,  Color(0xFF6C63FF), Modifier.weight(1f), onTuwtChange)
+                }
             }
 
             // ── Declare button ───────────────────────────────────────────────────

@@ -520,23 +520,23 @@ fun OverflowScreen(
                     Text("လက်ရှိ ဒိုင်များ စာရင်း", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                        border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder()),
                         color = MaterialTheme.colorScheme.surface
                     ) {
                         Column {
-                            // Table Header
+                            // Table Header (dominant emerald band)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(vertical = 8.dp, horizontal = 12.dp)
+                                    .background(com.threeDLedger.ui.theme.themeEmeraldContainer())
+                                    .padding(vertical = 9.dp, horizontal = 12.dp)
                             ) {
-                                Text("အမည်", modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
-                                Text("ကော်မရှင်", modifier = Modifier.weight(0.9f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("ဒဲ့/တွတ်", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("ဖျက်မည်", modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("အမည်", modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("ကော်မရှင်", modifier = Modifier.weight(0.9f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("ဒဲ့/တွတ်", modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("ဖျက်မည်", modifier = Modifier.width(40.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
                             }
-                            HorizontalDivider()
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f))
 
                             if (allDines.isEmpty()) {
                                 Box(
@@ -548,11 +548,16 @@ fun OverflowScreen(
                                     Text("ဒိုင် မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             } else {
-                                allDines.forEach { dine ->
+                                allDines.forEachIndexed { dIdx, dine ->
+                                    val isEvenRow = dIdx % 2 == 0
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 8.dp, horizontal = 12.dp),
+                                            .background(
+                                                if (isEvenRow) MaterialTheme.colorScheme.surface
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                            )
+                                            .padding(vertical = 9.dp, horizontal = 12.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(dine.name, modifier = Modifier.weight(1.3f), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
@@ -565,7 +570,7 @@ fun OverflowScreen(
                                             Icon(Icons.Default.Delete, contentDescription = "ဖျက်မည်", tint = Color(0xFFDC2626), modifier = Modifier.size(18.dp))
                                         }
                                     }
-                                    HorizontalDivider(thickness = 0.5.dp)
+                                    HorizontalDivider(thickness = 0.5.dp, color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.35f))
                                 }
                             }
                         }

@@ -227,34 +227,6 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    // GitHub Update Notice Icon (pulsating new badge)
-                    if (availableUpdate != null) {
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                viewModel.triggerUpdateDialog(true)
-                            }
-                        ) {
-                            BadgedBox(
-                                badge = {
-                                    Badge(
-                                        containerColor = Color(0xFFDC2626),
-                                        contentColor = Color.White
-                                    ) {
-                                        Text("NEW", fontSize = 8.sp, fontWeight = FontWeight.Black)
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.SystemUpdate,
-                                    contentDescription = "GitHub ဗားရှင်းအသစ် ရရှိနိုင်ပါသည်",
-                                    tint = GoldAccent,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                    }
-
                     // Winning History for 1 Year
                     IconButton(
                         onClick = {

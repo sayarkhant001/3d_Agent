@@ -309,7 +309,7 @@ fun LedgerScreen(
                                         else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
                                     )
                                     .clickable(onClick = onNavigateToResult)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 11.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Index
@@ -392,7 +392,7 @@ fun LedgerScreen(
                                     .fillMaxWidth()
                                     .background(rowBg)
                                     .clickable(onClick = onNavigateToResult)
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 16.dp, vertical = 11.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Index
