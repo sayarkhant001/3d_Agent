@@ -73,27 +73,40 @@ data class AgentSettlement(
 
 private fun fmt(n: Long) = "%,d".format(n)
 
-private fun buildClipText(s: AgentSettlement, batch: Int, winNum: String): String =
-    buildString {
-        appendLine("========================")
-        appendLine("   3D ကော်မရှင် ရလဒ်   ")
-        appendLine("========================")
-        appendLine("အကြိမ် = $batch ( $winNum )")
-        appendLine("အမည် = ${s.customer.name}")
-        appendLine("ရောင်းကြေး = ${fmt(s.totalBet)} Ks")
-        appendLine("ကော်မရှင် = ${fmt(s.commission)} Ks")
-        appendLine("နှုတ်ပြီးငွေ = ${fmt(s.netAfterComm)} Ks")
-        if (s.exactBetAmt > 0) appendLine("ဒဲ့ ထိုးငွေ = ${fmt(s.exactBetAmt)} Ks (လျော် = ${fmt(s.exactPayout)} Ks)")
-        if (s.tuwtPayout  > 0) appendLine("တွတ် လျော်ငွေ = ${fmt(s.tuwtPayout)} Ks")
-        appendLine("စုစုပေါင်း လျော်ငွေ = ${fmt(s.totalPayout)} Ks")
-        appendLine("------------------------")
-        val balTag = if (s.balance < 0) "(ပေးရန်)" else "(ရရန်)"
-        val remTag = if (s.remaining < 0) "(ပေးရန်)" else "(ရရန်)"
-        appendLine("ကျန်ငွေ $balTag = ${fmt(s.balance)} Ks")
-        appendLine("ပေးငွေ = ${fmt(s.paidAmount)} Ks")
-        appendLine("ကြွေးကျန် $remTag = ${fmt(s.remaining)} Ks")
-        appendLine("========================")
+private fun buildClipText(s: AgentSettlement, batch: Int, winNum: String, footerText: String = ""): String {
+    val summary = buildList {
+        add("ရောင်းကြေး" to "${s.totalBet}")
+        add("ကော်မရှင်" to "${s.commission}")
+        add("နှုတ်ပြီးငွေ" to "${s.netAfterComm}")
+        if (s.exactBetAmt > 0) add("ဒဲ့ ထိုးငွေ (${s.exactBetAmt}) လျော်" to "${s.exactPayout}")
+        if (s.tuwtPayout > 0) add("တွတ် လျော်ငွေ" to "${s.tuwtPayout}")
+        add("စုစုပေါင်း လျော်ငွေ" to "${s.totalPayout}")
     }
+    val detailRows = buildList {
+        s.exactDetails.forEach { add(it.number to it.amount.toInt()) }
+        s.tuwtDetails.forEach { add(it.number to it.amount.toInt()) }
+    }
+    val balTag = if (s.balance < 0) "(ပေးရန်)" else "(ရရန်)"
+    val remTag = if (s.remaining < 0) "(ပေးရန်)" else "(ရရန်)"
+    summary.toString()
+    return com.threeDLedger.logic.CopyTextFormatter.formatSettlementCopy(
+        com.threeDLedger.logic.CopyTextFormatter.SettlementCopyData(
+            title = "3D ကော်မရှင် ရလဒ်",
+            subtitleLines = listOf(
+                "အကြိမ် : $batch (ထွက်: $winNum)",
+                "အမည် : ${s.customer.name}"
+            ),
+            summaryLines = summary + listOf(
+                "ကျန်ငွေ $balTag" to "${s.balance}",
+                "ပေးငွေ" to "${s.paidAmount}"
+            ),
+            detailRows = detailRows,
+            resultLabel = "ကြွေးကျန် $remTag",
+            resultAmount = "${s.remaining}",
+            footerText = footerText
+        )
+    )
+}
 
 // ── Screen ─────────────────────────────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,6 +124,7 @@ fun CommissionerResultScreen(
 
     val winningNumber                   = remember(batchNumber) { viewModel.getWinningNumberForBatch(batchNumber) }
     val (exactMult, permMult, nearMult) = remember(batchNumber) { viewModel.getMultipliersForBatch(batchNumber) }
+    val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
 
     // Local paid-amount map — updates immediately after edit
     var paidMap by remember { mutableStateOf(mapOf<Int, Double>()) }
@@ -139,35 +153,25 @@ fun CommissionerResultScreen(
         allCustomers, batchVouchers, winningNumber, exactMult, permMult, nearMult, paidMap
     ) {
         if (winningNumber.length != 3) return@remember emptyList()
-        val allPerms = NumberGenerator.permutations(winningNumber).toSet()
-        val permsOnly = allPerms - setOf(winningNumber)
-        val winInt   = winningNumber.toIntOrNull() ?: return@remember emptyList()
-        val near     = setOf(
-            String.format("%03d", if (winInt == 0) 999 else winInt - 1),
-            String.format("%03d", if (winInt == 999) 0 else winInt + 1)
-        ) - setOf(winningNumber)
+        val tuwtSet = com.threeDLedger.logic.TutCalculator.calculate(winningNumber).allTut
 
         allCustomers.mapNotNull { customer ->
-            if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true) ||
-                customer.name.contains("upper", ignoreCase = true) || customer.name.contains("အထက်ဒိုင်")) return@mapNotNull null
-            val agentVouchers = batchVouchers.filter { 
+            if (com.threeDLedger.logic.TutCalculator.isOverflowMarker(customer.name)) return@mapNotNull null
+            val agentVouchers = batchVouchers.filter {
                 it.voucher.customerId == customer.id &&
-                !it.voucher.remark.contains("တင်ကွက်") &&
-                !it.voucher.remark.contains("overflow", ignoreCase = true) &&
-                !it.voucher.remark.contains("upper", ignoreCase = true) &&
-                !it.voucher.remark.contains("အထက်ဒိုင်")
+                    !com.threeDLedger.logic.TutCalculator.isOverflowMarker(it.voucher.remark)
             }
             val bets     = agentVouchers.flatMap { it.bets }
             val totalBet = bets.sumOf { it.amount }.toLong()
 
-            // Commission calculation: commissionRate is decimal fraction (0.15 = 15%)
-            val commission   = (totalBet * customer.commissionRate).toLong()
+            val commFraction = com.threeDLedger.logic.TutCalculator.normalizeCommissionFraction(customer.commissionRate)
+            val commission   = (totalBet * commFraction).toLong()
             val netAfterComm = totalBet - commission
             val custExactMult = if (customer.multiplier > 0) customer.multiplier.toDouble() else exactMult
             val custTuwtMult = if (customer.tuwtMultiplier > 0) customer.tuwtMultiplier.toDouble() else permMult
 
             val exactBets    = bets.filter { it.number == winningNumber }
-            val tuwtBets     = bets.filter { it.number in permsOnly || it.number in near }
+            val tuwtBets     = bets.filter { it.number in tuwtSet }
             val exactBetAmt  = exactBets.sumOf { it.amount }.toLong()
             val exactPayout  = (exactBetAmt * custExactMult).toLong()
             val tuwtBetAmt   = tuwtBets.sumOf { it.amount }.toLong()
@@ -352,7 +356,7 @@ fun CommissionerResultScreen(
                                 settlement  = s,
                                 onTapDetail = {
                                     dialogAgent = s
-                                    val text = buildClipText(s, batchNumber, winningNumber)
+                                    val text = buildClipText(s, batchNumber, winningNumber, footerText)
                                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     cm.setPrimaryClip(ClipData.newPlainText("settlement", text))
                                 },
@@ -462,23 +466,25 @@ fun CommissionerResultScreen(
                         onClick = {
                             context.startActivity(Intent.createChooser(
                                 Intent(Intent.ACTION_SEND).apply {
-                                    putExtra(Intent.EXTRA_TEXT, buildClipText(s, batchNumber, winningNumber))
+                                    putExtra(Intent.EXTRA_TEXT, buildClipText(s, batchNumber, winningNumber, footerText))
                                     type = "text/plain"
                                 }, "Send to..."
                             ))
                         },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ResPrimary)
+                        modifier = Modifier.height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = themeEmerald())
                     ) {
-                        Icon(Icons.Default.Share, null, Modifier.size(15.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("ပေးပို့မည်")
+                        Icon(Icons.Default.Share, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("ပေးပို့မည်", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = { dialogAgent = null },
-                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = ResPrimary)
-                    ) { Text("ပိတ်မည်") }
+                    ) { Text("ပိတ်မည်", fontSize = 15.sp, fontWeight = FontWeight.Bold) }
                 }
             }
         )
@@ -550,6 +556,7 @@ fun CommissionerResultScreen(
 
     // ── Tut Breakdown Dialog ──────────────────────────────────────────────────
     tutBreakdownAgent?.let { s ->
+        val agentTutMult = if (s.customer.tuwtMultiplier > 0) s.customer.tuwtMultiplier.toDouble() else permMult
         WinBreakdownDialog(
             title = "တွတ် ဂဏန်းများ",
             icon = Icons.Default.Info,
@@ -557,16 +564,18 @@ fun CommissionerResultScreen(
             agentName = s.customer.name,
             batchNumber = batchNumber,
             winningNumber = winningNumber,
-            multiplier = permMult,
+            multiplier = agentTutMult,
             details = s.tuwtDetails,
             totalBet = s.tuwtBetAmt,
             totalPayout = s.tuwtPayout,
+            footerText = footerText,
             onDismiss = { tutBreakdownAgent = null }
         )
     }
 
     // ── Exact Breakdown Dialog ────────────────────────────────────────────────
     exactBreakdownAgent?.let { s ->
+        val agentExactMult = if (s.customer.multiplier > 0) s.customer.multiplier.toDouble() else exactMult
         WinBreakdownDialog(
             title = "ဒဲ့ ဂဏန်းများ",
             icon = Icons.Default.Star,
@@ -574,10 +583,11 @@ fun CommissionerResultScreen(
             agentName = s.customer.name,
             batchNumber = batchNumber,
             winningNumber = winningNumber,
-            multiplier = exactMult,
+            multiplier = agentExactMult,
             details = s.exactDetails,
             totalBet = s.exactBetAmt,
             totalPayout = s.exactPayout,
+            footerText = footerText,
             onDismiss = { exactBreakdownAgent = null }
         )
     }
@@ -598,7 +608,7 @@ fun AgentSettlementCard(
         shape     = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border    = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+        border    = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column {
             // Emerald header with customer info
@@ -606,14 +616,14 @@ fun AgentSettlementCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(ResPrimary)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
-                    Modifier.size(42.dp).clip(CircleShape).background(ResMintBg),
+                    Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
                     Alignment.Center
                 ) {
-                    Icon(Icons.Default.Person, null, tint = ResPrimary, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Default.Person, null, tint = Color.White, modifier = Modifier.size(26.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
@@ -621,32 +631,33 @@ fun AgentSettlementCard(
                         s.customer.name,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        fontSize = 16.sp
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("အမှတ်စဉ်: ${s.customer.id}", color = Color.White.copy(0.75f), fontSize = 12.sp)
+                        Text("အမှတ်စဉ်: ${s.customer.id}", color = Color.White.copy(0.85f), fontSize = 13.sp)
                         if (s.customer.commissionRate > 0) {
+                            val pct = (com.threeDLedger.logic.TutCalculator.normalizeCommissionFraction(s.customer.commissionRate) * 100).toInt()
                             Surface(
                                 shape = RoundedCornerShape(5.dp),
                                 color = ResGoldBg
                             ) {
                                 Text(
-                                    "ကော် ${(s.customer.commissionRate * 100).toInt()}%",
+                                    "ကော် $pct%",
                                     color = GoldDark,
-                                    fontSize = 9.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
                     }
                 }
-                // Edit paid-amount button
+                // Edit paid-amount button (>= 44dp touch target)
                 IconButton(
                     onClick = onEditPaid,
-                    modifier = Modifier.size(30.dp).clip(CircleShape).background(Color.White.copy(0.18f))
+                    modifier = Modifier.size(44.dp).clip(CircleShape).background(Color.White.copy(0.22f))
                 ) {
-                    Icon(Icons.Default.Edit, "ပေးငွေ ပြင်ဆင်မည်", tint = Color.White, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Default.Edit, "ပေးငွေ ပြင်ဆင်မည်", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
             }
 
@@ -668,10 +679,10 @@ fun AgentSettlementCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SmallCol("ရောင်းကြေး", fmt(s.totalBet), MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                    Box(Modifier.width(0.8.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                    SmallCol("ကော်မရှင်", fmt(s.commission), ResGold, modifier = Modifier.weight(1f))
-                    Box(Modifier.width(0.8.dp).height(20.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
-                    SmallCol("နှုတ်ပြီးငွေ", fmt(s.netAfterComm), ResPrimary, modifier = Modifier.weight(1f))
+                    Box(Modifier.width(0.8.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                    SmallCol("ကော်မရှင်", fmt(s.commission), themeGold(), modifier = Modifier.weight(1f))
+                    Box(Modifier.width(0.8.dp).height(24.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)))
+                    SmallCol("နှုတ်ပြီးငွေ", fmt(s.netAfterComm), themeEmerald(), modifier = Modifier.weight(1f))
                 }
 
                 // Row 2: Winning breakdown if any
@@ -679,9 +690,9 @@ fun AgentSettlementCard(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(ResRedBg.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 6.dp, vertical = 5.dp),
-                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                            .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
                         if (s.exactBetAmt > 0) {
                             WinRow(
@@ -689,7 +700,7 @@ fun AgentSettlementCard(
                                 label = "ဒဲ့ (ပေါက်)",
                                 bet = fmt(s.exactBetAmt),
                                 payout = fmt(s.exactPayout),
-                                iconTint = ResRed,
+                                iconTint = themeWinRed(),
                                 onClick = onTapExact
                             )
                         }
@@ -699,52 +710,54 @@ fun AgentSettlementCard(
                                 label = "တွတ် (လျော်)",
                                 bet = fmt(s.tuwtBetAmt),
                                 payout = fmt(s.tuwtPayout),
-                                iconTint = GoldDark,
+                                iconTint = themeGold(),
                                 onClick = onTapTut
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(color = CardBorderSubtle, thickness = 0.5.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.6.dp)
 
                 // Row 3: Totals & Settlement Balance
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 9.dp, vertical = 5.dp),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("လျော်ငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${fmt(s.totalPayout)} Ks", fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                        Text("လျော်ငွေ", fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${fmt(s.totalPayout)} Ks", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         val balLabel = if (s.balance < 0) "ကျန်ငွေ (ပေးရန်)" else "ကျန်ငွေ (ရရန်)"
-                        Text(balLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (s.balance < 0) ResRed else ResGreen)
-                        Text("${fmt(s.balance)} Ks", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.balance < 0) ResRed else ResGreen)
+                        val balColor = if (s.balance < 0) themeWinRed() else themeEmerald()
+                        Text(balLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = balColor)
+                        Text("${fmt(s.balance)} Ks", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = balColor)
                     }
-                    HorizontalDivider(color = CardBorderSubtle.copy(alpha = 0.4f), thickness = 0.5.dp)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-                        Text("ပေးငွေ", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("${fmt(s.paidAmount)} Ks", fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+                        Text("ပေးငွေ", fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${fmt(s.paidAmount)} Ks", fontSize = 14.5.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
                     }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         val remLabel = if (s.remaining < 0) "ကြွေးကျန် (ပေးရန်)" else "ကြွေးကျန် (ရရန်)"
-                        Text(remLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = if (s.remaining < 0) ResRed else ResGreen)
-                        Text("${fmt(s.remaining)} Ks", fontSize = 13.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = if (s.remaining < 0) ResRed else ResGreen)
+                        val remColor = if (s.remaining < 0) themeWinRed() else themeEmerald()
+                        Text(remLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = remColor)
+                        Text("${fmt(s.remaining)} Ks", fontSize = 15.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace, color = remColor)
                     }
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 1.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, tint = ResPrimary.copy(alpha = 0.6f), modifier = Modifier.size(11.dp))
-                    Spacer(Modifier.width(3.dp))
-                    Text("နှိပ်၍ အသေးစိတ်ကြည့်ရန် & ကော်ပီကူးရန်", color = ResPrimary.copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Default.ContentCopy, null, tint = themeEmerald(), modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("နှိပ်၍ အသေးစိတ်ကြည့်ရန် & ကော်ပီကူးရန်", color = themeEmerald(), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -754,13 +767,13 @@ fun AgentSettlementCard(
 @Composable
 private fun SmallCol(label: String, value: String, valueColor: Color = Color.Unspecified, modifier: Modifier = Modifier) {
     val fontSize = when {
-        value.length > 11 -> 10.sp
-        value.length > 8 -> 11.sp
-        else -> 12.sp
+        value.length > 11 -> 12.sp
+        value.length > 8 -> 13.sp
+        else -> 14.sp
     }
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-        Spacer(Modifier.height(1.dp))
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Spacer(Modifier.height(2.dp))
         Text(
             value,
             color = valueColor,
@@ -830,18 +843,18 @@ private fun WinRow(
 }
 
 @Composable
-private fun DialogRow(label: String, value: String, valueColor: Color = Color(0xFF1A1A1A), bold: Boolean = false) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), Arrangement.SpaceBetween) {
-        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
-        Text(value, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.Medium, color = valueColor)
+private fun DialogRow(label: String, value: String, valueColor: Color = MaterialTheme.colorScheme.onSurface, bold: Boolean = false) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), Arrangement.SpaceBetween) {
+        Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
+        Text(value, fontSize = 14.5.sp, fontFamily = FontFamily.Monospace, fontWeight = if (bold) FontWeight.ExtraBold else FontWeight.SemiBold, color = valueColor)
     }
 }
 
 @Composable
 private fun SummaryPill(label: String, value: String, valueColor: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = valueColor, fontFamily = FontFamily.Monospace)
+        Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Medium)
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = valueColor, fontFamily = FontFamily.Monospace)
     }
 }
 
@@ -849,16 +862,16 @@ private fun SummaryPill(label: String, value: String, valueColor: Color) {
 private fun RowScope.FooterCol(label: String, value: Long, valueColor: Color = Color.White) {
     val formatted = fmt(value)
     val fontSize = when {
-        formatted.length > 11 -> 9.sp
-        formatted.length > 8 -> 10.sp
-        else -> 11.sp
+        formatted.length > 11 -> 11.5.sp
+        formatted.length > 8 -> 12.5.sp
+        else -> 13.5.sp
     }
     Column(
         modifier = Modifier.weight(1f),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(label, color = Color.White.copy(0.85f), fontSize = 9.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-        Spacer(Modifier.height(1.dp))
+        Text(label, color = Color.White.copy(0.9f), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Spacer(Modifier.height(2.dp))
         Text(formatted, color = valueColor, fontWeight = FontWeight.ExtraBold, fontSize = fontSize, fontFamily = FontFamily.Monospace, maxLines = 1)
     }
 }
@@ -876,6 +889,7 @@ fun WinBreakdownDialog(
     details: List<TutWinDetail>,
     totalBet: Long,
     totalPayout: Long,
+    footerText: String = "",
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1089,39 +1103,45 @@ fun WinBreakdownDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Copy button (supporting both legacy num=>>amt text and full summary)
+                // Copy button (clean `number = amount` format with header & footer, no Ks)
                 OutlinedButton(
                     onClick = {
-                        val textToCopy = buildString {
-                            appendLine("$title - $agentName")
-                            appendLine("အကြိမ် $batchNumber (ထွက်: $winningNumber) [×${multiplier.toInt()} ဆ]")
-                            appendLine("------------------------")
-                            details.forEach {
-                                appendLine("${it.number}=>>${it.amount}")
-                            }
-                            appendLine("------------------------")
-                            appendLine("စုစုပေါင်း ထိုးငွေ = ${fmt(totalBet)} Ks")
-                            appendLine("စုစုပေါင်း လျော်ငွေ = ${fmt(totalPayout)} Ks")
-                        }
+                        val textToCopy = com.threeDLedger.logic.CopyTextFormatter.formatNumberListCopy(
+                            title = "$title (x${multiplier.toInt()})",
+                            batchNumber = batchNumber,
+                            items = details.map { it.number to it.amount.toInt() },
+                            totalAmount = totalBet.toInt(),
+                            footerText = buildString {
+                                append("စုစုပေါင်း လျော်ငွေ = $totalPayout")
+                                if (footerText.isNotBlank()) {
+                                    append("\n$footerText")
+                                }
+                            },
+                            winningNumber = winningNumber,
+                            agentName = agentName,
+                            totalLabel = "စုစုပေါင်း ထိုးငွေ"
+                        )
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         cm.setPrimaryClip(ClipData.newPlainText("WinDetails", textToCopy))
                         copiedToast = true
                     },
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = ResPrimary)
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = themeEmerald())
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("ကူးယူမည်", fontSize = 12.sp)
+                    Icon(Icons.Default.ContentCopy, null, Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("ကူးယူမည်", fontSize = 14.5.sp, fontWeight = FontWeight.Bold)
                 }
 
-                // Dismiss button: "ကောင်းပြီ" matching Screenshot 2
+                // Dismiss button: "ကောင်းပြီ"
                 Button(
                     onClick = onDismiss,
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = ResPrimary)
                 ) {
-                    Text("ကောင်းပြီ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("ကောင်းပြီ", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 }
             }
         }

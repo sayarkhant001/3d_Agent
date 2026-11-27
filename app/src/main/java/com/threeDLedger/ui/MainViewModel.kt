@@ -170,35 +170,45 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
     }
 
     fun selectBatch(batch: Int) {
+        if (batch <= 0) return
         currentBatch.value = batch
         prefs.edit().putInt("currentBatch", batch).apply()
-        saveBatchesList(listOf(batch))
+        val existing = allBatches.value
+        if (!existing.contains(batch)) {
+            val updated = (existing + batch).distinct().sorted().let { if (it.size > 4) it.takeLast(4) else it }
+            saveBatchesList(updated)
+        }
+        loadMultipliersForBatch(batch)
     }
 
     fun updateCurrentBatchNumber(newBatchNumber: Int) {
         if (newBatchNumber <= 0) return
         val oldBatch = currentBatch.value
+        if (oldBatch == newBatchNumber) return
         currentBatch.value = newBatchNumber
         prefs.edit().putInt("currentBatch", newBatchNumber).apply()
-        saveBatchesList(listOf(newBatchNumber))
+        val updatedBatches = (allBatches.value.filter { it != oldBatch } + newBatchNumber).distinct().sorted()
+        saveBatchesList(if (updatedBatches.size > 4) updatedBatches.takeLast(4) else updatedBatches)
 
+        val editor = prefs.edit()
         val oldWinning = prefs.getString("winningNumber_$oldBatch", null)
         if (!oldWinning.isNullOrBlank()) {
-            prefs.edit().putString("winningNumber_$newBatchNumber", oldWinning).remove("winningNumber_$oldBatch").apply()
+            editor.putString("winningNumber_$newBatchNumber", oldWinning).remove("winningNumber_$oldBatch")
             winningNumber.value = oldWinning
         }
-        val oldExact = prefs.getString("multiplier_exact_$oldBatch", null)
-        if (!oldExact.isNullOrBlank()) {
-            prefs.edit().putString("multiplier_exact_$newBatchNumber", oldExact).remove("multiplier_exact_$oldBatch").apply()
+        val (eM, pM, nM) = getMultipliersForBatch(oldBatch)
+        editor.putFloat("exactMult_$newBatchNumber", eM.toFloat()).remove("exactMult_$oldBatch")
+        editor.putFloat("permMult_$newBatchNumber", pM.toFloat()).remove("permMult_$oldBatch")
+        editor.putFloat("nearMult_$newBatchNumber", nM.toFloat()).remove("nearMult_$oldBatch")
+        // Migrate per-customer batch payment keys as well
+        prefs.all.forEach { (k, v) ->
+            if (k.startsWith("paid_") && k.endsWith("_$oldBatch") && v is Float) {
+                val custPart = k.removeSuffix("_$oldBatch")
+                editor.putFloat("${custPart}_$newBatchNumber", v).remove(k)
+            }
         }
-        val oldPerm = prefs.getString("multiplier_perm_$oldBatch", null)
-        if (!oldPerm.isNullOrBlank()) {
-            prefs.edit().putString("multiplier_perm_$newBatchNumber", oldPerm).remove("multiplier_perm_$oldBatch").apply()
-        }
-        val oldNear = prefs.getString("multiplier_near_$oldBatch", null)
-        if (!oldNear.isNullOrBlank()) {
-            prefs.edit().putString("multiplier_near_$newBatchNumber", oldNear).remove("multiplier_near_$oldBatch").apply()
-        }
+        editor.apply()
+        loadMultipliersForBatch(newBatchNumber)
 
         viewModelScope.launch {
             repository.updateBatchNumber(oldBatch, newBatchNumber)
@@ -241,23 +251,30 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         editor.apply()
     }
 
-    val appPassword = MutableStateFlow("")
-    val voucherFooterText = MutableStateFlow("ထွက်လျော်မည်။")
-    val printerSettings = MutableStateFlow("")
+    val appPassword = MutableStateFlow(prefs.getString("appPassword", "") ?: "")
+    val voucherFooterText = MutableStateFlow(prefs.getString("voucherFooterText", "ထွက်လျော်မည်။") ?: "ထွက်လျော်မည်။")
+    val printerSettings = MutableStateFlow(prefs.getString("printerSettings", "") ?: "")
     val bannedNumberEvent = kotlinx.coroutines.flow.MutableSharedFlow<Boolean>()
     val bannedLimitNotificationEvent = kotlinx.coroutines.flow.MutableSharedFlow<List<com.threeDLedger.data.BannedLimitRemoval>>()
-    var brakeLimit = MutableStateFlow(3000)
+    var brakeLimit = MutableStateFlow(prefs.getInt("brakeLimit", 3000))
 
     // Winning number declared for the current batch (persisted per batch key)
-    val winningNumber = MutableStateFlow("")
+    val winningNumber = MutableStateFlow(prefs.getString("winningNumber_${currentBatch.value}", "") ?: "")
+
+    // ── Per-batch multipliers (declared BEFORE init so constructor calls never NPE) ──
+    val savedExactMult = MutableStateFlow(600.0)
+    val savedPermMult  = MutableStateFlow(10.0)
+    val savedNearMult  = MutableStateFlow(10.0)
 
     init {
         loadWinningNumber()
+        loadMultipliersForBatch(currentBatch.value)
         brakeLimit.value = prefs.getInt("brakeLimit", 3000)
         viewModelScope.launch {
             currentBatch.collect { batch ->
                 prefs.edit().putInt("currentBatch", batch).apply()
                 loadWinningNumber()
+                loadMultipliersForBatch(batch)
             }
         }
         viewModelScope.launch {
@@ -350,11 +367,6 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         prefs.edit().putInt("brakeLimit", value).apply()
     }
 
-    // ── Per-batch multipliers (saved when ပေါက်သီး is declared) ──────────────
-    val savedExactMult = MutableStateFlow(600.0)
-    val savedPermMult  = MutableStateFlow(10.0)
-    val savedNearMult  = MutableStateFlow(10.0)
-
     fun saveMultipliers(exact: Double, tuwt: Double, near: Double = tuwt, batch: Int = currentBatch.value) {
         if (batch == currentBatch.value) {
             savedExactMult.value = exact
@@ -370,6 +382,13 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
 
     fun getWinningNumberForBatch(batch: Int): String =
         prefs.getString("winningNumber_$batch", "") ?: ""
+
+    fun loadMultipliersForBatch(batch: Int = currentBatch.value) {
+        val (eM, pM, nM) = getMultipliersForBatch(batch)
+        savedExactMult.value = eM
+        savedPermMult.value = pM
+        savedNearMult.value = nM
+    }
 
     fun getMultipliersForBatch(batch: Int): Triple<Double, Double, Double> = Triple(
         prefs.getFloat("exactMult_$batch", 600f).toDouble(),
@@ -506,14 +525,7 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         val defaultExact = savedExact.toInt()
         val defaultTuwt = savedTuwt.toInt()
 
-        val allPerms = if (winningNum.length == 3) {
-            com.threeDLedger.logic.NumberGenerator.permutations(winningNum).toSet() - setOf(winningNum)
-        } else emptySet()
-        val numInt = winningNum.toIntOrNull() ?: 0
-        val minus1 = String.format("%03d", if (numInt == 0) 999 else numInt - 1)
-        val plus1 = String.format("%03d", if (numInt == 999) 0 else numInt + 1)
-        val near = if (winningNum.length == 3) (setOf(minus1, plus1) - setOf(winningNum)) else emptySet()
-        val tuwtSet = allPerms + near
+        val tuwtSet = com.threeDLedger.logic.TutCalculator.calculate(winningNum).allTut
 
         val groupedByDine = batchExports.groupBy { it.record.dineId }
         val settlements = mutableListOf<DineSettlement>()
@@ -626,17 +638,6 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
     }
 
 
-    init {
-        viewModelScope.launch {
-            repository.purgeOverflowArtifacts()
-        }
-        appPassword.value = prefs.getString("appPassword", "") ?: ""
-        voucherFooterText.value = prefs.getString("voucherFooterText", "ထွက်လျော်မည်။") ?: "ထွက်လျော်မည်။"
-        printerSettings.value = prefs.getString("printerSettings", "") ?: ""
-        brakeLimit.value = prefs.getInt("brakeLimit", 3000)
-        winningNumber.value = prefs.getString("winningNumber_${currentBatch.value}", "") ?: ""
-    }
-
     fun updateAppPassword(password: String) {
         appPassword.value = password
         prefs.edit().putString("appPassword", password).apply()
@@ -675,20 +676,25 @@ val allDines: StateFlow<List<Dine>> = repository.allDines
         }
     }
     fun resetAllStatisticsAndStartNewBatch(newBatchNumber: Int) {
+        if (newBatchNumber <= 0) return
         viewModelScope.launch {
-            repository.resetAllStatistics()
             val oldBatch = currentBatch.value
-            prefs.edit()
-                .remove("winningNumber_$oldBatch")
+            val thresholdBatch = (oldBatch - 4).coerceAtLeast(0)
+            repository.archiveAndReset(thresholdBatch)
+            val editor = prefs.edit()
                 .remove("winningNumber_$newBatchNumber")
-                .remove("multiplier_exact_$oldBatch")
-                .remove("multiplier_perm_$oldBatch")
-                .remove("multiplier_near_$oldBatch")
+                .remove("exactMult_$newBatchNumber")
+                .remove("permMult_$newBatchNumber")
+                .remove("nearMult_$newBatchNumber")
                 .putInt("currentBatch", newBatchNumber)
-                .apply()
+            prefs.all.keys
+                .filter { it.startsWith("paid_") && it.endsWith("_$newBatchNumber") }
+                .forEach { editor.remove(it) }
+            editor.apply()
 
-            winningNumber.value = ""
             currentBatch.value = newBatchNumber
+            winningNumber.value = ""
+            loadMultipliersForBatch(newBatchNumber)
             saveBatchesList(listOf(newBatchNumber))
         }
     }
@@ -937,13 +943,16 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
     }
 
     fun getBatchFinancialSummary(batch: Int = currentBatch.value): BatchFinancialSummary3D {
-        val batchVouchers = vouchersWithBets.value.filter { it.voucher.batchNumber == batch && !it.voucher.isArchived }
+        val batchVouchers = vouchersWithBets.value.filter {
+            it.voucher.batchNumber == batch &&
+                !it.voucher.isArchived &&
+                !com.threeDLedger.logic.TutCalculator.isOverflowMarker(it.voucher.remark)
+        }
         val totalSales = batchVouchers.sumOf { it.voucher.totalAmount.toLong() }
         val custMap = customers.value.associateBy { it.id }
         val commTotal = batchVouchers.sumOf { vwb ->
             val cust = custMap[vwb.voucher.customerId]
-            val rate = cust?.commissionRate ?: 0.0
-            val effectiveRate = if (rate > 1.0) rate / 100.0 else rate
+            val effectiveRate = com.threeDLedger.logic.TutCalculator.normalizeCommissionFraction(cust?.commissionRate ?: 0.0)
             (vwb.voucher.totalAmount * effectiveRate).toLong()
         }
         val batchExports = allExportRecords.value.filter { it.record.batchNumber == batch && !it.record.isArchived }
@@ -954,19 +963,17 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
 
         var payoutTotal = 0L
         if (wonDeclared && winningNum.length == 3) {
-            val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(winningNum).toSet() - setOf(winningNum)
-            val numInt = winningNum.toIntOrNull() ?: 0
-            val minus1 = String.format("%03d", if (numInt == 0) 999 else numInt - 1)
-            val plus1 = String.format("%03d", if (numInt == 999) 0 else numInt + 1)
-            val near = setOf(minus1, plus1) - setOf(winningNum)
-            val tuwtSet = allPerms + near
+            val tuwtSet = com.threeDLedger.logic.TutCalculator.calculate(winningNum).allTut
 
             batchVouchers.forEach { vwb ->
+                val cust = custMap[vwb.voucher.customerId]
+                val custExactM = if (cust != null && cust.multiplier > 0) cust.multiplier.toDouble() else exactM
+                val custTuwtM = if (cust != null && cust.tuwtMultiplier > 0) cust.tuwtMultiplier.toDouble() else tuwtM
                 vwb.bets.forEach { bet ->
                     if (bet.number == winningNum) {
-                        payoutTotal += (bet.amount * exactM).toLong()
+                        payoutTotal += (bet.amount * custExactM).toLong()
                     } else if (bet.number in tuwtSet) {
-                        payoutTotal += (bet.amount * tuwtM).toLong()
+                        payoutTotal += (bet.amount * custTuwtM).toLong()
                     }
                 }
             }
@@ -1003,9 +1010,86 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
             try {
                 isFetchingHistory.value = true
                 ensureDefault3DHistory()
+                // Also pull latest live official Thai 3D result from our Cloudflare Worker edge feed
+                val latestItem = fetchLatestDrawRecordFromWorker()
+                if (latestItem != null) {
+                    val existing = repository.winningHistory3D.first()
+                    val match = existing.firstOrNull { it.drawDate == latestItem.drawDate }
+                    if (match == null) {
+                        repository.insert3DWinningHistorySingle(latestItem)
+                    } else if (match.winningNumber != latestItem.winningNumber || (match.firstPrize6D.isBlank() && latestItem.firstPrize6D.isNotBlank())) {
+                        repository.insert3DWinningHistorySingle(
+                            match.copy(
+                                winningNumber = latestItem.winningNumber,
+                                firstPrize6D = latestItem.firstPrize6D.ifBlank { match.firstPrize6D }
+                            )
+                        )
+                    }
+                }
+            } catch (_: Exception) {
             } finally {
                 isFetchingHistory.value = false
             }
         }
+    }
+
+    private fun fetchLatestDrawRecordFromWorker(): ThreeDWinningHistory? {
+        return try {
+            val url = java.net.URL("${com.threeDLedger.network.NetworkClient.BASE_URL}/latest-glo")
+            val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 6000
+                readTimeout = 6000
+            }
+            if (conn.responseCode != 200) return null
+            val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = org.json.JSONObject(body)
+            val threeD = json.optString("threeD", "").trim()
+            if (threeD.length != 3 || !threeD.all { it.isDigit() }) return null
+            val firstPrize = json.optString("firstPrize", "").trim()
+            val rawDate = json.optString("date", "").trim()
+            val (ddMmYyyy, formattedMm) = normalizeWorkerDateToMyanmar(rawDate)
+            if (ddMmYyyy.isBlank()) return null
+            ThreeDWinningHistory(
+                drawDate = ddMmYyyy,
+                drawDateFormatted = formattedMm,
+                winningNumber = threeD,
+                firstPrize6D = firstPrize
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun normalizeWorkerDateToMyanmar(rawDate: String): Pair<String, String> {
+        val months = arrayOf(
+            "ဇန်နဝါရီ", "ဖေဖော်ဝါရီ", "မတ်", "ဧပြီ",
+            "မေ", "ဇွန်", "ဇူလိုင်", "ဩဂုတ်",
+            "စက်တင်ဘာ", "အောက်တိုဘာ", "နိုဝင်ဘာ", "ဒီဇင်ဘာ"
+        )
+        val isoMatch = Regex("""(\d{4})-(\d{1,2})-(\d{1,2})""").find(rawDate)
+        val ddMmMatch = Regex("""(\d{1,2})/(\d{1,2})/(\d{4})""").find(rawDate)
+        val (day, monthIdx, year) = when {
+            isoMatch != null -> Triple(
+                isoMatch.groupValues[3].toIntOrNull() ?: return "" to "",
+                (isoMatch.groupValues[2].toIntOrNull() ?: 1) - 1,
+                isoMatch.groupValues[1].toIntOrNull() ?: return "" to ""
+            )
+            ddMmMatch != null -> Triple(
+                ddMmMatch.groupValues[1].toIntOrNull() ?: return "" to "",
+                (ddMmMatch.groupValues[2].toIntOrNull() ?: 1) - 1,
+                ddMmMatch.groupValues[3].toIntOrNull() ?: return "" to ""
+            )
+            else -> return "" to ""
+        }
+        val safeMonth = monthIdx.coerceIn(0, 11)
+        val ddStr = String.format(Locale.US, "%02d/%02d/%04d", day, safeMonth + 1, year)
+        val mmFormatted = "${toBurmeseDigits(day.toString())} ${months[safeMonth]} ${toBurmeseDigits(year.toString())}"
+        return ddStr to mmFormatted
+    }
+
+    private fun toBurmeseDigits(numStr: String): String {
+        val mm = "၀၁၂၃၄၅၆၇၈၉"
+        return numStr.map { ch -> if (ch in '0'..'9') mm[ch - '0'] else ch }.joinToString("")
     }
 }

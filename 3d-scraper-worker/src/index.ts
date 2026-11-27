@@ -22,7 +22,8 @@ import {
   sendTelegramDocument,
   saveAppRelease,
   getAppRelease,
-  AppReleaseRecord
+  AppReleaseRecord,
+  getSalePlans
 } from './telegramBot';
 
 export interface Env {
@@ -30,6 +31,15 @@ export interface Env {
   TELEGRAM_BOT_TOKEN: string;
   TELEGRAM_CHAT_ID: string;
   GOOGLE_SERVICE_ACCOUNT_JSON: string;
+  ADMIN_API_SECRET?: string;
+  TELEGRAM_WEBHOOK_SECRET?: string;
+}
+
+function isAuthorizedAdminRequest(request: Request, env: Env, url: URL): boolean {
+  if (!env.ADMIN_API_SECRET) return true;
+  const bearer = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '').trim() || '';
+  const querySecret = url.searchParams.get('secret') || '';
+  return bearer === env.ADMIN_API_SECRET || querySecret === env.ADMIN_API_SECRET;
 }
 
 export interface GloLotteryData {
@@ -131,11 +141,25 @@ export default {
 
     // Telegram Bot Webhook endpoint
     if (url.pathname === '/webhook' || url.pathname === '/telegram') {
+      if (env.TELEGRAM_WEBHOOK_SECRET) {
+        const headerSecret = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
+        if (headerSecret !== env.TELEGRAM_WEBHOOK_SECRET) {
+          return new Response(JSON.stringify({ status: 'error', error: 'Forbidden' }), {
+            status: 403,
+            headers: corsHeaders
+          });
+        }
+      }
       return handleTelegramWebhook(request, env);
     }
 
     // Admin Broadcast Announcement Endpoint
     if (url.pathname === '/broadcast' || url.pathname === '/broadcast-update') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       const msgParam = url.searchParams.get('message') || '';
       const adminChatId = env.TELEGRAM_CHAT_ID;
       const defaultAnnouncement =
@@ -152,10 +176,18 @@ export default {
 
     // Automatically set Telegram Webhook and Register Bot Menu Commands
     if (url.pathname === '/set-webhook' || url.pathname === '/setup-bot') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       const webhookUrl = url.searchParams.get('url') || `${url.origin}/webhook`;
       const token = getCleanBotToken(env);
+      const secretQuery = env.TELEGRAM_WEBHOOK_SECRET
+        ? `&secret_token=${encodeURIComponent(env.TELEGRAM_WEBHOOK_SECRET)}`
+        : '';
       const tgRes = await fetch(
-        `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&allowed_updates=${encodeURIComponent(JSON.stringify(['message', 'callback_query']))}`
+        `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&allowed_updates=${encodeURIComponent(JSON.stringify(['message', 'callback_query']))}${secretQuery}`
       );
       const tgData = await tgRes.json();
 
@@ -201,6 +233,11 @@ export default {
 
     // Query Telegram Webhook status
     if (url.pathname === '/webhook-info') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       const token = getCleanBotToken(env);
       const tgRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
       const tgData = await tgRes.json();
@@ -211,6 +248,11 @@ export default {
 
     // Test send message
     if (url.pathname === '/test-telegram') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       const res = await sendTelegramMessage(
         env,
         env.TELEGRAM_CHAT_ID,
@@ -256,8 +298,22 @@ export default {
       }), { headers: corsHeaders });
     }
 
+    // Public Sale Plans Endpoint (synced with Admin & Telegram Bot pricing)
+    if (url.pathname === '/api/app/plans' || url.pathname === '/app/plans') {
+      const plans = await getSalePlans(env);
+      return new Response(JSON.stringify({
+        status: 'ok',
+        plans
+      }), { headers: corsHeaders });
+    }
+
     // App Publish Endpoint (for GitHub Actions or CLI release automation)
     if ((url.pathname === '/api/app/publish' || url.pathname === '/app/publish') && request.method === 'POST') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       try {
         const body = await request.json() as any;
         if (!body || (!body.file_id && !body.download_url)) {
@@ -331,6 +387,11 @@ export default {
 
     // Sync Current Release APK to Telegram to obtain native file_id
     if ((url.pathname === '/api/app/sync-telegram' || url.pathname === '/app/sync-telegram') && request.method === 'POST') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       try {
         const release = await getAppRelease(env);
         if (!release || !release.download_url) {
@@ -377,6 +438,11 @@ export default {
 
     // Manual draw processing / Apply GLO trigger (Purposeful manual test send supported)
     if (url.pathname === '/process-draw' || url.pathname === '/apply-glo' || (url.pathname === '/' && request.method === 'POST')) {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       try {
         const force = url.searchParams.get('force') !== 'false';
         const drawResult = await processDraw(env, { force });
@@ -399,6 +465,11 @@ export default {
 
     // Direct winning number test broadcast to Telegram (Purpose test send)
     if (url.pathname === '/broadcast-winner' || url.pathname === '/test-broadcast') {
+      if (!isAuthorizedAdminRequest(request, env, url)) {
+        return new Response(JSON.stringify({ status: 'error', error: 'Unauthorized' }), {
+          status: 401, headers: corsHeaders
+        });
+      }
       try {
         const token = await getFirebaseToken(env);
         const crRes = await fetch(`${env.FIREBASE_DB_URL}/3d_live_results.json`, {
@@ -554,7 +625,7 @@ export function checkDrawWindow(): boolean {
   const h = mmtTime.getHours();
   const m = mmtTime.getMinutes();
   // 15:14 – 15:25 MMT window (3:14:00 PM to 3:25:59 PM)
-  return (h === 15 && m >= 14) || (h === 15 && m <= 25);
+  return h === 15 && m >= 14 && m <= 25;
 }
 
 // ── Main Logic ────────────────────────────────────────────────────────────────
@@ -848,11 +919,7 @@ async function sendTelegramAlert(env: Env, message: string) {
   const token = getCleanBotToken(env);
   if (!token || !env.TELEGRAM_CHAT_ID) return;
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: env.TELEGRAM_CHAT_ID, text: message })
-    });
+    await notifyAllAdmins(env, message);
   } catch (_) {}
 }
 
@@ -953,7 +1020,7 @@ export async function handleLicenseActivate(request: Request, env: Env): Promise
       });
     }
 
-    if (keyData.status === 'revoked') {
+    if (keyData.status === 'revoked' || keyData.status === 'banned') {
       return new Response(JSON.stringify({ error: 'ဤလိုင်စင်ကုတ်အား Admin မှ ပိတ်သိမ်းထားပါသည် (Revoked)' }), {
         status: 403, headers: corsHeaders
       });
@@ -1273,6 +1340,7 @@ export async function handleLicenseCheckStatus(request: Request, env: Env): Prom
       const jwtPayload: Record<string, unknown> = {
         cd_key,
         device_fingerprint,
+        device_changeable: keyData.device_changeable === true,
         iat: Math.floor(Date.now() / 1000),
         exp: expSec
       };
@@ -1280,6 +1348,7 @@ export async function handleLicenseCheckStatus(request: Request, env: Env): Prom
       return new Response(JSON.stringify({
         status: 'activated',
         token: appToken,
+        device_changeable: keyData.device_changeable === true,
         expires_at: keyData.expires_at || null
       }), { headers: corsHeaders });
     } else if (keyData.status === 'pending_approval') {
@@ -1292,7 +1361,7 @@ export async function handleLicenseCheckStatus(request: Request, env: Env): Prom
         status: 'rejected',
         message: 'Admin မှ အသုံးပြုခွင့် ငြင်းပယ်ခဲ့ပါသည်'
       }), { headers: corsHeaders });
-    } else if (keyData.status === 'revoked') {
+    } else if (keyData.status === 'revoked' || keyData.status === 'banned') {
       return new Response(JSON.stringify({
         status: 'revoked',
         message: 'ဤကုတ်အား ပိတ်သိမ်းထားပါသည်'
@@ -1326,7 +1395,7 @@ export async function handleLicenseVerify(request: Request, env: Env): Promise<R
     }
 
     const keyData = await keyRes.json() as any;
-    if (!keyData || keyData.status === 'revoked') {
+    if (!keyData || keyData.status === 'revoked' || keyData.status === 'banned') {
       return new Response(JSON.stringify({
         valid: false,
         reason: 'revoked',
@@ -1471,7 +1540,7 @@ export async function handleLicenseRestore(request: Request, env: Env): Promise<
       }), { headers: corsHeaders });
     }
 
-    if (keyData.status === 'revoked') {
+    if (keyData.status === 'revoked' || keyData.status === 'banned') {
       return new Response(JSON.stringify({
         status: 'revoked',
         message: 'ဤလိုင်စင်ကုတ်အား Admin မှ ပိတ်သိမ်းထားပါသည် (Revoked)'
@@ -1501,6 +1570,7 @@ export async function handleLicenseRestore(request: Request, env: Env): Promise<
     const jwtPayload: Record<string, unknown> = {
       cd_key,
       device_fingerprint,
+      device_changeable: keyData.device_changeable === true,
       iat: nowSec,
       exp: expSec
     };
@@ -1510,6 +1580,7 @@ export async function handleLicenseRestore(request: Request, env: Env): Promise<
       status: 'activated',
       token: appToken,
       cd_key: cd_key,
+      device_changeable: keyData.device_changeable === true,
       expires_at: keyData.expires_at || null,
       message: 'လိုင်စင် အလိုအလျောက် ပြန်လည် ချိတ်ဆက်ပြီးပါပြီ'
     }), { headers: corsHeaders });

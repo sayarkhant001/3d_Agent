@@ -104,19 +104,11 @@ fun OverflowScreen(
         .filter { it.totalBetAmount > 0 }
         .sortedBy { it.number.toIntOrNull() ?: 0 }
 
-    // When winning number is declared: show winning exact number and tut numbers only
+    // When winning number is declared: show winning exact number and unified tut numbers only
     val brakedWinRows = remember(batchWinningNumber, exposureMap, brakeLimit) {
         if (batchWinningNumber.length != 3) return@remember emptyList<BrakedWinRow>()
-        val allPerms = NumberGenerator.permutations(batchWinningNumber).toSet()
-        val permsOnly = (allPerms - setOf(batchWinningNumber)).sorted()
-        val winInt = batchWinningNumber.toIntOrNull() ?: 0
-        val numMinus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
-        val numPlus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
-        val lastDigit = batchWinningNumber[2].digitToIntOrNull() ?: 0
-        val lastMinus1 = "${batchWinningNumber.substring(0, 2)}${(lastDigit + 9) % 10}"
-        val lastPlus1  = "${batchWinningNumber.substring(0, 2)}${(lastDigit + 1) % 10}"
-        val nearOnly = (setOf(numMinus1, numPlus1, lastMinus1, lastPlus1) - setOf(batchWinningNumber) - allPerms).sorted()
-        val tuwtNumbers = permsOnly + nearOnly
+        val tutResult = com.threeDLedger.logic.TutCalculator.calculate(batchWinningNumber)
+        val tuwtNumbers = (tutResult.permutations + tutResult.nearMisses).distinct()
 
         val exactAmt = if (brakeLimit > 0) minOf(exposureMap[batchWinningNumber]?.totalBetAmount ?: 0, brakeLimit) else (exposureMap[batchWinningNumber]?.totalBetAmount ?: 0)
         listOf(BrakedWinRow(batchWinningNumber, isExact = true, amount = exactAmt)) +
@@ -127,8 +119,7 @@ fun OverflowScreen(
     }
 
     val meCommFraction = remember(meCustomer) {
-        val r = meCustomer?.commissionRate ?: 0.0
-        if (r > 1.0) r / 100.0 else r
+        com.threeDLedger.logic.TutCalculator.normalizeCommissionFraction(meCustomer?.commissionRate ?: 0.0)
     }
     val meCommPercent = (meCommFraction * 100).toInt()
 
@@ -577,20 +568,19 @@ fun OverflowScreen(
     }
 
     // ── Overflow Voucher Snapshot Dialog with Per-Dine Serial Copy ───────────
+    val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
     val snapshot = overflowSnapshot
     if (snapshot != null) {
-        val voucherText = buildString {
-            appendLine("      တင်ကွက် ဘောင်ချာ    ")
-            appendLine(" ဘောင်ချာ : #${snapshot.voucherSerial}")
-            appendLine(" အကြိမ်   : ${snapshot.batch}")
-            appendLine(" အချိန်   : ${snapshot.timestamp}")
-            appendLine("------------------------")
-            snapshot.items.forEachIndexed { idx, (num, amt) ->
-                appendLine(" ${idx + 1}. $num = $amt")
-            }
-            appendLine("------------------------")
-            appendLine(" စုစုပေါင်း : %,d ကျပ်".format(snapshot.total))
-        }
+        val voucherText = com.threeDLedger.logic.CopyTextFormatter.formatNumberListCopy(
+            title = "တင်ကွက် ဘောင်ချာ",
+            batchNumber = snapshot.batch,
+            items = snapshot.items,
+            totalAmount = snapshot.total,
+            footerText = footerText,
+            serial = snapshot.voucherSerial,
+            dineName = snapshot.dineName,
+            dateTime = snapshot.timestamp
+        )
 
         Dialog(
             onDismissRequest = {
@@ -700,33 +690,33 @@ fun OverflowScreen(
 
                     Spacer(Modifier.height(10.dp))
 
-                    // Buttons (Copy / Done)
+                    // Buttons (Copy / Done — >= 48dp senior targets)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         OutlinedButton(
                             onClick = {
                                 clipboardManager.setText(AnnotatedString(voucherText))
                                 android.widget.Toast.makeText(context, "ဘောင်ချာ အမှတ် #${snapshot.voucherSerial} ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, emeraldPrimary)
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.5.dp, emeraldPrimary)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = emeraldPrimary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, tint = emeraldPrimary, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("ကော်ပီ", color = emeraldPrimary, fontWeight = FontWeight.Bold)
+                            Text("ကော်ပီ", color = emeraldPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
 
                         com.threeDLedger.ui.components.PrimaryGradientButton(
                             onClick = {
                                 overflowSnapshot = null
                             },
-                            modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp)
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("ပြီးပါပြီ", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text("ပြီးပါပြီ", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         }
                     }
                 }
@@ -795,27 +785,27 @@ fun OverflowScreen(
                 .navigationBarsPadding()
                 .padding(bottom = 6.dp)
         ) {
-            // Winning Declared Warning Banner
+            // Winning Declared Warning Banner (Dark & light high contrast)
             if (isWonDeclared) {
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFFEE2E2),
-                    border = BorderStroke(1.dp, Color(0xFFF87171))
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    border = BorderStroke(1.2.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
                 ) {
                     Row(
-                        modifier = Modifier.padding(10.dp),
+                        modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFFDC2626), modifier = Modifier.size(22.dp))
+                        Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(22.dp))
                         Text(
                             text = "ပေါက်ဂဏန်း ထွက်ပြီးပါပြီ။ အထက်ဒိုင်သို့ တင်ပို့၍ မရတော့ပါ။",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 13.sp,
-                            color = Color(0xFFB91C1C)
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onErrorContainer
                         )
                     }
                 }
@@ -904,36 +894,25 @@ fun OverflowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 5.dp, horizontal = 4.dp),
+                            .padding(vertical = 6.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
+                        Text(
+                            "ဂဏန်းများ",
+                            color = Color.White,
                             modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("ဂဏန်းများ", color = Color.White, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "ကော်ပီ",
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier
-                                    .size(13.dp)
-                                    .clickable {
-                                        val keptText = if (isWonDeclared) {
-                                            brakedWinRows.joinToString("\n") { "${it.number} = ${it.amount}" }
-                                        } else {
-                                            brakedExposures.joinToString("\n") { "${it.number} = ${keptAmount(it.totalBetAmount)}" }
-                                        }
-                                        if (keptText.isNotBlank()) {
-                                            clipboardManager.setText(AnnotatedString(keptText))
-                                            android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                            )
-                        }
-                        Text(if (isWonDeclared) "ပမာဏ" else "ဘရိတ်အတွင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
+                        Text(
+                            if (isWonDeclared) "ပမာဏ" else "ဘရိတ်အတွင်း",
+                            color = Color.White,
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
                     }
                     // Rows
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
@@ -941,7 +920,7 @@ fun OverflowScreen(
                             if (brakedWinRows.isEmpty()) {
                                 item {
                                     Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                                     }
                                 }
                             }
@@ -952,11 +931,11 @@ fun OverflowScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(rowBg)
-                                        .padding(vertical = 4.dp, horizontal = 4.dp),
+                                        .padding(vertical = 6.dp, horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(row.number, color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
-                                    Text("%,d".format(row.amount), color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                    Text(row.number, color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                                    Text("%,d".format(row.amount), color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
                                 }
                                 HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                             }
@@ -964,7 +943,7 @@ fun OverflowScreen(
                             if (brakedExposures.isEmpty()) {
                                 item {
                                     Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                        Text("ထိုးမှု မရှိသေးပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                                     }
                                 }
                             }
@@ -974,10 +953,10 @@ fun OverflowScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .background(MaterialTheme.colorScheme.surface)
-                                        .padding(vertical = 4.dp, horizontal = 4.dp)
-                                    ) {
-                                    Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
-                                    Text("%,d".format(kept), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                        .padding(vertical = 6.dp, horizontal = 6.dp)
+                                ) {
+                                    Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                                    Text("%,d".format(kept), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
                                 }
                                 HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                             }
@@ -991,7 +970,7 @@ fun OverflowScreen(
                             .background(emeraldDark)
                     ) {
                         BrakeSummaryRow("စုစုပေါင်း", "%,d".format(totalBraked), bgColor = emeraldDark)
-                        val commLabel = if (meCommPercent > 0) "ကော်" else "ကော်"
+                        val commLabel = if (meCommPercent > 0) "ကော် ($meCommPercent%)" else "ကော်"
                         BrakeSummaryRow(commLabel, "%,d".format(commAmount), bgColor = emeraldDark)
                         BrakeSummaryRow("နှုတ်ပြီး", "%,d".format(netAfterComm), bgColor = emeraldDark)
                         BrakeSummaryRow("ပေါက်သီး", if (isWonDeclared) "%,d".format(exactPayout) else "-", bgColor = emeraldDark)
@@ -1005,20 +984,50 @@ fun OverflowScreen(
                         )
                     }
 
-                    // Left Action Button ([ 📋 မှတ်တမ်းများ ])
-                    Button(
-                        onClick = onNavigateToExportHistory,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp)
-                            .height(36.dp),
-                        shape = RoundedCornerShape(6.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = orangeButton),
-                        contentPadding = PaddingValues(0.dp)
+                    // Left Action Row: Copy + Export History (>= 48dp senior targets)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text("မှတ်တမ်းများ", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = {
+                                val items = if (isWonDeclared) {
+                                    brakedWinRows.map { it.number to it.amount }
+                                } else {
+                                    brakedExposures.map { it.number to keptAmount(it.totalBetAmount) }
+                                }
+                                if (items.isNotEmpty()) {
+                                    val keptText = com.threeDLedger.logic.CopyTextFormatter.formatNumberListCopy(
+                                        title = if (isWonDeclared) "ဘရိတ်အတွင်း ပေါက်သီး/တွတ်" else "ဘရိတ်အတွင်း စာရင်း",
+                                        batchNumber = currentBatch,
+                                        items = items,
+                                        totalAmount = items.sumOf { it.second },
+                                        footerText = footerText
+                                    )
+                                    clipboardManager.setText(AnnotatedString(keptText))
+                                    android.widget.Toast.makeText(context, "ဘရိတ်အတွင်း ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.weight(0.42f).height(48.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.2.dp, emeraldPrimary),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "ကော်ပီ", tint = emeraldPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("ကော်ပီ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = emeraldPrimary, maxLines = 1)
+                        }
+                        Button(
+                            onClick = onNavigateToExportHistory,
+                            modifier = Modifier.weight(0.58f).height(48.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = orangeButton),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("မှတ်တမ်း", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
                     }
                 }
 
@@ -1037,39 +1046,18 @@ fun OverflowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 5.dp, horizontal = 4.dp),
+                            .padding(vertical = 6.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("ဂဏန်းများ", color = Color.White, textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                Icons.Default.ContentCopy,
-                                contentDescription = "ကော်ပီ",
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier
-                                    .size(13.dp)
-                                    .clickable {
-                                        val overflowText = overflowExposures.joinToString("\n") { "${it.number} = ${it.overflowAmount}" }
-                                        if (overflowText.isNotBlank()) {
-                                            clipboardManager.setText(AnnotatedString(overflowText))
-                                            android.widget.Toast.makeText(context, "ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                            )
-                        }
-                        Text(if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                     }
                     // Rows
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (overflowExposures.isEmpty()) {
                             item {
                                 Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("ကျော်ကွက် မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                                    Text("ကျော်ကွက် မရှိပါ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                                 }
                             }
                         }
@@ -1078,10 +1066,10 @@ fun OverflowScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(MaterialTheme.colorScheme.surface)
-                                    .padding(vertical = 4.dp, horizontal = 4.dp)
+                                    .padding(vertical = 6.dp, horizontal = 6.dp)
                             ) {
-                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
-                                Text("%,d".format(exposure.overflowAmount), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                                Text("%,d".format(exposure.overflowAmount), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
                             }
                             HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
                         }
@@ -1091,46 +1079,73 @@ fun OverflowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 5.dp, horizontal = 6.dp),
+                            .padding(vertical = 6.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
                         Box(
                             modifier = Modifier
                                 .height(16.dp)
                                 .width(1.dp)
                                 .background(Color.White.copy(alpha = 0.35f))
                         )
-                        Text("%,d".format(totalOverflow), color = Color.White, modifier = Modifier.weight(1f).padding(end = 6.dp), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("%,d".format(totalOverflow), color = Color.White, modifier = Modifier.weight(1f).padding(end = 6.dp), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
                     }
 
-                    // Action Button under Right Table (+ တင်မည်)
-                    Button(
-                        onClick = {
-                            if (isWonDeclared) {
-                                android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း ထွက်ပြီးပါပြီ။ အထက်ဒိုင်သို့ တင်ပို့၍ မရတော့ပါ။", android.widget.Toast.LENGTH_SHORT).show()
-                                return@Button
-                            }
-                            if (overflowExposures.isNotEmpty()) {
-                                showSelectDineDialog = true
-                            } else {
-                                android.widget.Toast.makeText(context, "တင်ရန် ဘရိတ်ကျော် ဂဏန်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        enabled = !isWonDeclared && overflowExposures.isNotEmpty(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 2.dp)
-                            .height(36.dp),
-                        shape = RoundedCornerShape(6.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (!isWonDeclared && overflowExposures.isNotEmpty()) emeraldPrimary else MaterialTheme.colorScheme.surfaceVariant
-                        ),
-                        contentPadding = PaddingValues(0.dp)
+                    // Action Row under Right Table: Copy + Export (>= 48dp senior targets)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(if (isWonDeclared) Icons.Default.Lock else Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(if (isWonDeclared) "ပိတ်" else "+ တင်မည်", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        OutlinedButton(
+                            onClick = {
+                                val items = overflowExposures.map { it.number to it.overflowAmount }
+                                if (items.isNotEmpty()) {
+                                    val overflowText = com.threeDLedger.logic.CopyTextFormatter.formatNumberListCopy(
+                                        title = "ဘရိတ်ကျော် တင်ကွက်",
+                                        batchNumber = currentBatch,
+                                        items = items,
+                                        totalAmount = totalOverflow,
+                                        footerText = footerText
+                                    )
+                                    clipboardManager.setText(AnnotatedString(overflowText))
+                                    android.widget.Toast.makeText(context, "ကျော်ကွက် ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = overflowExposures.isNotEmpty(),
+                            modifier = Modifier.weight(0.42f).height(48.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.2.dp, emeraldPrimary),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = "ကော်ပီ", tint = emeraldPrimary, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text("ကော်ပီ", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = emeraldPrimary, maxLines = 1)
+                        }
+                        Button(
+                            onClick = {
+                                if (isWonDeclared) {
+                                    android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း ထွက်ပြီးပါပြီ။ အထက်ဒိုင်သို့ တင်ပို့၍ မရတော့ပါ။", android.widget.Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (overflowExposures.isNotEmpty()) {
+                                    showSelectDineDialog = true
+                                } else {
+                                    android.widget.Toast.makeText(context, "တင်ရန် ဘရိတ်ကျော် ဂဏန်း မရှိပါ", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !isWonDeclared && overflowExposures.isNotEmpty(),
+                            modifier = Modifier.weight(0.58f).height(48.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (!isWonDeclared && overflowExposures.isNotEmpty()) emeraldPrimary else MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Icon(if (isWonDeclared) Icons.Default.Lock else Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(if (isWonDeclared) "ပိတ်" else "+ တင်မည်", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
                     }
                 }
             }

@@ -250,7 +250,7 @@ class ComposeUiIntegrationTest {
 
         // Verify Commissioner Info & Pills
         composeTestRule.onNodeWithText("ဦးမြင့်ကျော်").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ကော် အိုင်ဒီ: 1").assertIsDisplayed()
+        composeTestRule.onNodeWithText("#1").assertIsDisplayed()
         composeTestRule.onNodeWithText("ကော် 23%").assertIsDisplayed()
 
         // Verify FinTech Financial 3-Col Metrics
@@ -258,18 +258,18 @@ class ComposeUiIntegrationTest {
         composeTestRule.onNodeWithText("1,535,000 ကျပ်").assertIsDisplayed()
         composeTestRule.onNodeWithText("ကော်မရှင်").assertIsDisplayed()
         composeTestRule.onNodeWithText("353,050 ကျပ်").assertIsDisplayed()
-        composeTestRule.onNodeWithText("နုတ်ပြီးငွေ").assertIsDisplayed()
+        composeTestRule.onNodeWithText("နှုတ်ပြီးငွေ").assertIsDisplayed()
         composeTestRule.onNodeWithText("1,181,950 ကျပ်").assertIsDisplayed()
 
         // Verify Voucher & Navigation elements
         composeTestRule.onNodeWithText("ဘောင်ချာ : 13 စောင်").assertIsDisplayed()
-        composeTestRule.onNodeWithText("ဘောင်ချာများ ကြည့်ရန်").assertIsDisplayed()
+        composeTestRule.onNodeWithText("အသေးစိတ် ကြည့်မည်").assertIsDisplayed()
 
         // Verify Action Clicks
         composeTestRule.onNodeWithText("ထိုးမည်", substring = true).performClick()
         assertTrue("Quick bet button click triggered", addBetClicked)
 
-        composeTestRule.onNodeWithText("ဘောင်ချာများ ကြည့်ရန်").performClick()
+        composeTestRule.onNodeWithText("အသေးစိတ် ကြည့်မည်").performClick()
         assertTrue("Voucher navigation click triggered", betsClicked)
     }
 }

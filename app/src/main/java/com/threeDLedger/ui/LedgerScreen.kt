@@ -39,12 +39,7 @@ private enum class NumCat(val label: String, val color: Color, val bgColor: Colo
 private fun categorize(number: String, winning: String): NumCat {
     if (winning.length != 3) return NumCat.NONE
     if (number == winning) return NumCat.EXACT
-    val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(winning).toSet() - setOf(winning)
-    val winInt = winning.toIntOrNull() ?: return NumCat.NONE
-    val minus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
-    val plus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
-    val near   = setOf(minus1, plus1) - setOf(winning)
-    val tuwtSet = allPerms + near
+    val tuwtSet = com.threeDLedger.logic.TutCalculator.calculate(winning).allTut
     if (number in tuwtSet) return NumCat.TUWT
     return NumCat.NONE
 }
@@ -58,9 +53,12 @@ fun LedgerScreen(
 ) {
     BackHandler(onBack = onNavigateBack)
 
-    val ledgerExposures by viewModel.ledgerExposures.collectAsStateWithLifecycle()
-    val currentBatch    by viewModel.currentBatch.collectAsStateWithLifecycle()
-    val savedWinner     by viewModel.winningNumber.collectAsStateWithLifecycle()
+    val ledgerExposures  by viewModel.ledgerExposures.collectAsStateWithLifecycle()
+    val currentBatch     by viewModel.currentBatch.collectAsStateWithLifecycle()
+    val savedWinner      by viewModel.winningNumber.collectAsStateWithLifecycle()
+    val customers        by viewModel.customers.collectAsStateWithLifecycle()
+    val vouchersWithBets by viewModel.vouchersWithBets.collectAsStateWithLifecycle()
+    val allExportRecords by viewModel.allExportRecords.collectAsStateWithLifecycle()
 
     // All bet numbers sorted ascending
     val allExposures = ledgerExposures
@@ -68,9 +66,10 @@ fun LedgerScreen(
         .sortedBy { it.number.toIntOrNull() ?: 0 }
     val totalAll = allExposures.sumOf { it.totalBetAmount }
 
-    // Multipliers for payout calculation
-    val exactMult by viewModel.savedExactMult.collectAsStateWithLifecycle()
-    val tuwtMult  by viewModel.savedPermMult.collectAsStateWithLifecycle()
+    // Batch financial summary (consistent with HomeScreen & CommissionerResultScreen)
+    val batchSummary = remember(currentBatch, vouchersWithBets, allExportRecords, customers, savedWinner) {
+        viewModel.getBatchFinancialSummary(currentBatch)
+    }
 
     // After mode — only active when WinnerScreen has declared a winning number
     val isAfterMode = savedWinner.length == 3
@@ -79,12 +78,7 @@ fun LedgerScreen(
     val relevantRows: List<Pair<LedgerExposure, NumCat>> =
         if (isAfterMode) {
             val exposureMap = allExposures.associateBy { it.number }
-            val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(savedWinner).toSet() - setOf(savedWinner)
-            val winInt = savedWinner.toIntOrNull() ?: 0
-            val minus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
-            val plus1  = String.format("%03d", if (winInt == 999) 0 else winInt + 1)
-            val near   = setOf(minus1, plus1) - setOf(savedWinner)
-            val tuwtSet = allPerms + near
+            val tuwtSet = com.threeDLedger.logic.TutCalculator.calculate(savedWinner).allTut
 
             val exactExp = exposureMap[savedWinner] ?: LedgerExposure(savedWinner, 0, 0, 0, 0)
             val exactRow = exactExp to NumCat.EXACT
@@ -100,10 +94,8 @@ fun LedgerScreen(
     val tuwtWonBets  = relevantRows.filter { it.second == NumCat.TUWT }.sumOf { it.first.totalBetAmount }
     val totalWonBets = exactWonBets + tuwtWonBets
 
-    val exactPayout = exactWonBets * exactMult
-    val tuwtPayout  = tuwtWonBets * tuwtMult
-    val totalPayout = exactPayout + tuwtPayout
-    val netBalance  = totalAll - totalPayout
+    val totalPayout = batchSummary.winningPayout.toDouble()
+    val netBalance  = batchSummary.netBalance.toDouble()
     val rDimens = rememberResponsiveDimens()
 
     val isDark = isSystemInDarkTheme()
@@ -570,17 +562,17 @@ fun LedgerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
-                                FitText("ထိုးကြေး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
-                                FitText("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                FitText("ထိုးကြေး : ", color = Color.White.copy(alpha = 0.9f), maxFontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp, minFontSize = 11.sp)
+                                FitText("%,d Ks".format(totalAll), color = Color.White, fontWeight = FontWeight.Bold, maxFontSize = if (rDimens.isCompact) 13.5.sp else 15.sp, minFontSize = 11.5.sp, fontFamily = FontFamily.Monospace)
                             }
                             Spacer(Modifier.width(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                FitText("ပေါက်ကြေး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
-                                FitText("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                FitText("ပေါက်ကြေး : ", color = Color.White.copy(alpha = 0.9f), maxFontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp, minFontSize = 11.sp)
+                                FitText("%,d Ks".format(totalWonBets), color = Color(0xFFFFD54F), fontWeight = FontWeight.Bold, maxFontSize = if (rDimens.isCompact) 13.5.sp else 15.sp, minFontSize = 11.5.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
 
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.2f), thickness = 0.5.dp)
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.25f), thickness = 0.75.dp)
 
                         // Row 2: Total Payout & Net Profit/Loss
                         Row(
@@ -589,18 +581,18 @@ fun LedgerScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
-                                FitText("လျော်ကြေး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
-                                FitText("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp, minFontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                                FitText("လျော်ကြေး : ", color = Color.White.copy(alpha = 0.9f), maxFontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp, minFontSize = 11.sp)
+                                FitText("%,.0f Ks".format(totalPayout), color = if (totalPayout > 0) Color(0xFFFF8A80) else Color.White, fontWeight = FontWeight.ExtraBold, maxFontSize = if (rDimens.isCompact) 13.5.sp else 15.sp, minFontSize = 11.5.sp, fontFamily = FontFamily.Monospace)
                             }
                             Spacer(Modifier.width(6.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                FitText(if (netBalance >= 0) "အမြတ် : " else "အရှုံး : ", color = Color.White.copy(alpha = 0.85f), maxFontSize = if (rDimens.isCompact) 11.sp else 12.sp, minFontSize = 9.sp)
+                                FitText(if (netBalance >= 0) "အမြတ် : " else "အရှုံး : ", color = Color.White.copy(alpha = 0.9f), maxFontSize = if (rDimens.isCompact) 12.5.sp else 13.5.sp, minFontSize = 11.sp)
                                 FitText(
                                     "${if (netBalance >= 0) "+" else ""}${"%,.0f Ks".format(netBalance)}",
                                     color = if (netBalance >= 0) Color(0xFF69F0AE) else Color(0xFFFF5252),
                                     fontWeight = FontWeight.ExtraBold,
-                                    maxFontSize = if (rDimens.isCompact) 12.sp else 14.sp,
-                                    minFontSize = 10.sp,
+                                    maxFontSize = if (rDimens.isCompact) 13.5.sp else 15.sp,
+                                    minFontSize = 11.5.sp,
                                     fontFamily = FontFamily.Monospace
                                 )
                             }

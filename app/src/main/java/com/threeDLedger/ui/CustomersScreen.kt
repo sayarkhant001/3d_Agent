@@ -326,6 +326,7 @@ fun CustomersScreen(
                                         netAmount    = net,
                                         commPct      = commPct,
                                         voucherCount = voucherCount,
+                                        paidAmount   = viewModel.getPaidForBatch(customer.id, currentBatch).toInt(),
                                         onEditTap    = { editCustomer = customer },
                                         onBetsTap    = { viewingCustomer = customer },
                                         onAddBetTap  = { onNavigateToBetting(customer.id) }
@@ -349,6 +350,7 @@ fun CustomerCard(
     netAmount    : Int,
     commPct      : Int = 0,
     voucherCount : Int,
+    paidAmount   : Int = customer.paidAmount.toInt(),
     onEditTap    : () -> Unit,
     onBetsTap    : () -> Unit,
     onAddBetTap  : () -> Unit
@@ -452,20 +454,20 @@ fun CustomerCard(
                     }
                 }
 
-                // Action 1: "ထိုးမည်" (Enlarged and isolated to avoid accidental touch)
+                // Action 1: "ထိုးမည်" (Senior-friendly 48dp target, isolated to avoid accidental touch)
                 FilledTonalButton(
                     onClick = onAddBetTap,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.primary
                     ),
-                    modifier = Modifier.height(36.dp)
+                    modifier = Modifier.heightIn(min = 48.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("ထိုးမည်", fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("ထိုးမည်", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
 
@@ -575,10 +577,10 @@ fun CustomerCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Medium
                     )
-                    if (customer.paidAmount > 0) {
+                    if (paidAmount > 0) {
                         Text("•", fontSize = 12.sp, color = MaterialTheme.colorScheme.outlineVariant)
                         Text(
-                            "ပေးငွေ : %,d ကျပ်".format(customer.paidAmount.toInt()),
+                            "ပေးငွေ : %,d ကျပ်".format(paidAmount),
                             fontSize = 13.sp,
                             color = MaterialTheme.colorScheme.secondary,
                             fontWeight = FontWeight.SemiBold
@@ -593,24 +595,24 @@ fun CustomerCard(
                 ) {
                     Surface(
                         onClick = onEditTap,
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
-                        modifier = Modifier.height(26.dp)
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.75f),
+                        modifier = Modifier.heightIn(min = 44.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Icon(
                                 Icons.Default.Edit,
                                 contentDescription = "ပြင်ဆင်မည်",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(12.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(5.dp))
                             Text(
                                 "ပြင်မည်",
-                                fontSize = 13.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,

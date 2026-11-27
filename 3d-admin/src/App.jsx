@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { ref, onValue, set, update } from 'firebase/database';
 import { auth, db } from './firebase';
@@ -9,9 +9,6 @@ import {
   buildResellerList,
   computeResellerKeyCounts,
   filterKeysByResellerAndCriteria,
-  formatTelegramUsername,
-  getTelegramChatUrl,
-  computeKeyStats,
   groupKeysByReseller
 } from './resellerUtils';
 
@@ -74,7 +71,7 @@ function App() {
   const [salePlans, setSalePlans] = useState(DEFAULT_SALE_PLANS);
   const [editingPlanPrice, setEditingPlanPrice] = useState({});
   const [mode, setMode] = useState('auto');
-  const [lotteryStatus, setLotteryStatus] = useState('normal');
+  const [, setLotteryStatus] = useState('normal');
   const [liveResults, setLiveResults] = useState({});
   const [currentBatch, setCurrentBatch] = useState(1);
   const [batchInput, setBatchInput] = useState('1');
@@ -130,11 +127,14 @@ function App() {
   const [bulkCount, setBulkCount] = useState(1);
   const [resellerForNewKeys, setResellerForNewKeys] = useState('');
 
+  const toastTimerRef = useRef(null);
+  const fetchGloRef = useRef(null);
+
   // Auto-fetch Official Thai GLO results on mount and poll periodically
   useEffect(() => {
-    fetchOfficialGlo();
+    fetchGloRef.current?.();
     const interval = setInterval(() => {
-      fetchOfficialGlo();
+      fetchGloRef.current?.();
     }, 60000); // Poll GLO every 60 seconds
     return () => clearInterval(interval);
   }, []);
@@ -218,7 +218,8 @@ function App() {
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
   const handleLogin = async (e) => {
@@ -274,7 +275,7 @@ function App() {
             data = json.data;
           }
         }
-      } catch (_) {}
+      } catch {}
 
       // 2. Secondary Scraper Worker
       if (!data) {
@@ -286,7 +287,7 @@ function App() {
               data = json2.data;
             }
           }
-        } catch (_) {}
+        } catch {}
       }
 
       // 3. Rayriffy Community Lottery API (CORS friendly)
@@ -309,7 +310,7 @@ function App() {
               };
             }
           }
-        } catch (_) {}
+        } catch {}
       }
 
       // 4. Direct GLO Thailand API
@@ -336,7 +337,7 @@ function App() {
               };
             }
           }
-        } catch (_) {}
+        } catch {}
       }
 
       if (data) {
@@ -352,6 +353,7 @@ function App() {
       setFetchingGlo(false);
     }
   };
+  fetchGloRef.current = fetchOfficialGlo;
 
   const applyGloToManual = () => {
     if (!gloResult) return;
@@ -404,7 +406,7 @@ function App() {
     // Also notify worker to broadcast if available
     try {
       fetch('https://3d-scraper-worker.khaingkhantkyaw001.workers.dev/apply-glo', { method: 'POST' }).catch(() => {});
-    } catch (_) {}
+    } catch {}
 
     showToast(`⚡ 3D Result (${gloResult.threeD}) applied to Live App & Firebase!`);
   };
@@ -515,15 +517,24 @@ function App() {
       : (count === 1 ? 'New CD-Key generated successfully!' : `Successfully generated ${count} CD-Keys!`));
   };
 
-  const generateKey = generateKeysBatch;
-
   const revokeKey = async (keyId) => {
+    await update(ref(db, `3d_licenses/keys/${keyId}`), {
+      status: 'revoked',
+      revoked_at: Date.now()
+    });
+    showToast('Key revoked (banned) immediately', 'error');
+  };
+
+  const resetKeyToAvailable = async (keyId) => {
     await update(ref(db, `3d_licenses/keys/${keyId}`), {
       status: 'available',
       claimed_by: null,
-      activated_at: null
+      activated_at: null,
+      device_fingerprint: null,
+      device_model: null,
+      expires_at: null
     });
-    showToast('Key revoked and reset to available');
+    showToast('Key reset to available');
   };
 
   const deleteKey = async (keyId) => {
@@ -764,7 +775,7 @@ function App() {
     ta.select();
     try {
       document.execCommand('copy');
-    } catch (_) {}
+    } catch {}
     document.body.removeChild(ta);
   };
 
@@ -785,10 +796,14 @@ function App() {
 
   // Stats & Key filtering
   const keyEntries = useMemo(() => Object.entries(keys), [keys]);
+  const directKeyEntries = useMemo(
+    () => keyEntries.filter(([, k]) => !k.generated_by_reseller_id && !k.reseller_name),
+    [keyEntries]
+  );
   const totalKeys = keyEntries.length;
   const availableKeys = keyEntries.filter(([, v]) => v.status === 'available').length;
   const claimedKeys = keyEntries.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length;
-  const revokedKeys = keyEntries.filter(([, v]) => v.status === 'revoked').length;
+  const revokedKeys = keyEntries.filter(([, v]) => v.status === 'revoked' || v.status === 'banned').length;
 
   // Complete List of Resellers (from database + any discovered in keys)
   const allResellerList = useMemo(() => {
@@ -992,13 +1007,23 @@ function App() {
                     : '—'}
                 </td>
                 <td>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {(keyData.status === 'claimed' || keyData.status === 'active') && (
-                      <button className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
-                        Revoke
+                      <>
+                        <button type="button" className="btn btn-warning btn-sm" onClick={() => revokeKey(keyId)}>
+                          Revoke
+                        </button>
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => resetKeyToAvailable(keyId)}>
+                          Reset
+                        </button>
+                      </>
+                    )}
+                    {(keyData.status === 'revoked' || keyData.status === 'banned') && (
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => resetKeyToAvailable(keyId)}>
+                        Unban
                       </button>
                     )}
-                    <button className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteKey(keyId)}>
                       Delete
                     </button>
                   </div>
@@ -1162,7 +1187,7 @@ function App() {
             >
               <span className="tab-icon">📲</span>
               <span className="tab-title">App Release (အက်ပ်ဗားရှင်း ဖြန့်ချိရေး)</span>
-              <span className="tab-badge">{appRelease?.version_name ? `v${appRelease.version_name}` : 'Live'}</span>
+              <span className="tab-badge">{appRelease?.version_name ? `v${String(appRelease.version_name).replace(/^v+/i, '')}` : 'Live'}</span>
             </button>
 
             <button
@@ -1221,7 +1246,7 @@ function App() {
                 <span className="breadcrumb-pill">🔑 3 Plans (Trial/1-Yr/Lifetime)</span>
               )}
               {activeSection === 'release' && (
-                <span className="breadcrumb-pill">📲 {appRelease?.version_name ? `v${appRelease.version_name}` : 'Live Build'}</span>
+                <span className="breadcrumb-pill">📲 {appRelease?.version_name ? `v${String(appRelease.version_name).replace(/^v+/i, '')}` : 'Live Build'}</span>
               )}
               <button
                 type="button"
@@ -1512,7 +1537,7 @@ function App() {
                       <tr>
                         <th>Reseller Name</th>
                         <th>Telegram ID</th>
-                        <th>Rate (%)</th>
+                        <th>Commission</th>
                         <th>Keys Assigned</th>
                         <th>Total Paid</th>
                         <th>Outstanding Due</th>
@@ -1541,7 +1566,7 @@ function App() {
                             </td>
                             <td>
                               <span style={{ fontWeight: 700, color: 'var(--accent-primary)' }}>
-                                {r.percentage || 10}%
+                                {r.percentage ? `${r.percentage}%` : `${(r.total_commission || 0).toLocaleString()} Ks`}
                               </span>
                             </td>
                             <td>
@@ -2232,18 +2257,18 @@ function App() {
                     <div className="reseller-metrics-grid">
                       <div className="reseller-metric-box">
                         <span className="reseller-metric-label">Total Direct Keys</span>
-                        <span className="reseller-metric-value" style={{ color: '#818cf8' }}>{directKeys.length}</span>
+                        <span className="reseller-metric-value" style={{ color: '#818cf8' }}>{directKeyEntries.length}</span>
                       </div>
                       <div className="reseller-metric-box">
                         <span className="reseller-metric-label">Available</span>
                         <span className="reseller-metric-value" style={{ color: 'var(--accent-success)' }}>
-                          {directKeys.filter(([_, k]) => k.status === 'available').length}
+                          {directKeyEntries.filter(([, k]) => k.status === 'available').length}
                         </span>
                       </div>
                       <div className="reseller-metric-box">
                         <span className="reseller-metric-label">Active / Claimed</span>
                         <span className="reseller-metric-value" style={{ color: '#f43f5e' }}>
-                          {directKeys.filter(([_, k]) => k.status === 'claimed' || k.status === 'active').length}
+                          {directKeyEntries.filter(([, k]) => k.status === 'claimed' || k.status === 'active').length}
                         </span>
                       </div>
                     </div>
@@ -2257,9 +2282,10 @@ function App() {
                       <h2>
                         🔑 {currentSelectedReseller ? `Keys for ${currentSelectedReseller.name}` : selectedResellerId === 'direct' ? 'Direct Admin Keys' : 'All License Keys'} ({filteredKeys.length} ကုဒ်)
                       </h2>
-                      <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                      <div style={{ display: 'flex', gap: 8, fontSize: 12, flexWrap: 'wrap' }}>
                         <span className="status-badge available">🟢 Available ({filteredKeys.filter(([, v]) => v.status === 'available').length})</span>
                         <span className="status-badge claimed">🔴 Claimed ({filteredKeys.filter(([, v]) => v.status === 'claimed' || v.status === 'active').length})</span>
+                        <span className="status-badge revoked">⛔ Revoked ({revokedKeys})</span>
                       </div>
                     </div>
 
@@ -2522,7 +2548,7 @@ function App() {
                     💾 Save Batch
                   </button>
                   <div className="batch-draw-date-badge">
-                    <span>📅 <b>ထွက်ရက်စွဲ:</b> {liveResults.result_date || gloResult?.drawDate || '16-09-2026'}</span>
+                    <span>📅 <b>ထွက်ရက်စွဲ:</b> {liveResults.result_date || gloResult?.date || gloResult?.drawDate || '16-09-2026'}</span>
                     <span>&bull;</span>
                     <span>⏭️ <b>နောက်ထွက်မည့်ရက်:</b> {liveResults.target_draw_date || '01-10-2026'}</span>
                   </div>
@@ -2704,14 +2730,24 @@ function App() {
                     <span>Auto-advance batch number after declaration (အကြိမ် နံပါတ် အလိုအလျောက် တိုးမည်)</span>
                   </label>
 
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={applyManualResult}
-                    style={{ padding: '12px', fontWeight: 700 }}
-                  >
-                    🚀 Publish 3D Result (ရလဒ် ထုတ်ပြန်မည်)
-                  </button>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={pushManualResult}
+                      style={{ padding: '12px 18px', fontWeight: 700, flex: 1 }}
+                    >
+                      🚀 Publish 3D Result (ရလဒ် ထုတ်ပြန်မည်)
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={clearWinningResult}
+                      style={{ padding: '12px 16px', fontWeight: 700 }}
+                    >
+                      🧹 Clear Result
+                    </button>
+                  </div>
 
                   {/* Active Tut Breakdown Preview */}
                   {activeNumber.length === 3 && (
@@ -2781,7 +2817,7 @@ function App() {
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Active Version</div>
                         <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--accent-success)', marginTop: 4 }}>
-                          v{appRelease.version_name || '1.0.0'} ({appRelease.version_code || 1})
+                          v{String(appRelease.version_name || '1.0.0').replace(/^v+/i, '')} ({appRelease.version_code || 1})
                         </div>
                       </div>
                       <div>
@@ -2799,7 +2835,7 @@ function App() {
                       <div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Release Date</div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginTop: 6 }}>
-                          {appRelease.released_at ? new Date(appRelease.released_at).toLocaleString() : '—'}
+                          {(appRelease.released_at || appRelease.uploaded_at) ? new Date(appRelease.released_at || appRelease.uploaded_at).toLocaleString() : '—'}
                         </div>
                       </div>
                     </div>

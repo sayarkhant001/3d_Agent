@@ -4,14 +4,15 @@
   --bg-card: rgba(16, 20, 34, 0.78);
   --bg-card-hover: rgba(22, 28, 48, 0.88);
   --accent-primary: #6366f1;
+  --primary: #6366f1;
   --accent-primary-hover: #4f46e5;
   --accent-secondary: #f43f5e;
   --accent-success: #10b981;
   --accent-warning: #f59e0b;
   --accent-cyan: #06b6d4;
   --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
   --border-color: rgba(255, 255, 255, 0.08);
   --border-glow: rgba(99, 102, 241, 0.35);
   --shadow-glow: 0 0 25px rgba(99, 102, 241, 0.2);
@@ -2006,6 +2007,53 @@ body {
 .overview-resellers-table tr:hover td {
   background: rgba(255, 255, 255, 0.02);
 }
+
+/* ========================================================
+   MISSING UTILITY CLASSES & SENIOR READABILITY POLISH
+   ======================================================== */
+.text-input,
+.select-input {
+  background: rgba(15, 23, 42, 0.9);
+  border: 1.5px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-primary);
+  font-size: 15px;
+  min-height: 44px;
+  padding: 10px 14px;
+  outline: none;
+  transition: var(--transition);
+}
+
+.text-input:focus,
+.select-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.plan-editor-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.status-badge.active {
+  background: rgba(16, 185, 129, 0.16);
+  color: #34d399;
+}
+
+.status-badge.banned,
+.status-badge.revoked {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+
+.btn {
+  min-height: 42px;
+  font-size: 14px;
+}
+
 
 
 

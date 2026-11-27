@@ -183,7 +183,14 @@ fun WinningHistoryScreen(
                         ThreeDHistoryCard(
                             history = item,
                             onCopy = {
-                                val text = "ရက်စွဲ: ${item.drawDateFormatted} (${item.drawDate})\nပေါက်ဂဏန်း: ${item.winningNumber}\nပထမဆု: ${item.firstPrize6D}"
+                                val tutNums = com.threeDLedger.logic.TutCalculator.calculate(item.winningNumber).allTut.sorted()
+                                val text = com.threeDLedger.logic.CopyTextFormatter.formatWinningHistoryCopy(
+                                    drawDateFormatted = item.drawDateFormatted,
+                                    drawDate = item.drawDate,
+                                    winningNumber = item.winningNumber,
+                                    firstPrize6D = item.firstPrize6D,
+                                    tutNumbers = tutNums
+                                )
                                 clipboardManager.setText(AnnotatedString(text))
                                 android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း (${item.winningNumber}) ကော်ပီ ကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                             }
@@ -201,18 +208,14 @@ fun ThreeDHistoryCard(
     onCopy: () -> Unit
 ) {
     val emeraldPrimary = themeEmerald()
-    val emeraldDark = Color(0xFF065F46)
-    val emeraldLight = Color(0xFFECFDF5)
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val emeraldDark = if (isDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
+    val emeraldLight = com.threeDLedger.ui.theme.themeEmeraldContainer()
 
     val tutNumbers = remember(history.winningNumber) {
-        if (history.winningNumber.length == 3) {
-            val perms = (NumberGenerator.permutations(history.winningNumber).toSet() - setOf(history.winningNumber)).sorted()
-            val winInt = history.winningNumber.toIntOrNull() ?: 0
-            val numPlus1 = String.format("%03d", (winInt + 1) % 1000)
-            val numMinus1 = String.format("%03d", if (winInt == 0) 999 else winInt - 1)
-            val near = listOf(numMinus1, numPlus1).filter { it != history.winningNumber }
-            (perms + near).distinct()
-        } else emptyList()
+        com.threeDLedger.logic.TutCalculator.calculate(history.winningNumber).let { res ->
+            (res.permutations + res.nearMisses).distinct()
+        }
     }
 
     Card(
@@ -253,14 +256,14 @@ fun ThreeDHistoryCard(
 
                 OutlinedButton(
                     onClick = onCopy,
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                    modifier = Modifier.height(30.dp),
-                    border = BorderStroke(1.dp, emeraldPrimary)
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(44.dp),
+                    border = BorderStroke(1.2.dp, emeraldPrimary)
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(13.dp), tint = emeraldPrimary)
-                    Spacer(Modifier.width(4.dp))
-                    Text("ကော်ပီ", fontSize = 13.sp, color = emeraldPrimary, fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = emeraldPrimary)
+                    Spacer(Modifier.width(5.dp))
+                    Text("ကော်ပီ", fontSize = 14.sp, color = emeraldPrimary, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -333,11 +336,11 @@ fun ThreeDHistoryCard(
                         )
                         Text(
                             text = tutNumbers.joinToString(", "),
-                            fontSize = 13.sp,
+                            fontSize = 14.sp,
                             fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF4338CA),
-                            lineHeight = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = emeraldPrimary,
+                            lineHeight = 19.sp,
                             modifier = Modifier.weight(1f)
                         )
                     }

@@ -119,9 +119,15 @@ fun isVoucherMetadataLine(raw: String): Boolean {
         "ထိုးသူ", "ထိုးကြေးငွေ", "ရောင်းကြေး", "လျော်ငွေ", "လျော်မည်", "ထွက်လျော်မည်",
         "ကျေးဇူးတင်", "ကျေးဇူး", "ပေါက်သီး", "အထက်", "ကိုယ်တိုင်", "အမှတ်", "ဘောင်ချာအမှတ်",
         "နေ့စွဲ", "draw", "date", "slip", "phone", "ph", "tel", "ဖုန်း", "မှတ်ချက်",
-        "ကြွေးကျန်", "ပေးငွေ", "ရငွေ", "ရှင်းပြီး", "မရှင်းရသေး", "အမြတ်ငွေ", "အမြတ်", "မိမိ"
+        "ကြွေးကျန်", "ပေးငွေ", "ရငွေ", "ရှင်းပြီး", "မရှင်းရသေး", "အမြတ်ငွေ", "အမြတ်", "မိမိ",
+        "ဘရိတ်အတွင်း", "ကျော်ပမာဏ", "ဒိုင်ရှင်းတမ်း", "ကော်မရှင် ရလဒ်", "ပေါက်ဂဏန်း", "ပထမဆု", "အာမခံ"
     )
     if (metadataKeywords.any { lower.contains(it) || rawLower.contains(it) }) {
+        return true
+    }
+
+    // Bare phone number lines in custom footers (e.g., 09778899001 or 09-778899001)
+    if (!trimmed.contains('=') && !trimmed.contains(':') && Regex("""^(?:\+?95|09)[\d\-\s]{6,13}$""").matches(trimmed)) {
         return true
     }
 
@@ -1621,17 +1627,17 @@ fun BettingScreen(
                 if (pendingBets.isNotEmpty()) {
                     IconButton(
                         onClick = { showClearConfirmDialog = true },
-                        modifier = Modifier.size(24.dp).padding(start = 4.dp)
+                        modifier = Modifier.size(44.dp)
                     ) {
                         Icon(
                             Icons.Default.Delete,
                             contentDescription = "အားလုံး ရှင်းမည်",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 } else {
-                    Spacer(Modifier.width(28.dp))  // room for delete icon column
+                    Spacer(Modifier.width(44.dp))  // room for delete icon column
                 }
             }
 
@@ -1726,16 +1732,16 @@ fun BettingScreen(
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
 
-                            // Delete button
+                            // Delete button (>= 44dp touch area)
                             IconButton(
                                 onClick = { pendingBets.removeAt(i) },
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(44.dp)
                             ) {
                                 Icon(
                                     Icons.Default.Close,
                                     contentDescription = "ဖျက်",
                                     tint = Color(0xFFEF4444),
-                                    modifier = Modifier.size(15.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
@@ -2479,7 +2485,7 @@ fun TactileKeypadButton(
     val offsetY = if (isPressed) 1.5.dp else 0.dp
     val elevation = if (isPressed) 1.dp else 2.dp
     val rDimens = rememberResponsiveDimens()
-    val buttonHeight = if (rDimens.isCompact) 48.dp else 52.dp
+    val buttonHeight = if (rDimens.isCompact) 52.dp else 56.dp
 
     Box(
         modifier = modifier

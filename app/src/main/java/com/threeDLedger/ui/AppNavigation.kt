@@ -40,10 +40,9 @@ fun AppNavigation(
     val licenseManager = remember { LicenseManager(context) }
     
     val isAct = licenseManager.isActivated()
-    val hasKey = !licenseManager.getActiveCdKey().isNullOrBlank()
     val isTampered = licenseManager.timeIntegrity.isClockTampered()
 
-    val startDestination: Any = if (!isAct && !isTampered && !hasKey) {
+    val startDestination: Any = if (!isAct && !isTampered) {
         ActivationRoute
     } else if (viewModel.appPassword.value.isNotEmpty()) {
         LockRoute
@@ -54,9 +53,8 @@ fun AppNavigation(
     LaunchedEffect(Unit) {
         while (true) {
             val activated = licenseManager.isActivated()
-            val currentHasKey = !licenseManager.getActiveCdKey().isNullOrBlank()
             val currentTampered = licenseManager.timeIntegrity.isClockTampered()
-            if (!activated && !currentTampered && !currentHasKey) {
+            if (!activated && !currentTampered) {
                 val currentDest = navController.currentDestination?.route
                 if (currentDest != null && !currentDest.contains("ActivationRoute")) {
                     navController.navigate(ActivationRoute) {

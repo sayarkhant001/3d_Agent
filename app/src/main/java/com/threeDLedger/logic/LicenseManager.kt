@@ -96,16 +96,12 @@ class LicenseManager(private val context: Context) {
             return false
         }
         if (!checkSecurityIntegrity()) return false
-        val cdKey = prefs.getString("active_cd_key", null)
-        val hasValidKey = !cdKey.isNullOrBlank() && cdKey.replace("-", "").trim().length >= 16
 
         val token = prefs.getString("jwt_token", null)
-        if (!token.isNullOrBlank()) {
-            if (verifyToken(token)) {
-                return true
-            }
+        if (token.isNullOrBlank()) {
+            return false
         }
-        return hasValidKey
+        return verifyToken(token)
     }
 
     fun assertLicenseActive() {
@@ -355,7 +351,7 @@ class LicenseManager(private val context: Context) {
         remainingDays: Int?,
         deviceChangeable: Boolean? = null
     ): ActivationResult {
-        return if (status == "activated" && !token.isNullOrBlank()) {
+        return if (status == "activated" && !token.isNullOrBlank() && verifyToken(token)) {
             val editor = prefs.edit()
                 .putString("jwt_token", token)
                 .putString("active_cd_key", cdKey)
@@ -504,16 +500,19 @@ class LicenseManager(private val context: Context) {
                 val body = response.body()!!
                 when (body.status) {
                     "activated" -> {
-                        if (!body.token.isNullOrBlank()) {
-                            prefs.edit()
+                        if (!body.token.isNullOrBlank() && verifyToken(body.token)) {
+                            val editor = prefs.edit()
                                 .putString("jwt_token", body.token)
                                 .putString("active_cd_key", cdKey)
                                 .remove("pending_cd_key")
                                 .remove("expired_warning")
-                                .apply()
+                            if (body.device_changeable != null) {
+                                editor.putBoolean("device_changeable", body.device_changeable)
+                            }
+                            editor.apply()
                             ActivationResult.Success(body.token)
                         } else {
-                            ActivationResult.Error("Token မရရှိပါ")
+                            ActivationResult.Error("Token မရရှိပါ သို့မဟုတ် မမှန်ကန်ပါ")
                         }
                     }
                     "pending_approval" -> {
@@ -523,10 +522,11 @@ class LicenseManager(private val context: Context) {
                         prefs.edit().remove("pending_cd_key").apply()
                         ActivationResult.Error(body.message ?: "Admin မှ ခွင့်ပြုချက် ငြင်းပယ်ခဲ့ပါသည်")
                     }
-                    "revoked" -> {
+                    "revoked", "banned" -> {
                         prefs.edit()
                             .remove("pending_cd_key")
                             .remove("jwt_token")
+                            .remove("active_cd_key")
                             .putString("expired_warning", "ဤလိုင်စင်ကုတ်အား ပိတ်သိမ်းထားပါသည်")
                             .apply()
                         ActivationResult.Error("ဤလိုင်စင်ကုတ်အား ပိတ်သိမ်းထားပါသည်")
@@ -556,11 +556,30 @@ class LicenseManager(private val context: Context) {
                     val json = JSONObject(respBody)
                     val status = json.optString("status")
                     val token = json.optString("token")
-                    if (status == "activated" && token.isNotBlank()) {
-                        prefs.edit().putString("jwt_token", token).putString("active_cd_key", cdKey).remove("pending_cd_key").apply()
+                    if (status == "activated" && token.isNotBlank() && verifyToken(token)) {
+                        val editor = prefs.edit()
+                            .putString("jwt_token", token)
+                            .putString("active_cd_key", cdKey)
+                            .remove("pending_cd_key")
+                            .remove("expired_warning")
+                        if (json.has("device_changeable")) {
+                            editor.putBoolean("device_changeable", json.getBoolean("device_changeable"))
+                        }
+                        editor.apply()
                         return ActivationResult.Success(token)
                     } else if (status == "pending_approval") {
                         return ActivationResult.Pending("Admin ၏ အတည်ပြုချက်ကို စောင့်ဆိုင်းနေဆဲ ဖြစ်ပါသည်")
+                    } else if (status == "rejected") {
+                        prefs.edit().remove("pending_cd_key").apply()
+                        return ActivationResult.Error(json.optString("message", "Admin မှ ခွင့်ပြုချက် ငြင်းပယ်ခဲ့ပါသည်"))
+                    } else if (status == "revoked" || status == "banned") {
+                        prefs.edit()
+                            .remove("pending_cd_key")
+                            .remove("jwt_token")
+                            .remove("active_cd_key")
+                            .putString("expired_warning", "ဤလိုင်စင်ကုတ်အား ပိတ်သိမ်းထားပါသည်")
+                            .apply()
+                        return ActivationResult.Error("ဤလိုင်စင်ကုတ်အား ပိတ်သိမ်းထားပါသည်")
                     }
                 }
             } catch (_: Exception) {}
@@ -582,7 +601,7 @@ class LicenseManager(private val context: Context) {
                     val warningMsg = resBody.message ?: when (resBody.reason) {
                         "device_transferred" -> "ဤလိုင်စင်ကုတ်အား အခြားဖုန်းသို့ ပြောင်းရွှေ့အသုံးပြုလိုက်ပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"
                         "expired" -> "လိုင်စင် သက်တမ်း ကုန်ဆုံးသွားပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"
-                        "revoked" -> "ဤလိုင်စင်ကုတ်အား Admin မှ ပိတ်သိမ်းထားပါသည်"
+                        "revoked", "banned" -> "ဤလိုင်စင်ကုတ်အား Admin မှ ပိတ်သိမ်းထားပါသည်"
                         else -> "လိုင်စင် အသုံးပြုခွင့် သက်တမ်း ကုန်ဆုံးပါပြီ။ ဆက်လက်အသုံးပြုရန် လိုင်စင် အသစ် ဝယ်ယူပါ"
                     }
                     prefs.edit()

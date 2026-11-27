@@ -36,12 +36,11 @@ data class SecurityReport(
 
 object SecurityGuard {
 
-    // Known authorized developer certificate SHA-256 fingerprints (normalized uppercase, no colons)
+    // Known authorized developer certificate SHA-256 fingerprints (normalized uppercase, no colons).
+    // Preserves upgrade compatibility with existing installed releases signed by app/debug.keystore.
     private val AUTHORIZED_SIGNATURE_HASHES = setOf(
-        // Authorized Debug Keystore (from project app/debug.keystore)
-        "981B2F858BB4DDCFC9C8DA615CFBE9D05AB07CD0483DE50D1D337906E3F13B93",
-        // Release Keystore placeholder / authorized production fingerprints
-        "A0B1C2D3E4F5061728394A5B6C7D8E9F00112233445566778899AABBCCDDEEFF"
+        // Authorized signing keystore SHA-256 (app/debug.keystore)
+        "981B2F858BB4DDCFC9C8DA615CFBE9D05AB07CD0483DE50D1D337906E3F13B93"
     )
 
     private val SUSPICIOUS_PATHS = arrayOf(

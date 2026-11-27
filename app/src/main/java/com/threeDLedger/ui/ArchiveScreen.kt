@@ -232,23 +232,24 @@ private fun ArchiveBatchCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0xFF00796B).copy(alpha = 0.08f))
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(com.threeDLedger.ui.theme.themeEmeraldContainer())
                     .clickable(onClick = onViewResult)
-                    .padding(horizontal = 14.dp, vertical = 9.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.PieChart, null, tint = Color(0xFF00796B), modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Default.PieChart, null, tint = com.threeDLedger.ui.theme.themeEmerald(), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        "ကော်မဆုင်ရာ ရလဒ် ကြည့်မည်",
-                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF00796B)
+                        "ကော်မရှင်ဆိုင်ရာ ရလဒ် ကြည့်မည်",
+                        fontSize = 14.5.sp, fontWeight = FontWeight.Bold,
+                        color = com.threeDLedger.ui.theme.themeEmerald()
                     )
                 }
-                Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF00796B), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.ChevronRight, null, tint = com.threeDLedger.ui.theme.themeEmerald(), modifier = Modifier.size(20.dp))
             }
         }
     }

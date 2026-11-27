@@ -126,8 +126,8 @@ fun AppTableCellDivider(height: Dp = 20.dp, modifier: Modifier = Modifier) {
 fun AppTableIndexText(
     index: Int,
     modifier: Modifier = Modifier,
-    width: Dp = 34.dp,
-    fontSize: TextUnit = 12.5.sp
+    width: Dp = 36.dp,
+    fontSize: TextUnit = 13.5.sp
 ) {
     Text(
         "$index.",
@@ -138,12 +138,14 @@ fun AppTableIndexText(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.width(width)
     )
+}
+
 /** Number cell — centred, monospace, bold, never wraps. */
 @Composable
 fun AppTableNumberText(
     number: String,
     modifier: Modifier = Modifier,
-    fontSize: TextUnit = 17.sp,
+    fontSize: TextUnit = 18.sp,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
     Text(
@@ -164,7 +166,7 @@ fun AppTableNumberText(
 fun AppTableAmountText(
     amount: Long,
     modifier: Modifier = Modifier,
-    fontSize: TextUnit = 16.sp,
+    fontSize: TextUnit = 17.sp,
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
     Row(
@@ -184,12 +186,10 @@ fun AppTableAmountText(
         Spacer(Modifier.width(3.dp))
         Text(
             "Ks",
-            fontSize = (fontSize.value - 3.5f).sp,
+            fontSize = (fontSize.value - 3.5f).coerceAtLeast(11f).sp,
             fontWeight = FontWeight.Medium,
             fontFamily = FontFamily.Monospace,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
-}
-
 }

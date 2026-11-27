@@ -56,8 +56,7 @@ fun VouchersScreen(
         allVouchersWithBets.filter { it.voucher.batchNumber == currentBatch }
     }).filter {
         !it.voucher.isArchived &&
-        !it.voucher.remark.contains("တင်ကွက်") &&
-        !it.voucher.remark.contains("overflow", ignoreCase = true)
+            !com.threeDLedger.logic.TutCalculator.isOverflowMarker(it.voucher.remark)
     }
 
     val clipboardManager = LocalClipboardManager.current
@@ -282,67 +281,64 @@ fun VouchersScreen(
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
                             
-                            val remarkStr = if (voucherWithBets.voucher.remark.isNotEmpty()) " (${voucherWithBets.voucher.remark})" else ""
-                            val textToCopy = buildString {
-                                appendLine("========================")
-                                appendLine("      3D ဘောင်ချာ      ")
-                                appendLine("========================")
-                                appendLine(" ဘောင်ချာအမှတ်-${voucherWithBets.voucher.id}  အကြိမ် : ${voucherWithBets.voucher.batchNumber}")
-                                appendLine(" ရက်စွဲ : $dateString")
-                                appendLine(" ထိုးသူ : $customerName$remarkStr")
-                                appendLine("------------------------")
-                                val maxAmt = voucherWithBets.bets.maxOfOrNull { it.amount } ?: 0
-                                val amtWidth = "%,d".format(maxAmt).length
-                                voucherWithBets.bets.forEach { bet ->
-                                    val amtStr = "%,d".format(bet.amount).padStart(amtWidth)
-                                    appendLine(" ${bet.number.padStart(3)} = $amtStr Ks")
-                                }
-                                appendLine("------------------------")
-                                appendLine(" ထိုးကြေးငွေ = ${ "%,d".format(voucherWithBets.voucher.totalAmount).padStart(amtWidth)} Ks")
-                                appendLine("------------------------")
-                                appendLine(" $footerText")
-                                appendLine("========================")
-                                appendLine("      ကျေးဇူးတင်ပါသည်      ")
-                                appendLine("========================")
-                            }
+                            val textToCopy = com.threeDLedger.logic.CopyTextFormatter.formatVoucherCopy(
+                                voucherId = voucherWithBets.voucher.id,
+                                batchNumber = voucherWithBets.voucher.batchNumber,
+                                dateTime = dateString,
+                                customerName = customerName,
+                                remark = voucherWithBets.voucher.remark,
+                                bets = voucherWithBets.bets.map { it.number to it.amount },
+                                totalAmount = voucherWithBets.voucher.totalAmount,
+                                footerText = footerText
+                            )
                             
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 val coroutineScope = rememberCoroutineScope()
-                                IconButton(onClick = {
-                                    coroutineScope.launch { 
-                                        val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
-                                        val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
-                                        val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
-                                            batchNumber = voucherWithBets.voucher.batchNumber,
-                                            voucherId = voucherWithBets.voucher.id,
-                                            date = SimpleDateFormat("dd/MM/yyyy HH:mm").format(Date(voucherWithBets.voucher.timestamp)),
-                                            customerName = customerName,
-                                            remark = voucherWithBets.voucher.remark,
-                                            bets = voucherWithBets.bets.map { it.number to it.amount },
-                                            totalAmount = voucherWithBets.voucher.totalAmount,
-                                            footerText = footerText
-                                        )
-                                        val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
-                                        com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
-                                    }
-                                }) {
-                                    Icon(Icons.Default.Print, contentDescription = "Print")
+                                IconButton(
+                                    onClick = {
+                                        coroutineScope.launch { 
+                                            val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+                                            val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
+                                            val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
+                                                batchNumber = voucherWithBets.voucher.batchNumber,
+                                                voucherId = voucherWithBets.voucher.id,
+                                                date = SimpleDateFormat("dd/MM/yyyy HH:mm").format(Date(voucherWithBets.voucher.timestamp)),
+                                                customerName = customerName,
+                                                remark = voucherWithBets.voucher.remark,
+                                                bets = voucherWithBets.bets.map { it.number to it.amount },
+                                                totalAmount = voucherWithBets.voucher.totalAmount,
+                                                footerText = footerText
+                                            )
+                                            val bitmap = com.threeDLedger.logic.BluetoothPrinter.createVoucherBitmap(voucherData, paperSize)
+                                            com.threeDLedger.logic.BluetoothPrinter.printBitmap(bitmap, paperSize)
+                                        }
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.Print, contentDescription = "Print", modifier = Modifier.size(22.dp))
                                 }
-                                IconButton(onClick = {
-                                    val sendIntent: Intent = Intent().apply {
-                                        action = Intent.ACTION_SEND
-                                        putExtra(Intent.EXTRA_TEXT, textToCopy)
-                                        type = "text/plain"
-                                    }
-                                    val shareIntent = Intent.createChooser(sendIntent, null)
-                                    context.startActivity(shareIntent)
-                                }) {
-                                    Icon(Icons.Default.Share, contentDescription = "Share")
+                                IconButton(
+                                    onClick = {
+                                        val sendIntent: Intent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(Intent.EXTRA_TEXT, textToCopy)
+                                            type = "text/plain"
+                                        }
+                                        val shareIntent = Intent.createChooser(sendIntent, null)
+                                        context.startActivity(shareIntent)
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(22.dp))
                                 }
-                                IconButton(onClick = {
-                                    clipboardManager.setText(AnnotatedString(textToCopy))
-                                }) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy")
+                                IconButton(
+                                    onClick = {
+                                        clipboardManager.setText(AnnotatedString(textToCopy))
+                                        android.widget.Toast.makeText(context, "ဘောင်ချာ ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(22.dp))
                                 }
                             }
                         }

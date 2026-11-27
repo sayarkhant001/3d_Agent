@@ -271,9 +271,9 @@ fun UpdateDialogHandler(
                                 Text(
                                     text = info.releaseNotes.take(300).let { if (info.releaseNotes.length > 300) "$it…" else it },
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontSize = 13.sp,
-                                    lineHeight = 18.sp,
-                                    modifier = Modifier.padding(10.dp)
+                                    fontSize = 14.5.sp,
+                                    lineHeight = 20.sp,
+                                    modifier = Modifier.padding(12.dp)
                                 )
                             }
                         }
@@ -281,10 +281,10 @@ fun UpdateDialogHandler(
 
                     Text(
                         "အက်ပ်ကို တိုက်ရိုက် ဒေါင်းလုဒ်ဆွဲ၍ တပ်ဆင်နိုင်ပါသည်။",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 13.sp,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 16.sp
+                        lineHeight = 19.sp
                     )
                 }
             },
@@ -296,7 +296,7 @@ fun UpdateDialogHandler(
                     com.threeDLedger.ui.components.PrimaryGradientButton(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(rDimens.compactButtonHeight),
+                            .heightIn(min = 50.dp),
                         shape = RoundedCornerShape(12.dp),
                         onClick = {
                             startDownloadAndInstall(info)
@@ -304,13 +304,13 @@ fun UpdateDialogHandler(
                     ) {
                         Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("ဒေါင်းလုဒ်လုပ်မည်", fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
+                        Text("ဒေါင်းလုဒ်လုပ်မည်", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
 
                     OutlinedButton(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(rDimens.compactButtonHeight),
+                            .heightIn(min = 48.dp),
                         shape = RoundedCornerShape(12.dp),
                         onClick = {
                             val tgUrl = "https://t.me/threed_ledger_bot?start=download"
@@ -324,16 +324,16 @@ fun UpdateDialogHandler(
                             }
                         }
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Telegram Bot မှ ရယူမည်", fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp)
+                        Text("Telegram Bot မှ ရယူမည်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     }
 
-                    if (info.releaseUrl != null && info.releaseUrl.startsWith("https://t.me/")) {
+                    if (info.releaseUrl != null && !info.releaseUrl.startsWith("https://t.me/")) {
                         TextButton(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(36.dp),
+                                .heightIn(min = 48.dp),
                             onClick = {
                                 try {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(info.releaseUrl)).apply {
@@ -345,19 +345,19 @@ fun UpdateDialogHandler(
                                 }
                             }
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Telegram Bot မှ ရယူမည်", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text("ထုတ်ပြန်ချက် စာမျက်နှာ ကြည့်ရန်", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                         }
                     }
 
                     TextButton(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(40.dp),
+                            .heightIn(min = 48.dp),
                         onClick = { showUpdateDialog = false }
                     ) {
-                        Text("နောက်မှ", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("နောက်မှ", fontSize = 14.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             },

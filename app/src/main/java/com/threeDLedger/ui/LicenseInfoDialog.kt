@@ -445,7 +445,7 @@ fun LicenseDetailsDialog(
                 if (isExpiringSoon && currentDetails.planType != LicensePlanType.LIFETIME) {
                     Button(
                         onClick = {
-                            val tgUrl = "https://t.me/threeDLedger2026bot?start=renew"
+                            val tgUrl = "https://t.me/threed_ledger_bot?start=renew"
                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(tgUrl))
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             try {
@@ -456,14 +456,14 @@ fun LicenseDetailsDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = if (currentDetails.planType == LicensePlanType.TRIAL) "Pro သို့ အဆင့်မြှင့်တင်ရန် ဆက်သွယ်မည်" else "သက်တမ်းတိုးရန် Admin ဆက်သွယ်မည်",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
+                            fontSize = 14.sp
                         )
                     }
                 }
@@ -485,14 +485,14 @@ fun LicenseDetailsDialog(
                     },
                     enabled = !isSyncing,
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                 ) {
                     if (isSyncing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("ချိန်ညှိနေသည်...", fontSize = 12.sp)
+                        Text("ချိန်ညှိနေသည်...", fontSize = 13.5.sp)
                     } else {
-                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("အင်တာနက်ဖြင့် အချိန် ပြန်လည်ချိန်ညှိမည် (Sync MMT)", fontSize = 12.sp)
                     }

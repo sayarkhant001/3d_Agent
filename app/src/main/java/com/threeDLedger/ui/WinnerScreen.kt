@@ -155,46 +155,47 @@ fun WinnerScreen(
     var results          by remember { mutableStateOf<List<WinnerResult>>(emptyList()) }
     var overflowResults  by remember { mutableStateOf<List<OverflowWinResult>>(emptyList()) }
 
+    val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
+
     fun runCalc() {
         if (winningNumber.length != 3) return
         val batchInt = targetBatch.toIntOrNull() ?: currentBatch
-        val allPerms = com.threeDLedger.logic.NumberGenerator.permutations(winningNumber).toSet() - setOf(winningNumber)
-        val numInt   = winningNumber.toIntOrNull() ?: 0
-        val minus1   = String.format("%03d", if (numInt == 0) 999 else numInt - 1)
-        val plus1    = String.format("%03d", if (numInt == 999) 0 else numInt + 1)
-        val near     = setOf(minus1, plus1) - setOf(winningNumber)
-        val tuwtSet  = allPerms + near
-        val eM = exactMult.toDoubleOrNull() ?: 0.0
-        val tM = tuwtMult.toDoubleOrNull()  ?: 0.0
+        val tuwtSet = com.threeDLedger.logic.TutCalculator.calculate(winningNumber).allTut
+        val eM = exactMult.toDoubleOrNull() ?: 600.0
+        val tM = tuwtMult.toDoubleOrNull()  ?: 10.0
 
-        // Lower-agent winnings (excluding overflow)
+        // Lower-agent winnings (excluding overflow, honoring each customer's exact/tuwt multipliers)
         results = allBets.mapNotNull { bet ->
             val vWB = allVWB.find { it.voucher.id == bet.voucherId } ?: return@mapNotNull null
-            if (vWB.voucher.batchNumber != batchInt) return@mapNotNull null
+            if (vWB.voucher.batchNumber != batchInt || vWB.voucher.isArchived) return@mapNotNull null
             val customer = allCustomers.find { it.id == vWB.voucher.customerId } ?: return@mapNotNull null
-            if (customer.name.contains("တင်ကွက်") || customer.name.contains("overflow", ignoreCase = true) ||
-                customer.name.contains("upper", ignoreCase = true) || customer.name.contains("အထက်ဒိုင်") ||
-                vWB.voucher.remark.contains("တင်ကွက်") || vWB.voucher.remark.contains("overflow", ignoreCase = true) ||
-                vWB.voucher.remark.contains("upper", ignoreCase = true) || vWB.voucher.remark.contains("အထက်ဒိုင်")) {
+            if (com.threeDLedger.logic.TutCalculator.isOverflowMarker(customer.name) ||
+                com.threeDLedger.logic.TutCalculator.isOverflowMarker(vWB.voucher.remark)) {
                 return@mapNotNull null
             }
+            val custExactM = if (customer.multiplier > 0) customer.multiplier.toDouble() else eM
+            val custTuwtM = if (customer.tuwtMultiplier > 0) customer.tuwtMultiplier.toDouble() else tM
             val (win, wt) = when {
-                bet.number == winningNumber -> Pair(bet.amount * eM, WinType.EXACT)
-                bet.number in tuwtSet       -> Pair(bet.amount * tM, WinType.TUWT)
+                bet.number == winningNumber -> Pair(bet.amount * custExactM, WinType.EXACT)
+                bet.number in tuwtSet       -> Pair(bet.amount * custTuwtM, WinType.TUWT)
                 else                        -> Pair(0.0, WinType.EXACT)
             }
             if (win <= 0) return@mapNotNull null
             WinnerResult(customer.name, customer.id, bet.voucherId, bet.number, bet.amount, win, wt)
         }.sortedWith(compareBy({ it.customerName }, { it.voucherId }))
 
-        // Upper-agent / Overflow winnings
+        // Upper-agent / Overflow winnings (using Dine multipliers when available, else batch defaults)
+        val dinesMap = allDines.associateBy { it.id }
         overflowResults = allExportRecords
-            .filter { it.record.batchNumber == batchInt }
+            .filter { it.record.batchNumber == batchInt && !it.record.isArchived }
             .flatMap { exp ->
+                val dine = dinesMap[exp.record.dineId]
+                val dExactM = (dine?.exactMultiplier?.takeIf { it > 0 }?.toDouble()) ?: eM
+                val dTuwtM = (dine?.tuwtMultiplier?.takeIf { it > 0 }?.toDouble()) ?: tM
                 exp.numbers.mapNotNull { en ->
                     val (win, wt) = when {
-                        en.number == winningNumber -> Pair(en.amount * eM, WinType.EXACT)
-                        en.number in tuwtSet       -> Pair(en.amount * tM, WinType.TUWT)
+                        en.number == winningNumber -> Pair(en.amount * dExactM, WinType.EXACT)
+                        en.number in tuwtSet       -> Pair(en.amount * dTuwtM, WinType.TUWT)
                         else                       -> Pair(0.0, WinType.EXACT)
                     }
                     if (win <= 0) return@mapNotNull null
@@ -714,7 +715,8 @@ fun WinnerScreen(
                                     DineSettlementCard(
                                         settlement = settlement,
                                         batchNumber = batchInt,
-                                        winningNumber = winningNumber
+                                        winningNumber = winningNumber,
+                                        footerText = footerText
                                     )
                                 }
                             }
@@ -732,7 +734,8 @@ fun WinnerScreen(
 fun DineSettlementCard(
     settlement: DineSettlement,
     batchNumber: Int,
-    winningNumber: String
+    winningNumber: String,
+    footerText: String = ""
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -782,41 +785,47 @@ fun DineSettlementCard(
                     }
                 }
 
-                // Copy Settlement Button
+                // Copy Settlement Button (clean format: no Ks/ကျပ်/MMK, >= 46dp target)
                 OutlinedButton(
                     onClick = {
-                        val text = buildString {
-                            appendLine("===== ဒိုင်ရှင်းတမ်း =====")
-                            appendLine("ဒိုင်: ${settlement.dineName}")
-                            appendLine("အကြိမ်: $batchNumber")
-                            appendLine("ပေါက်ဂဏန်း: $winningNumber")
-                            appendLine("------------------------")
-                            appendLine("စုစုပေါင်း တင်ငွေ : %,d ကျပ်".format(settlement.totalExported))
-                            appendLine("ကော်မရှင် (${settlement.commissionRate}%) : ${"%,d".format(settlement.commissionAmount)} ကျပ်")
-                            appendLine("ဒိုင်သို့ ပေးချေရန် : %,d ကျပ်".format(settlement.netCost))
-                            appendLine("ပေါက်သီး (ဒဲ့) : %,d ကျပ်".format(settlement.exactPayout))
-                            appendLine("တွတ် (အလှည့်) : %,d ကျပ်".format(settlement.tuwtPayout))
-                            appendLine("စုစုပေါင်း အလျော်ရငွေ: %,d ကျပ်".format(settlement.winningPayout))
-                            appendLine("------------------------")
-                            if (settlement.netBalance > 0) {
-                                appendLine("ရလဒ် : ဒိုင်မှ ပေးရန် +%,d ကျပ်".format(settlement.netBalance))
-                            } else if (settlement.netBalance < 0) {
-                                appendLine("ရလဒ် : ဒိုင်သို့ ပေးရန် %,d ကျပ်".format(-settlement.netBalance))
-                            } else {
-                                appendLine("ရလဒ် : ကျေအေး")
-                            }
+                        val (resLabel, resAmt) = when {
+                            settlement.netBalance > 0 -> "ရလဒ် (ဒိုင်မှ ပေးရန်)" to "+${settlement.netBalance}"
+                            settlement.netBalance < 0 -> "ရလဒ် (ဒိုင်သို့ ပေးရန်)" to "${-settlement.netBalance}"
+                            else -> "ရလဒ်" to "0"
                         }
+                        val detailRows = settlement.exactWinBets + settlement.tuwtWinBets
+                        val text = com.threeDLedger.logic.CopyTextFormatter.formatSettlementCopy(
+                            com.threeDLedger.logic.CopyTextFormatter.SettlementCopyData(
+                                title = "ဒိုင်ရှင်းတမ်း",
+                                subtitleLines = listOf(
+                                    "ဒိုင် : ${settlement.dineName}",
+                                    "အကြိမ် : $batchNumber (ပေါက်ဂဏန်း: $winningNumber)"
+                                ),
+                                summaryLines = listOf(
+                                    "စုစုပေါင်း တင်ငွေ" to "${settlement.totalExported}",
+                                    "ကော်မရှင် (${settlement.commissionRate}%)" to "${settlement.commissionAmount}",
+                                    "ဒိုင်သို့ ပေးချေရန်" to "${settlement.netCost}",
+                                    "ပေါက်သီး (ဒဲ့)" to "${settlement.exactPayout}",
+                                    "တွတ် (အလှည့်)" to "${settlement.tuwtPayout}",
+                                    "စုစုပေါင်း အလျော်ရငွေ" to "${settlement.winningPayout}"
+                                ),
+                                detailRows = detailRows,
+                                resultLabel = resLabel,
+                                resultAmount = resAmt,
+                                footerText = footerText
+                            )
+                        )
                         clipboardManager.setText(AnnotatedString(text))
                         android.widget.Toast.makeText(context, "${settlement.dineName} ရှင်းတမ်း ကော်ပီကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                     },
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    modifier = Modifier.height(32.dp),
-                    border = BorderStroke(1.dp, themeEmerald())
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    modifier = Modifier.height(46.dp),
+                    border = BorderStroke(1.2.dp, themeEmerald())
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(13.dp), tint = themeEmerald())
-                    Spacer(Modifier.width(4.dp))
-                    Text("ရှင်းတမ်း ကော်ပီ", fontSize = 13.sp, color = themeEmerald(), fontWeight = FontWeight.Bold)
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = themeEmerald())
+                    Spacer(Modifier.width(5.dp))
+                    Text("ရှင်းတမ်း ကော်ပီ", fontSize = 14.sp, color = themeEmerald(), fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -933,7 +942,7 @@ fun ThreeDRealtimeLiveDialog(
         while (isActive) {
             isChecking = true
             val result = withContext(Dispatchers.IO) {
-                tryGloApi() ?: tryRayriffyApi()
+                tryWorkerGloApi() ?: tryGloApi() ?: tryRayriffyApi()
             }
             if (result != null) {
                 val (num, dateStr) = result
@@ -1040,9 +1049,9 @@ fun ThreeDRealtimeLiveDialog(
                             )
                             Text(
                                 text = if (drawSchedule.isDrawDay && drawSchedule.isAfterDrawTime) "ယနေ့ ထွက်ရှိပြီးပါပြီ (ညနေ ၃:၃၀)" else drawSchedule.nextDrawStr,
-                                fontSize = 13.5.sp,
+                                fontSize = 14.5.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF065F46),
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 maxLines = 1,
                                 softWrap = false
                             )
@@ -1514,7 +1523,7 @@ private fun DeclaredHeroCard(
                                     text = digit.toString(),
                                     fontSize = 32.sp,
                                     fontWeight = FontWeight.Black,
-                                    color = Color(0xFF065F46),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
@@ -1543,16 +1552,16 @@ private fun DeclaredHeroCard(
                         )
                     }
                     Surface(
-                        color = Color(0xFFEEF2FF),
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
                         shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color(0xFFC7D2FE))
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.5f))
                     ) {
                         Text(
                             "တွတ် (အလှည့်): ×$tuwtMult ဆ",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontSize = 13.5.sp,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
                 }
@@ -1564,22 +1573,22 @@ private fun DeclaredHeroCard(
                 // Undeclare button
                 Button(
                     onClick = onUndeclareClick,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
-                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFFEF2F2),
-                        contentColor = Color(0xFFDC2626)
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer
                     ),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                    border = BorderStroke(1.5.dp, Color(0xFFFCA5A5))
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
                 ) {
-                    Icon(Icons.Default.DeleteForever, null, modifier = Modifier.size(18.dp), tint = Color(0xFFDC2626))
+                    Icon(Icons.Default.DeleteForever, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.width(8.dp))
                     Text(
                         "ပေါက်သီး ကြေညာချက် ပယ်ဖျက်မည်",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.5.sp,
-                        color = Color(0xFFDC2626),
+                        fontSize = 14.5.sp,
+                        color = MaterialTheme.colorScheme.error,
                         maxLines = 1,
                         softWrap = false
                     )
@@ -2014,7 +2023,7 @@ private suspend fun fetchWinningNumber(
     onStart()
 
     val result = withContext(Dispatchers.IO) {
-        tryGloApi() ?: tryRayriffyApi()
+        tryWorkerGloApi() ?: tryGloApi() ?: tryRayriffyApi()
     }
 
     if (result != null) {
@@ -2022,6 +2031,29 @@ private suspend fun fetchWinningNumber(
         onResult(num3d, true, date)
     } else {
         onError()
+    }
+}
+
+private fun tryWorkerGloApi(): Pair<String, String>? {
+    return try {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(6, TimeUnit.SECONDS)
+            .readTimeout(6, TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder()
+            .url("${com.threeDLedger.network.NetworkClient.BASE_URL}/latest-glo")
+            .get()
+            .addHeader("Accept", "application/json")
+            .build()
+        val response = client.newCall(request).execute()
+        if (!response.isSuccessful) return null
+        val raw = response.body?.string() ?: return null
+        val json = JSONObject(raw)
+        val threeD = json.optString("threeD", "").trim()
+        val date = json.optString("date", "")
+        if (threeD.length == 3 && threeD.all { it.isDigit() }) Pair(threeD, date) else null
+    } catch (_: Exception) {
+        null
     }
 }
 

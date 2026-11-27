@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import com.threeDLedger.ui.theme.EmeraldPrimary
+import com.threeDLedger.ui.theme.themeGold
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -125,15 +126,6 @@ fun SettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { SettingsSectionHeader("အဓိက စနစ်များ", Icons.Default.Menu) }
-            item {
-                SettingsCard {
-                    SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "ပိတ်ဂဏန်းများ",         "ပိတ်ဂဏန်းနှင့် ကန့်သတ်ငွေ သတ်မှတ်ရန်") { showBannedDialog = true }
-                    SettingsDivider()
-                    SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ပေါက်ဂဏန်းများ",        "ပေါက်သီးတွက်ချက်မှုနှင့် မှတ်တမ်း",        onClick = onNavigateToWinner)
-                }
-            }
-
             item { SettingsSectionHeader("စာလုံး အရွယ်အစား", Icons.Default.FormatSize) }
             item {
                 val fontScaleIndex by viewModel.fontScaleIndex.collectAsStateWithLifecycle()
@@ -155,7 +147,7 @@ fun SettingsScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text("စာလုံး အရွယ်အစား", fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp, color = onSurface)
+                                    Text("စာလုံး အရွယ်အစား", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = onSurface)
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
                                         color = EmeraldPrimary.copy(alpha = 0.12f)
@@ -169,7 +161,7 @@ fun SettingsScreen(
                                         )
                                     }
                                 }
-                                Text("ဖတ်ရှုရ လွယ်ကူစေရန် စာလုံးအရွယ်အစား ချိန်ညှိနိုင်သည်", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("ဖတ်ရှုရ လွယ်ကူစေရန် စာလုံးအရွယ်အစား ချိန်ညှိနိုင်သည်", fontSize = 13.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
 
@@ -180,7 +172,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("A", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("A", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Slider(
                                 value = fontScaleIndex.toFloat(),
                                 onValueChange = { viewModel.setFontScaleIndex(kotlin.math.round(it).toInt()) },
@@ -193,7 +185,7 @@ fun SettingsScreen(
                                     inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant
                                 )
                             )
-                            Text("A", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
+                            Text("A", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = EmeraldPrimary)
                         }
 
                         // Steps label row
@@ -204,7 +196,7 @@ fun SettingsScreen(
                             scaleShortLabels.forEachIndexed { idx, label ->
                                 Text(
                                     text = label,
-                                    fontSize = 13.sp,
+                                    fontSize = 13.5.sp,
                                     fontWeight = if (idx == fontScaleIndex) FontWeight.Bold else FontWeight.Normal,
                                     color = if (idx == fontScaleIndex) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -229,13 +221,22 @@ fun SettingsScreen(
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     text = "3D စာရင်း စာလုံးအရွယ်အစား စမ်းသပ်ချက် (123 = 1000)",
-                                    fontSize = 14.sp,
+                                    fontSize = 14.5.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = EmeraldPrimary
                                 )
                             }
                         }
                     }
+                }
+            }
+
+            item { SettingsSectionHeader("အဓိက စနစ်များ", Icons.Default.Menu) }
+            item {
+                SettingsCard {
+                    SettingsRow(Icons.Default.Block,    Color(0xFFFF6B6B), "ပိတ်ဂဏန်းများ",         "ပိတ်ဂဏန်းနှင့် ကန့်သတ်ငွေ သတ်မှတ်ရန်") { showBannedDialog = true }
+                    SettingsDivider()
+                    SettingsRow(Icons.Default.Star,     Color(0xFFFFD93D), "ပေါက်ဂဏန်းများ",        "ပေါက်သီးတွက်ချက်မှုနှင့် မှတ်တမ်း",        onClick = onNavigateToWinner)
                 }
             }
 
@@ -743,14 +744,14 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                         } else {
                                             Surface(
                                                 shape = RoundedCornerShape(6.dp),
-                                                color = Color(0xFFFFB300).copy(alpha = 0.18f)
+                                                color = themeGold().copy(alpha = 0.18f)
                                             ) {
                                                 Text(
                                                     "ကန့်သတ်: %,d Ks".format(banned.amountLimit),
-                                                    fontSize = 12.sp,
+                                                    fontSize = 13.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFFFFB300),
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    color = themeGold(),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                                 )
                                             }
                                         }
@@ -761,7 +762,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                                 currentBet,
                                                 (banned.amountLimit - currentBet).coerceAtLeast(0)
                                             ),
-                                            fontSize = 12.sp,
+                                            fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -773,15 +774,15 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                                             editingBanned = banned
                                             editLimitInput = if (banned.amountLimit > 0) banned.amountLimit.toString() else "0"
                                         },
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(44.dp)
                                     ) {
-                                        Icon(Icons.Default.Edit, "Edit Limit", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Icon(Icons.Default.Edit, "Edit Limit", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                                     }
                                     IconButton(
                                         onClick = { viewModel.deleteBannedNumber(banned) },
-                                        modifier = Modifier.size(32.dp)
+                                        modifier = Modifier.size(44.dp)
                                     ) {
-                                        Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                                        Icon(Icons.Default.Delete, "Delete", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }

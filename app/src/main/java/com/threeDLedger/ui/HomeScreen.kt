@@ -335,18 +335,19 @@ fun HomeScreen(
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 showEditBatchDialog = true
                             },
-                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.heightIn(min = 44.dp),
+                            shape = RoundedCornerShape(22.dp),
                             color = if (isDark) MaterialTheme.colorScheme.primaryContainer else EmeraldLight,
                             border = BorderStroke(1.dp, if (isDark) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else EmeraldPrimary.copy(alpha = 0.5f))
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
                                     text = "အကြိမ် $currentBatch",
-                                    fontSize = 13.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
                                     maxLines = 1,
@@ -356,7 +357,7 @@ fun HomeScreen(
                                     Icons.Default.Edit,
                                     contentDescription = "Edit Batch",
                                     tint = if (isDark) MaterialTheme.colorScheme.onPrimaryContainer else EmeraldPrimary,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             }
                         }
@@ -819,15 +820,16 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .heightIn(min = 60.dp)
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -835,20 +837,20 @@ fun HomeScreen(
                                     Icons.Default.Settings,
                                     contentDescription = "ဆက်တင်",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                             Spacer(Modifier.width(12.dp))
                             Column {
                                 Text(
                                     "ဆက်တင်နှင့် အချက်အလက်",
-                                    fontSize = 14.sp,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    "လိုင်စင်၊ လျှို့ဝှက်နံပါတ်၊ အရန်သိမ်းဆည်းမှု စီမံရန်",
-                                    fontSize = 13.sp,
+                                    "စာလုံးအရွယ်အစား၊ လိုင်စင်၊ အရန်သိမ်းဆည်းမှု",
+                                    fontSize = 13.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }

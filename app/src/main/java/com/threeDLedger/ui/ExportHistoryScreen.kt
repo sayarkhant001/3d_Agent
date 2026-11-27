@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.ExportRecordWithNumbers
-import com.threeDLedger.logic.NumberGenerator
 import com.threeDLedger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -375,18 +374,16 @@ private fun ExportRecordCard(
     val sortedNumbers = export.numbers.sortedByDescending { it.amount }
 
     val voucherDate = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(export.record.timestamp))
-    val voucherText = buildString {
-        appendLine("      တင်ကွက် ဘောင်ချာ    ")
-        appendLine(" ဘောင်ချာ : #${export.record.voucherSerial}")
-        appendLine(" အကြိမ်   : ${export.record.batchNumber}")
-        appendLine(" အချိန်   : $voucherDate")
-        appendLine("------------------------")
-        sortedNumbers.forEachIndexed { idx, num ->
-            appendLine(" ${idx + 1}. ${num.number} = ${num.amount}")
-        }
-        appendLine("------------------------")
-        appendLine(" စုစုပေါင်း : %,d ကျပ်".format(export.record.totalAmount))
-    }
+    val voucherText = com.threeDLedger.logic.CopyTextFormatter.formatNumberListCopy(
+        title = "တင်ကွက် ဘောင်ချာ",
+        batchNumber = export.record.batchNumber,
+        items = sortedNumbers.map { it.number to it.amount },
+        totalAmount = export.record.totalAmount,
+        footerText = footerText,
+        serial = export.record.voucherSerial,
+        dineName = export.record.dineName,
+        dateTime = voucherDate
+    )
 
     Card(
         modifier = Modifier
@@ -584,32 +581,32 @@ private fun ExportRecordCard(
 
                     Spacer(Modifier.height(8.dp))
 
-                    // Action buttons
+                    // Action buttons (>= 48dp senior touch targets)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
                             onClick = { onPrint(export) },
-                            modifier = Modifier.weight(1f).height(34.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = headerColor)
                         ) {
-                            Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("ပရင့်", fontSize = 13.sp)
+                            Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ပရင့်", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                         Button(
                             onClick = { onCopy(voucherText) },
-                            modifier = Modifier.weight(1f).height(34.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.weight(1f).height(48.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = headerColor)
                         ) {
-                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("ကော်ပီ", fontSize = 13.sp)
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ကော်ပီ", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -646,9 +643,10 @@ fun UpperAgentSettlementDialog(
     val commDeduction = (totalSentBet * commRate).toLong()
     val netSentBet = totalSentBet - commDeduction
 
-    // Winning calculations
-    val allPerms = remember(winningNumber) { NumberGenerator.permutations(winningNumber).toSet() }
-    val permsOnly = remember(winningNumber, allPerms) { allPerms - setOf(winningNumber) }
+    // Winning calculations (canonical Tut = permutations + cyclic ±1 near misses)
+    val tutSet = remember(winningNumber) {
+        com.threeDLedger.logic.TutCalculator.calculate(winningNumber).allTut
+    }
 
     val exactHits = remember(allSentBets, winningNumber) {
         allSentBets.filter { it.number == winningNumber }
@@ -656,8 +654,8 @@ fun UpperAgentSettlementDialog(
     val exactBetAmt = remember(exactHits) { exactHits.sumOf { it.amount.toLong() } }
     val exactPayout = remember(exactBetAmt, exactMult) { (exactBetAmt * exactMult).toLong() }
 
-    val tutHits = remember(allSentBets, permsOnly) {
-        allSentBets.filter { it.number in permsOnly }
+    val tutHits = remember(allSentBets, tutSet) {
+        allSentBets.filter { it.number in tutSet }
     }
     val tutBetAmt = remember(tutHits) { tutHits.sumOf { it.amount.toLong() } }
     val tutPayout = remember(tutBetAmt, permMult) { (tutBetAmt * permMult).toLong() }
@@ -669,39 +667,34 @@ fun UpperAgentSettlementDialog(
     val totalUpperPayout = exactPayout + tutPayout
     val netBalance = totalUpperPayout - netSentBet
 
-    fun buildSlip(): String = buildString {
-        appendLine("========================")
-        appendLine("   အထက်ဒိုင် ရှင်းတမ်း")
-        appendLine("========================")
-        appendLine("အကြိမ် = $batchNumber ( $winningNumber )")
-        appendLine("------------------------")
-        appendLine("တင်ငွေ စုစုပေါင်း = %,d ကျပ်".format(totalSentBet))
-        appendLine("ကော်မရှင် ($commPercentText%) = -%,d ကျပ်".format(commDeduction))
-        appendLine("နှုတ်ပြီး တင်ငွေ = %,d ကျပ်".format(netSentBet))
-        appendLine("------------------------")
-        if (exactBetAmt > 0) {
-            appendLine("ဒဲ့ပေါက် ($winningNumber) = %,d ကျပ် (x${exactMult.toInt()}) → %,d ကျပ်".format(exactBetAmt, exactPayout))
+    fun buildSlip(): String {
+        val summary = buildList {
+            add("တင်ငွေ စုစုပေါင်း" to "$totalSentBet")
+            add("ကော်မရှင် ($commPercentText%)" to "-$commDeduction")
+            add("နှုတ်ပြီး တင်ငွေ" to "$netSentBet")
+            if (exactBetAmt > 0) add("ဒဲ့ပေါက် ($winningNumber x${exactMult.toInt()})" to "$exactPayout")
+            if (tutBetAmt > 0) add("တွတ်ပေါက် (x${permMult.toInt()})" to "$tutPayout")
+            add("စုစုပေါင်း ပေါက်ငွေ" to "$totalUpperPayout")
         }
-        if (tutBetAmt > 0) {
-            appendLine("တွတ်ပေါက် = %,d ကျပ် (x${permMult.toInt()}) → %,d ကျပ်".format(tutBetAmt, tutPayout))
-            tutBreakdown.forEach { (num, amt) ->
-                appendLine("  • $num: %,d ကျပ် → %,d ကျပ်".format(amt, (amt * permMult).toLong()))
-            }
+        val detailRows = buildList {
+            if (exactBetAmt > 0) add(winningNumber to exactBetAmt.toInt())
+            tutBreakdown.forEach { (num, amt) -> add(num to amt.toInt()) }
         }
-        if (totalUpperPayout == 0L) {
-            appendLine("ပေါက်ကြေး = ၀ ကျပ် (ပေါက်ဂဏန်း မပါပါ)")
-        } else {
-            appendLine("စုစုပေါင်း ပေါက်ငွေ = %,d ကျပ်".format(totalUpperPayout))
+        val (resLbl, resAmt) = when {
+            netBalance > 0 -> "ရလဒ် (အထက်ဒိုင်မှ ရရန်)" to "+$netBalance"
+            netBalance < 0 -> "ရလဒ် (အထက်ဒိုင်သို့ ပေးရန်)" to "-${-netBalance}"
+            else -> "ရလဒ် (ကျေအေး)" to "0"
         }
-        appendLine("------------------------")
-        if (netBalance > 0) {
-            appendLine("ရလဒ် = အထက်ဒိုင်မှ ရရန် (+%,d ကျပ်)".format(netBalance))
-        } else if (netBalance < 0) {
-            appendLine("ရလဒ် = အထက်ဒိုင်သို့ ပေးရန် (-%,d ကျပ်)".format(-netBalance))
-        } else {
-            appendLine("ရလဒ် = ကျေအေး (၀ ကျပ်)")
-        }
-        appendLine("========================")
+        return com.threeDLedger.logic.CopyTextFormatter.formatSettlementCopy(
+            com.threeDLedger.logic.CopyTextFormatter.SettlementCopyData(
+                title = "အထက်ဒိုင် ရှင်းတမ်း",
+                subtitleLines = listOf("အကြိမ် : $batchNumber (ထွက်: $winningNumber)"),
+                summaryLines = summary,
+                detailRows = detailRows,
+                resultLabel = resLbl,
+                resultAmount = resAmt
+            )
+        )
     }
 
     AlertDialog(
@@ -966,7 +959,7 @@ fun UpperAgentSettlementDialog(
         confirmButton = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
                     onClick = {
@@ -979,13 +972,13 @@ fun UpperAgentSettlementDialog(
                         val shareIntent = Intent.createChooser(sendIntent, "အထက်ဒိုင် ရှင်းတမ်း မျှဝေမည်")
                         context.startActivity(shareIntent)
                     },
-                    modifier = Modifier.weight(1f).height(36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                 ) {
-                    Icon(Icons.Default.Share, null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("မျှဝေမည်", fontSize = 13.sp)
+                    Icon(Icons.Default.Share, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("မျှဝေမည်", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
 
                 com.threeDLedger.ui.components.PrimaryGradientButton(
@@ -995,22 +988,22 @@ fun UpperAgentSettlementDialog(
                         cm.setPrimaryClip(android.content.ClipData.newPlainText("Upper Settlement", slip))
                         Toast.makeText(context, "ရှင်းတမ်း ကူးယူပြီးပါပြီ", Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.weight(1f).height(36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                 ) {
-                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("ကော်ပီ", fontSize = 13.sp)
+                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("ကော်ပီ", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
         },
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                modifier = Modifier.height(36.dp)
+                modifier = Modifier.height(48.dp)
             ) {
-                Text("ပိတ်မည်", fontSize = 13.sp)
+                Text("ပိတ်မည်", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     )

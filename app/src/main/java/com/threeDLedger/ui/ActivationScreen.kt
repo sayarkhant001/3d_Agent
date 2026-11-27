@@ -281,8 +281,8 @@ fun ActivationScreen(
                     if (expiredWarning != null) {
                         Card(
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFEF2F2)),
-                            border = BorderStroke(1.5.dp, Color(0xFFFCA5A5)),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(bottom = 18.dp)
@@ -294,7 +294,7 @@ fun ActivationScreen(
                                 Icon(
                                     Icons.Default.Warning,
                                     contentDescription = "Warning",
-                                    tint = Color(0xFFDC2626),
+                                    tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(24.dp)
                                 )
                                 Spacer(Modifier.width(10.dp))
@@ -302,15 +302,15 @@ fun ActivationScreen(
                                     Text(
                                         text = "အသုံးပြုခွင့် သတိပေးချက်",
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF991B1B),
-                                        fontSize = 14.sp
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        fontSize = 15.sp
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
                                         text = expiredWarning!!,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFB91C1C),
-                                        lineHeight = 18.sp
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer,
+                                        lineHeight = 20.sp
                                     )
                                 }
                             }
@@ -412,33 +412,33 @@ fun ActivationScreen(
                                         Text(
                                             "၁ နှစ် (Changeable)",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = dimens.responsiveSp(11.sp, 12.sp, 13.sp),
+                                            fontSize = dimens.responsiveSp(13.5.sp, 14.sp, 15.sp),
                                             color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.weight(1f, fill = false),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.width(6.dp))
-                                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(4.dp)) {
+                                        Surface(color = MaterialTheme.colorScheme.primaryContainer, shape = RoundedCornerShape(6.dp)) {
                                             Text(
                                                 "စက်ပြောင်းနိုင်",
-                                                fontSize = dimens.responsiveSp(9.sp, 9.5.sp, 10.sp),
+                                                fontSize = dimens.responsiveSp(11.5.sp, 12.sp, 12.5.sp),
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(2.dp))
+                                    Spacer(Modifier.height(4.dp))
                                     Text(
                                         "၁၈၀,၀၀၀ ကျပ် / နှစ် (လက်ကျန်ရက် အပြည့်ဖြင့် ဖုန်းအသစ်ပြောင်းသုံးနိုင်)",
-                                        fontSize = dimens.responsiveSp(10.sp, 10.5.sp, 11.sp),
+                                        fontSize = dimens.responsiveSp(12.5.sp, 13.sp, 13.5.sp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
 
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(8.dp))
 
                             // Lifetime Plan
                             Row(
@@ -446,7 +446,7 @@ fun ActivationScreen(
                                     .fillMaxWidth()
                                     .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                                     .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-                                    .padding(dimens.responsiveDp(8.dp, 10.dp, 12.dp)),
+                                    .padding(dimens.responsiveDp(10.dp, 12.dp, 14.dp)),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
@@ -458,33 +458,33 @@ fun ActivationScreen(
                                         Text(
                                             "တစ်သက်တာ (Lifetime)",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = dimens.responsiveSp(11.sp, 12.sp, 13.sp),
+                                            fontSize = dimens.responsiveSp(13.5.sp, 14.sp, 15.sp),
                                             color = MaterialTheme.colorScheme.secondary,
                                             modifier = Modifier.weight(1f, fill = false),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(Modifier.width(6.dp))
-                                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(4.dp)) {
+                                        Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(6.dp)) {
                                             Text(
                                                 "စက်ပြောင်းမရ",
-                                                fontSize = dimens.responsiveSp(9.sp, 9.5.sp, 10.sp),
+                                                fontSize = dimens.responsiveSp(11.5.sp, 12.sp, 12.5.sp),
                                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(2.dp))
+                                    Spacer(Modifier.height(4.dp))
                                     Text(
                                         "၄၅,၀၀၀ ကျပ် (ဖုန်း ၁ လုံးသာ အသုံးပြုနိုင်)",
-                                        fontSize = dimens.responsiveSp(10.sp, 10.5.sp, 11.sp),
+                                        fontSize = dimens.responsiveSp(12.5.sp, 13.sp, 13.5.sp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
 
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(8.dp))
 
                             // Free Trial
                             Row(
@@ -492,20 +492,20 @@ fun ActivationScreen(
                                     .fillMaxWidth()
                                     .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
                                     .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-                                    .padding(dimens.responsiveDp(8.dp, 10.dp, 12.dp)),
+                                    .padding(dimens.responsiveDp(10.dp, 12.dp, 14.dp)),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         "၃ ရက် အခမဲ့ စမ်းသပ်ခွင့် (Free 72-Hour Trial)",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = dimens.responsiveSp(11.sp, 12.sp, 13.sp),
+                                        fontSize = dimens.responsiveSp(13.5.sp, 14.sp, 15.sp),
                                         color = MaterialTheme.colorScheme.tertiary
                                     )
-                                    Spacer(Modifier.height(2.dp))
+                                    Spacer(Modifier.height(4.dp))
                                     Text(
                                         "Telegram Bot တွင် /start နှိပ်၍ အခမဲ့ ကုတ် ရယူပါ (၇၂ နာရီတိတိ)",
-                                        fontSize = dimens.responsiveSp(10.sp, 10.5.sp, 11.sp),
+                                        fontSize = dimens.responsiveSp(12.5.sp, 13.sp, 13.5.sp),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
@@ -601,7 +601,7 @@ fun ActivationScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(dimens.responsiveDp(46.dp, 50.dp, 52.dp)),
+                            .height(dimens.responsiveDp(50.dp, 52.dp, 56.dp)),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary,
@@ -636,7 +636,7 @@ fun ActivationScreen(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(dimens.responsiveDp(42.dp, 46.dp, 48.dp)),
+                            .height(dimens.responsiveDp(48.dp, 50.dp, 52.dp)),
                         shape = RoundedCornerShape(14.dp),
                         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                     ) {
