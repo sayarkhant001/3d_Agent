@@ -20,7 +20,30 @@
   --shadow-card: 0 12px 32px -12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   --radius: 16px;
   --radius-sm: 10px;
-  --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: all 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes panelEnter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.section-panel-anim {
+  animation: panelEnter 0.16s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-panel-anim,
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 * {
@@ -550,6 +573,8 @@ body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: rgba(12, 20, 33, 0.72);
 }
 
 .table-responsive::-webkit-scrollbar {
@@ -573,30 +598,47 @@ body {
   width: 100%;
   border-collapse: collapse;
   min-width: 600px;
+  font-variant-numeric: tabular-nums;
+}
+
+.keys-table thead tr {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.16) 0%, rgba(16, 185, 129, 0.07) 100%);
 }
 
 .keys-table th {
   text-align: left;
-  padding: clamp(8px, 1.5vw, 14px) clamp(10px, 2vw, 16px);
-  font-size: clamp(10px, 1.6vw, 12px);
-  font-weight: 600;
-  color: var(--text-muted);
+  padding: clamp(10px, 1.6vw, 14px) clamp(12px, 2vw, 16px);
+  font-size: clamp(11px, 1.6vw, 12.5px);
+  font-weight: 700;
+  color: #a7f3d0;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
-  border-bottom: 1px solid var(--border-color);
+  letter-spacing: 0.7px;
+  border-bottom: 2px solid rgba(16, 185, 129, 0.36);
+  border-right: 1px solid rgba(148, 163, 184, 0.12);
   white-space: nowrap;
+}
+
+.keys-table th:last-child,
+.keys-table td:last-child {
+  border-right: none;
 }
 
 .keys-table td {
-  padding: clamp(10px, 1.8vw, 14px) clamp(10px, 2vw, 16px);
-  font-size: clamp(12px, 1.8vw, 14px);
-  border-bottom: 1px solid rgba(108, 99, 255, 0.06);
+  padding: clamp(11px, 1.8vw, 14px) clamp(12px, 2vw, 16px);
+  font-size: clamp(12.5px, 1.8vw, 14px);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-right: 1px solid rgba(148, 163, 184, 0.08);
   vertical-align: middle;
   white-space: nowrap;
+  transition: background-color 0.14s ease;
 }
 
-.keys-table tr:hover td {
-  background: rgba(99, 102, 241, 0.06);
+.keys-table tbody tr:nth-child(even) td {
+  background: rgba(16, 185, 129, 0.032);
+}
+
+.keys-table tbody tr:hover td {
+  background: rgba(16, 185, 129, 0.088);
 }
 
 .keys-table .key-code {
@@ -1980,27 +2022,45 @@ body {
 .overview-resellers-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.overview-resellers-table thead tr {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.16) 0%, rgba(16, 185, 129, 0.07) 100%);
 }
 
 .overview-resellers-table th {
   text-align: left;
-  padding: 10px 14px;
-  color: var(--text-muted);
+  padding: 12px 15px;
+  color: #a7f3d0;
   font-weight: 700;
-  border-bottom: 1px solid var(--border-color);
-  font-size: 11px;
+  border-bottom: 2px solid rgba(16, 185, 129, 0.36);
+  border-right: 1px solid rgba(148, 163, 184, 0.12);
+  font-size: 11.5px;
   text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.overview-resellers-table th:last-child,
+.overview-resellers-table td:last-child {
+  border-right: none;
 }
 
 .overview-resellers-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 13px 15px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-right: 1px solid rgba(148, 163, 184, 0.08);
   color: var(--text-secondary);
+  transition: background-color 0.14s ease;
 }
 
-.overview-resellers-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+.overview-resellers-table tbody tr:nth-child(even) td {
+  background: rgba(16, 185, 129, 0.032);
+}
+
+.overview-resellers-table tbody tr:hover td {
+  background: rgba(16, 185, 129, 0.088);
 }
 
 /* ========================================================
@@ -2047,6 +2107,10 @@ body {
 .btn {
   min-height: 42px;
   font-size: 14px;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 

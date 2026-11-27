@@ -331,7 +331,8 @@ fun CustomersScreen(
                                 val voucherCount = voucherCountByCustomer[customer.id] ?: 0
 
                                 AnimatedEntrance(index = index) {
-                                    CustomerCard(
+                                    Box(modifier = Modifier.animateItem()) {
+                                        CustomerCard(
                                         customer     = customer,
                                         totalAmount  = total,
                                         commCut      = cut,
@@ -342,7 +343,8 @@ fun CustomersScreen(
                                         onEditTap    = { editCustomer = customer },
                                         onBetsTap    = { viewingCustomer = customer },
                                         onAddBetTap  = { onNavigateToBetting(customer.id) }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }

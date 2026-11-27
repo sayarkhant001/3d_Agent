@@ -27,6 +27,8 @@ import com.threeDLedger.ui.components.FitText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.ui.components.AnimatedNumberText
+import com.threeDLedger.ui.components.AppTableCellDivider
 import com.threeDLedger.ui.theme.*
 
 // ── Number category helper ─────────────────────────────────────────────────────
@@ -254,26 +256,39 @@ fun LedgerScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        if (isAfterMode) "ဂဏန်း နှင့် အမျိုးအစား" else "စဉ်   ဂဏန်း",
+                        "စဉ်",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(34.dp)
+                    )
+                    AppTableCellDivider(height = 16.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        if (isAfterMode) "ဂဏန်း နှင့် အမျိုးအစား" else "ဂဏန်း",
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp,
                         modifier = Modifier.weight(1.2f)
                     )
+                    AppTableCellDivider(height = 16.dp)
                     Text(
                         "ထိုးငွေ ပမာဏ",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.End
                     )
                 }
             }
+            HorizontalDivider(color = com.threeDLedger.ui.theme.themeEmeraldBorder(), thickness = 1.25.dp)
+            HorizontalDivider(color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.25f), thickness = 0.75.dp)
 
             // ── Table Rows ──────────────────────────────────────────────────
             if (!isAfterMode) {
@@ -301,50 +316,55 @@ fun LedgerScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
-                        itemsIndexed(allExposures) { idx, exposure ->
+                        itemsIndexed(
+                            items = allExposures,
+                            key = { _, exposure -> exposure.number }
+                        ) { idx, exposure ->
+                            val rowBg = if (idx % 2 == 0) themeTableRowOdd() else themeTableRowEven()
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface)
+                                    .animateItem()
+                                    .background(rowBg)
                                     .clickable(onClick = onNavigateToResult)
-                                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                                    .padding(horizontal = 14.dp, vertical = 11.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Index
                                 Text(
                                     "${idx + 1}.",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    fontSize = 12.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.width(32.dp)
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.width(34.dp)
                                 )
-                                // Number in distinct badge
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-                                    shadowElevation = 1.dp
-                                ) {
-                                    Text(
-                                        exposure.number,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 18.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        letterSpacing = 1.5.sp,
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                    )
-                                }
-                                Spacer(Modifier.weight(1f))
-                                // Distinct cell divider between number & amount columns
-                                Surface(
-                                    modifier = Modifier
-                                        .width(1.5.dp)
-                                        .height(22.dp),
-                                    color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.7f)
-                                ) {}
+                                AppTableCellDivider(height = 22.dp)
                                 Spacer(Modifier.width(10.dp))
+                                // Number in distinct badge
+                                Box(modifier = Modifier.weight(1.2f)) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = MaterialTheme.colorScheme.surface,
+                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
+                                        shadowElevation = 1.dp
+                                    ) {
+                                        Text(
+                                            exposure.number,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 18.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                            letterSpacing = 1.5.sp,
+                                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                                // Distinct cell divider between number & amount columns
+                                AppTableCellDivider(height = 22.dp)
                                 // Amount
                                 Text(
                                     "%,d".format(exposure.totalBetAmount),
@@ -352,6 +372,8 @@ fun LedgerScreen(
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 16.5.sp,
                                     fontFamily = FontFamily.Monospace,
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                    modifier = Modifier.weight(1f).padding(start = 8.dp),
                                     textAlign = TextAlign.End
                                 )
                                 Spacer(Modifier.width(4.dp))
@@ -362,7 +384,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f), thickness = 1.dp)
                         }
                     }
                 }
@@ -386,29 +408,38 @@ fun LedgerScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
-                        itemsIndexed(relevantRows) { idx, (exposure, cat) ->
-                            val rowBg = when (cat) {
-                                NumCat.EXACT -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f)
-                                NumCat.TUWT  -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.35f)
-                                else         -> MaterialTheme.colorScheme.surface
+                        itemsIndexed(
+                            items = relevantRows,
+                            key = { _, (exposure, cat) -> "${cat.name}_${exposure.number}" }
+                        ) { idx, (exposure, cat) ->
+                            val rowBg = when {
+                                cat == NumCat.EXACT -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.38f)
+                                cat == NumCat.TUWT -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.34f)
+                                idx % 2 == 0 -> themeTableRowOdd()
+                                else -> themeTableRowEven()
                             }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .animateItem()
                                     .background(rowBg)
                                     .clickable(onClick = onNavigateToResult)
-                                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                                    .padding(horizontal = 14.dp, vertical = 11.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 // Index
                                 Text(
                                     "${idx + 1}.",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    fontSize = 12.5.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.width(32.dp)
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.width(34.dp)
                                 )
+                                AppTableCellDivider(height = 22.dp)
+                                Spacer(Modifier.width(10.dp))
 
                                 // Number with distinct pill / container
                                 Row(
@@ -504,13 +535,7 @@ fun LedgerScreen(
                                 }
 
                                 // Amount
-                                Surface(
-                                    modifier = Modifier
-                                        .width(1.5.dp)
-                                        .height(22.dp),
-                                    color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.7f)
-                                ) {}
-                                Spacer(Modifier.width(10.dp))
+                                AppTableCellDivider(height = 22.dp)
                                 Text(
                                     "%,d".format(exposure.totalBetAmount),
                                     color = when {
@@ -521,7 +546,8 @@ fun LedgerScreen(
                                     fontWeight = if (exposure.totalBetAmount > 0) FontWeight.ExtraBold else FontWeight.Medium,
                                     fontSize = 16.5.sp,
                                     fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.weight(1f),
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                    modifier = Modifier.weight(1f).padding(start = 8.dp),
                                     textAlign = TextAlign.End
                                 )
                                 Spacer(Modifier.width(4.dp))
@@ -532,7 +558,7 @@ fun LedgerScreen(
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
-                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f), thickness = 1.dp)
                         }
                     }
                 }
@@ -613,8 +639,8 @@ fun LedgerScreen(
                             fontSize = 15.sp
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                "%,d".format(totalAll),
+                            AnimatedNumberText(
+                                value = totalAll.toLong(),
                                 color = Color.White,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 19.sp,

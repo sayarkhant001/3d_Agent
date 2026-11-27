@@ -8,9 +8,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.threeDLedger.ui.components.AppTableCellDivider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
@@ -875,46 +878,56 @@ fun OverflowScreen(
                 }
             }
 
-            // Tables Section (Matching 3D Emerald style 2-column layout with Left Summary)
+            // Tables Section (Dual high-clarity accounting columns with zebra rows & vertical dividers)
             Row(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Left Column — Kept Bets (≤ brakeLimit) or Win/Tut breakdown
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .border(1.dp, emeraldPrimary.copy(alpha = 0.6f))
-                        .padding(2.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder(), RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface)
                 ) {
-                    // Header
+                    // Header with aligned column divider
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 6.dp, horizontal = 6.dp),
+                            .padding(vertical = 8.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "ဂဏန်းများ",
+                            "ဂဏန်း",
                             color = Color.White,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.weight(0.42f),
                             textAlign = TextAlign.Center,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
+                            fontSize = 13.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .height(16.dp)
+                                .width(1.dp)
+                                .background(Color.White.copy(alpha = 0.35f))
                         )
                         Text(
                             if (isWonDeclared) "ပမာဏ" else "ဘရိတ်အတွင်း",
                             color = Color.White,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(0.58f).padding(end = 6.dp),
+                            textAlign = TextAlign.End,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
+                            fontSize = 13.sp
                         )
                     }
+                    HorizontalDivider(color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.45f), thickness = 1.dp)
+
                     // Rows
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (isWonDeclared) {
@@ -925,20 +938,50 @@ fun OverflowScreen(
                                     }
                                 }
                             }
-                            items(brakedWinRows) { row ->
-                                val rowBg = if (row.isExact) Color(0xFFDC2626) else MaterialTheme.colorScheme.surface
+                            itemsIndexed(
+                                items = brakedWinRows,
+                                key = { _, row -> "${if (row.isExact) "ex" else "tut"}_${row.number}" }
+                            ) { idx, row ->
+                                val rowBg = when {
+                                    row.isExact -> Color(0xFFDC2626)
+                                    idx % 2 == 0 -> com.threeDLedger.ui.theme.themeTableRowOdd()
+                                    else -> com.threeDLedger.ui.theme.themeTableRowEven()
+                                }
+                                val numColor = if (row.isExact) Color.White else MaterialTheme.colorScheme.primary
                                 val textColor = if (row.isExact) Color.White else MaterialTheme.colorScheme.onSurface
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .animateItem()
                                         .background(rowBg)
-                                        .padding(vertical = 6.dp, horizontal = 6.dp),
+                                        .padding(vertical = 8.dp, horizontal = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(row.number, color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
-                                    Text("%,d".format(row.amount), color = textColor, modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                                    Text(
+                                        row.number,
+                                        color = numColor,
+                                        modifier = Modifier.weight(0.42f),
+                                        textAlign = TextAlign.Center,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                                    )
+                                    AppTableCellDivider(height = 18.dp)
+                                    Text(
+                                        "%,d".format(row.amount),
+                                        color = textColor,
+                                        modifier = Modifier.weight(0.58f).padding(end = 6.dp),
+                                        textAlign = TextAlign.End,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
-                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f), thickness = 1.dp)
                             }
                         } else {
                             if (brakedExposures.isEmpty()) {
@@ -948,18 +991,42 @@ fun OverflowScreen(
                                     }
                                 }
                             }
-                            items(brakedExposures, key = { it.number }) { exposure ->
+                            itemsIndexed(brakedExposures, key = { _, it -> it.number }) { idx, exposure ->
                                 val kept = keptAmount(exposure.totalBetAmount)
+                                val rowBg = if (idx % 2 == 0) com.threeDLedger.ui.theme.themeTableRowOdd() else com.threeDLedger.ui.theme.themeTableRowEven()
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surface)
-                                        .padding(vertical = 6.dp, horizontal = 6.dp)
+                                        .animateItem()
+                                        .background(rowBg)
+                                        .padding(vertical = 8.dp, horizontal = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
-                                    Text("%,d".format(kept), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                                    Text(
+                                        exposure.number,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.weight(0.42f),
+                                        textAlign = TextAlign.Center,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 15.5.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                                    )
+                                    AppTableCellDivider(height = 18.dp)
+                                    Text(
+                                        "%,d".format(kept),
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(0.58f).padding(end = 6.dp),
+                                        textAlign = TextAlign.End,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
                                 }
-                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f), thickness = 1.dp)
                             }
                         }
                     }
@@ -1033,27 +1100,48 @@ fun OverflowScreen(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(4.dp))
-
                 // Right Column — Overflow Bets
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .border(1.dp, emeraldPrimary.copy(alpha = 0.6f))
-                        .padding(2.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder(), RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surface)
                 ) {
-                    // Header
+                    // Header with aligned column divider
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 6.dp, horizontal = 6.dp),
+                            .padding(vertical = 8.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("ဂဏန်းများ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                        Text(if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(
+                            "ဂဏန်း",
+                            color = Color.White,
+                            modifier = Modifier.weight(0.42f),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .height(16.dp)
+                                .width(1.dp)
+                                .background(Color.White.copy(alpha = 0.35f))
+                        )
+                        Text(
+                            if (isWonDeclared) "ပမာဏ" else "ကျော်ပမာဏ",
+                            color = Color.White,
+                            modifier = Modifier.weight(0.58f).padding(end = 6.dp),
+                            textAlign = TextAlign.End,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
                     }
+                    HorizontalDivider(color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.45f), thickness = 1.dp)
+
                     // Rows
                     LazyColumn(modifier = Modifier.weight(1f).background(MaterialTheme.colorScheme.surface)) {
                         if (overflowExposures.isEmpty()) {
@@ -1063,17 +1151,41 @@ fun OverflowScreen(
                                 }
                             }
                         }
-                        items(overflowExposures, key = { it.number }) { exposure ->
+                        itemsIndexed(overflowExposures, key = { _, it -> it.number }) { idx, exposure ->
+                            val rowBg = if (idx % 2 == 0) com.threeDLedger.ui.theme.themeTableRowOdd() else com.threeDLedger.ui.theme.themeTableRowEven()
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .padding(vertical = 6.dp, horizontal = 6.dp)
+                                    .animateItem()
+                                    .background(rowBg)
+                                    .padding(vertical = 8.dp, horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(exposure.number, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
-                                Text("%,d".format(exposure.overflowAmount), modifier = Modifier.weight(1f), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                                Text(
+                                    exposure.number,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(0.42f),
+                                    textAlign = TextAlign.Center,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 15.5.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                                )
+                                AppTableCellDivider(height = 18.dp)
+                                Text(
+                                    "%,d".format(exposure.overflowAmount),
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.weight(0.58f).padding(end = 6.dp),
+                                    textAlign = TextAlign.End,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
                             }
-                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f), thickness = 1.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f), thickness = 1.dp)
                         }
                     }
                     // Subtotal
@@ -1081,17 +1193,33 @@ fun OverflowScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(emeraldPrimary)
-                            .padding(vertical = 6.dp, horizontal = 6.dp),
+                            .padding(vertical = 7.dp, horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("စုစုပေါင်း", color = Color.White, modifier = Modifier.weight(1f), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
+                        Text(
+                            "စုစုပေါင်း",
+                            color = Color.White,
+                            modifier = Modifier.weight(0.42f),
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
                         Box(
                             modifier = Modifier
                                 .height(16.dp)
                                 .width(1.dp)
                                 .background(Color.White.copy(alpha = 0.35f))
                         )
-                        Text("%,d".format(totalOverflow), color = Color.White, modifier = Modifier.weight(1f).padding(end = 6.dp), textAlign = TextAlign.End, fontWeight = FontWeight.Bold, fontSize = 13.5.sp, fontFamily = FontFamily.Monospace)
+                        Text(
+                            "%,d".format(totalOverflow),
+                            color = Color.White,
+                            modifier = Modifier.weight(0.58f).padding(end = 6.dp),
+                            textAlign = TextAlign.End,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.5.sp,
+                            fontFamily = FontFamily.Monospace,
+                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                        )
                     }
 
                     // Action Row under Right Table: Copy + Export (>= 48dp senior targets)

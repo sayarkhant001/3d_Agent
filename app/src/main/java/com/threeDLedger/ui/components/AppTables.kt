@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -97,7 +98,7 @@ fun AppTableHeader(
 fun AppTableBodyRow(
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 12.dp,
-    verticalPadding: Dp = 7.dp,
+    verticalPadding: Dp = 8.5.dp,
     isAlternate: Boolean = false,
     content: @Composable RowScope.() -> Unit
 ) {
@@ -116,7 +117,7 @@ fun AppTableBodyRow(
 fun AppTableLine(show: Boolean = true) {
     if (show) {
         HorizontalDivider(
-            color = themeTableBorder().copy(alpha = 0.5f),
+            color = themeTableBorder().copy(alpha = 0.55f),
             thickness = 1.dp
         )
     }
@@ -124,11 +125,31 @@ fun AppTableLine(show: Boolean = true) {
 
 /** Vertical cell divider separating the number column from the amount column. */
 @Composable
-fun AppTableCellDivider(height: Dp = 20.dp, modifier: Modifier = Modifier) {
+fun AppTableCellDivider(height: Dp = 22.dp, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.width(1.25.dp).height(height),
-        color = themeTableBorder().copy(alpha = 0.65f)
+        color = themeTableBorder().copy(alpha = 0.72f)
     ) {}
+}
+
+/** Brushed footer band with a top ledger accent rule for table totals. */
+@Composable
+fun AppTableFooter(
+    modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        HorizontalDivider(color = themeGold().copy(alpha = 0.25f), thickness = 0.75.dp)
+        HorizontalDivider(color = themeEmeraldBorder(), thickness = 1.25.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(themeEmeraldContainer().copy(alpha = 0.88f))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content
+        )
+    }
 }
 
 /** Index (စဉ်) key — straight top to bottom in a fixed-width centred column. */
@@ -145,6 +166,7 @@ fun AppTableIndexText(
         fontSize = fontSize,
         fontWeight = FontWeight.SemiBold,
         fontFamily = FontFamily.Monospace,
+        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.width(width)
     )
@@ -164,6 +186,7 @@ fun AppTableNumberText(
         fontSize = fontSize,
         fontWeight = FontWeight.Black,
         fontFamily = FontFamily.Monospace,
+        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
         letterSpacing = 1.5.sp,
         color = color,
         maxLines = 1,
@@ -190,6 +213,7 @@ fun AppTableAmountText(
             fontSize = fontSize,
             fontWeight = FontWeight.ExtraBold,
             fontFamily = FontFamily.Monospace,
+            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
             color = color,
             maxLines = 1
         )

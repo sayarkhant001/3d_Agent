@@ -28,6 +28,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import com.threeDLedger.ui.components.FitText
 import com.threeDLedger.ui.components.AnimatedEntrance
+import com.threeDLedger.ui.components.AppTableCellDivider
+import com.threeDLedger.ui.components.fastExpandTransition
+import com.threeDLedger.ui.components.fastShrinkTransition
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -1402,8 +1405,8 @@ private fun InputCard(
             }
             androidx.compose.animation.AnimatedVisibility(
                 visible = showRates,
-                enter = androidx.compose.animation.expandVertically(),
-                exit = androidx.compose.animation.shrinkVertically()
+                enter = fastExpandTransition(),
+                exit = fastShrinkTransition()
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 2.dp)) {
                     MultiplierField("ပေါက်သီး (ဒဲ့)", exactMult, Color(0xFF43AA8B), Modifier.weight(1f), onExactChange)
@@ -1834,7 +1837,7 @@ private fun AgentSummaryCard(agent: AgentWinSummary) {
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
 
-            AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
+            AnimatedVisibility(visible = expanded, enter = fastExpandTransition(), exit = fastShrinkTransition()) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp).padding(bottom = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -1956,7 +1959,58 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
             }
             Spacer(Modifier.height(8.dp))
             if (vs.bets.isNotEmpty()) {
-                vs.bets.forEach { r -> BetResultRow(r) }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.25.dp, themeTableBorder())
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(themeEmeraldContainer())
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "ဂဏန်း",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(56.dp)
+                            )
+                            AppTableCellDivider(height = 14.dp)
+                            Text(
+                                "အမျိုးအစား",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(0.9f).padding(start = 8.dp)
+                            )
+                            AppTableCellDivider(height = 14.dp)
+                            Text(
+                                "ထိုး / လျော်ငွေ",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.weight(1.1f)
+                            )
+                        }
+                        HorizontalDivider(color = themeEmeraldBorder(), thickness = 1.dp)
+                        vs.bets.forEachIndexed { idx, r ->
+                            BetResultRow(
+                                result = r,
+                                isAlternate = idx % 2 == 1
+                            )
+                            if (idx < vs.bets.lastIndex) {
+                                HorizontalDivider(color = themeTableBorder().copy(alpha = 0.5f), thickness = 0.8.dp)
+                            }
+                        }
+                    }
+                }
             } else {
                 Text(
                     "ပေါက်ဂဏန်း မရှိပါ",
@@ -1972,23 +2026,44 @@ fun VoucherDetailCard(vs: VoucherWinSummary, winningNumber: String, compact: Boo
 // ── Bet result row ────────────────────────────────────────────────────────────
 
 @Composable
-private fun BetResultRow(result: WinnerResult) {
+private fun BetResultRow(result: WinnerResult, isAlternate: Boolean = false) {
     val (color, label) = when (result.winType) {
         WinType.EXACT -> Pair(Color(0xFF43AA8B), "ပေါက်သီး")
         WinType.TUWT  -> Pair(Color(0xFF6C63FF), "တွတ်")
     }
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(38.dp).clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center) {
-            Text(result.betNumber, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp,
-                fontFamily = FontFamily.Monospace, color = MaterialTheme.colorScheme.onSurface)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isAlternate) themeTableRowEven() else themeTableRowOdd())
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(56.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(color.copy(alpha = 0.12f))
+                .padding(vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                result.betNumber,
+                fontWeight = FontWeight.Black,
+                fontSize = 15.sp,
+                fontFamily = FontFamily.Monospace,
+                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
-        Spacer(Modifier.width(8.dp))
-        WinTypeBadge(label, color)
-        Spacer(Modifier.weight(1f))
-        Column(horizontalAlignment = Alignment.End) {
+        AppTableCellDivider(height = 22.dp)
+        Box(modifier = Modifier.weight(0.9f).padding(start = 8.dp)) {
+            WinTypeBadge(label, color)
+        }
+        AppTableCellDivider(height = 22.dp)
+        Column(
+            modifier = Modifier.weight(1.1f).padding(start = 6.dp),
+            horizontalAlignment = Alignment.End
+        ) {
             FitText("%,d ကျပ်".format(result.betAmount), maxFontSize = 11.sp, minFontSize = 8.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
             FitText("→ %,.0f ကျပ်".format(result.payoutAmount), fontWeight = FontWeight.Bold,

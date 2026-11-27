@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.ExportRecordWithNumbers
+import com.threeDLedger.ui.components.AppTableCellDivider
+import com.threeDLedger.ui.components.fastExpandTransition
+import com.threeDLedger.ui.components.fastShrinkTransition
 import com.threeDLedger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -219,6 +222,7 @@ fun ExportHistoryScreen(
                             if (idx >= 0) idx + 1 else export.record.id
                         }
                         ExportRecordCard(
+                            modifier = Modifier.animateItem(),
                             export = export,
                             voucherIndex = voucherIndex,
                             footerText = footerText,
@@ -365,7 +369,8 @@ private fun ExportRecordCard(
     voucherIndex: Int,
     footerText: String,
     onCopy: (String) -> Unit,
-    onPrint: (ExportRecordWithNumbers) -> Unit
+    onPrint: (ExportRecordWithNumbers) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     val dateString = SimpleDateFormat("HH:mm:ss  dd/MM/yyyy", Locale.getDefault()).format(Date(export.record.timestamp))
@@ -386,7 +391,7 @@ private fun ExportRecordCard(
     )
 
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 8.dp),
         shape = RoundedCornerShape(10.dp),
@@ -477,106 +482,130 @@ private fun ExportRecordCard(
             // ── Expanded Body ──────────────────────────────────────────────
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically(),
-                exit = shrinkVertically()
+                enter = fastExpandTransition(),
+                exit = fastShrinkTransition()
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    // Column headers
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(headerColor.copy(alpha = 0.12f))
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.25.dp, com.threeDLedger.ui.theme.themeTableBorder())
                     ) {
-                        Text(
-                            "စဉ်",
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(32.dp),
-                            textAlign = TextAlign.Start,
-                            fontSize = 12.5.sp
-                        )
-                        Text(
-                            "ဂဏန်း",
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center,
-                            fontSize = 12.5.sp
-                        )
-                        Text(
-                            "ပမာဏ",
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
-                            textAlign = TextAlign.Center,
-                            fontSize = 12.5.sp
-                        )
-                    }
-
-                    // Per-number rows
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, com.threeDLedger.ui.theme.themeTableBorder())
-                    ) {
-                        sortedNumbers.forEachIndexed { index, num ->
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            // Column headers
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .padding(horizontal = 6.dp, vertical = 5.dp),
+                                    .background(com.threeDLedger.ui.theme.themeEmeraldContainer())
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    "${index + 1}.",
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.width(32.dp)
-                                )
-                                Text(
-                                    num.number,
+                                    "စဉ်",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp,
-                                    modifier = Modifier.weight(1f),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.width(34.dp),
                                     textAlign = TextAlign.Center,
-                                    fontFamily = FontFamily.Monospace
+                                    fontSize = 12.5.sp
                                 )
+                                AppTableCellDivider(height = 15.dp)
                                 Text(
-                                    "%,d ကျပ်".format(num.amount),
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f),
+                                    "ဂဏန်း",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.weight(0.9f),
                                     textAlign = TextAlign.Center,
-                                    fontFamily = FontFamily.Monospace
+                                    fontSize = 12.5.sp
+                                )
+                                AppTableCellDivider(height = 15.dp)
+                                Text(
+                                    "ပမာဏ",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.weight(1.1f).padding(end = 6.dp),
+                                    textAlign = TextAlign.End,
+                                    fontSize = 12.5.sp
                                 )
                             }
-                            if (index < sortedNumbers.lastIndex) {
-                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.7f), thickness = 0.75.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeEmeraldBorder(), thickness = 1.25.dp)
+                            HorizontalDivider(color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.25f), thickness = 0.75.dp)
+
+                            // Per-number rows with alternating paper tint & vertical rules
+                            sortedNumbers.forEachIndexed { index, num ->
+                                val rowBg = if (index % 2 == 0) themeTableRowOdd() else themeTableRowEven()
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(rowBg)
+                                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "${index + 1}.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.width(34.dp)
+                                    )
+                                    AppTableCellDivider(height = 18.dp)
+                                    Text(
+                                        num.number,
+                                        fontWeight = FontWeight.Black,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 14.5.sp,
+                                        modifier = Modifier.weight(0.9f),
+                                        textAlign = TextAlign.Center,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                        letterSpacing = 1.sp
+                                    )
+                                    AppTableCellDivider(height = 18.dp)
+                                    Text(
+                                        "%,d Ks".format(num.amount),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isOverflow) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1.1f).padding(end = 6.dp),
+                                        textAlign = TextAlign.End,
+                                        fontFamily = FontFamily.Monospace,
+                                        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                                if (index < sortedNumbers.lastIndex) {
+                                    HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.55f), thickness = 0.8.dp)
+                                }
+                            }
+
+                            // Footer total integrated cleanly at table bottom
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(headerColor)
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "စုစုပေါင်း (${sortedNumbers.size} ဂဏန်း)",
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp
+                                )
+                                Text(
+                                    "%,d ကျပ်".format(export.record.totalAmount),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum")
+                                )
                             }
                         }
-                    }
-
-                    // Footer total
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(headerColor)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "စုစုပေါင်း (${sortedNumbers.size} ဂဏန်း)",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp
-                        )
-                        Text(
-                            "%,d ကျပ်".format(export.record.totalAmount),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
                     }
 
                     Spacer(Modifier.height(8.dp))

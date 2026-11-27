@@ -485,8 +485,8 @@ fun HomeScreen(
                         // Collapsible Stats Grid Content (2-Column breakdown)
                         AnimatedVisibility(
                             visible = isBatchSummaryExpanded,
-                            enter = expandVertically(),
-                            exit = shrinkVertically()
+                            enter = com.threeDLedger.ui.components.fastExpandTransition(),
+                            exit = com.threeDLedger.ui.components.fastShrinkTransition()
                         ) {
                             Column(
                                 modifier = Modifier
@@ -711,8 +711,8 @@ fun HomeScreen(
                             }
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = isBannedExpanded,
-                                enter = androidx.compose.animation.expandVertically(),
-                                exit = androidx.compose.animation.shrinkVertically()
+                                enter = com.threeDLedger.ui.components.fastExpandTransition(),
+                                exit = com.threeDLedger.ui.components.fastShrinkTransition()
                             ) {
                                 Column {
                                     Spacer(modifier = Modifier.height(8.dp))

@@ -1292,6 +1292,7 @@ function App() {
           </div>
         )}
 
+        <div key={activeSection} className="section-panel-anim">
         {/* ========================================================
             PAGE 0: EXECUTIVE DASHBOARD OVERVIEW
             ======================================================== */}
@@ -3014,6 +3015,7 @@ function App() {
             </div>
           </div>
         )}
+        </div>
       </main>
 
       {/* Generated Key Popup (Single & Bulk Support) */}

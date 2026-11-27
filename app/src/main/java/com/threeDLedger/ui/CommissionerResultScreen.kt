@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Customer
 import com.threeDLedger.logic.NumberGenerator
+import com.threeDLedger.ui.components.AppTableCellDivider
 import com.threeDLedger.ui.theme.*
 
 // ── Palette (Harmonized Emerald-Gold) ──────────────────────────────────────────
@@ -353,6 +354,7 @@ fun CommissionerResultScreen(
                     ) {
                         items(settlements, key = { it.customer.id }) { s ->
                             AgentSettlementCard(
+                                modifier    = Modifier.animateItem(),
                                 settlement  = s,
                                 onTapDetail = {
                                     dialogAgent = s
@@ -601,11 +603,12 @@ fun AgentSettlementCard(
     onTapDetail: () -> Unit,
     onEditPaid : () -> Unit,
     onTapTut   : (() -> Unit)? = null,
-    onTapExact : (() -> Unit)? = null
+    onTapExact : (() -> Unit)? = null,
+    modifier   : Modifier = Modifier
 ) {
     val s = settlement
     Card(
-        modifier  = Modifier.fillMaxWidth(),
+        modifier  = modifier.fillMaxWidth(),
         shape     = RoundedCornerShape(18.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
         colors    = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -993,20 +996,23 @@ fun WinBreakdownDialog(
                 } else {
                     // Table Header
                     Surface(
-                        shape = RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp),
-                        color = iconTint.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
+                        color = iconTint.copy(alpha = 0.14f),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                                .padding(horizontal = 8.dp, vertical = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("စဉ်", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.width(28.dp))
-                            Text("ဂဏန်း", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.width(60.dp))
-                            Text("ထိုးငွေ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
-                            Text("လျော်ငွေ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = iconTint, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
+                            Text("စဉ်", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = iconTint, textAlign = TextAlign.Center, modifier = Modifier.width(26.dp))
+                            AppTableCellDivider(height = 14.dp)
+                            Text("ဂဏန်း", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = iconTint, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp))
+                            AppTableCellDivider(height = 14.dp)
+                            Text("ထိုးငွေ", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = iconTint, modifier = Modifier.weight(1f).padding(end = 4.dp), textAlign = TextAlign.End)
+                            AppTableCellDivider(height = 14.dp)
+                            Text("လျော်ငွေ", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = iconTint, modifier = Modifier.weight(1.1f), textAlign = TextAlign.End)
                         }
                     }
 
@@ -1015,65 +1021,77 @@ fun WinBreakdownDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(max = 260.dp)
-                            .clip(RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
-                            .border(1.25.dp, com.threeDLedger.ui.theme.themeTableBorder(), RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp))
+                            .clip(RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
+                            .border(1.25.dp, com.threeDLedger.ui.theme.themeTableBorder(), RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp))
                     ) {
                         itemsIndexed(details) { index, item ->
+                            val rowBg = if (index % 2 == 0) themeTableRowOdd() else themeTableRowEven()
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    .background(rowBg)
+                                    .padding(horizontal = 8.dp, vertical = 7.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     "${index + 1}",
-                                    fontSize = 13.sp,
+                                    fontSize = 12.5.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     textAlign = TextAlign.Center,
                                     fontWeight = FontWeight.SemiBold,
                                     fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.width(28.dp)
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                    modifier = Modifier.width(26.dp)
                                 )
-                                // Number badge
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = iconTint.copy(alpha = 0.15f),
-                                    border = androidx.compose.foundation.BorderStroke(0.5.dp, iconTint.copy(alpha = 0.4f))
+                                AppTableCellDivider(height = 18.dp)
+                                // Number badge centered cleanly
+                                Box(
+                                    modifier = Modifier.width(56.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        item.number,
-                                        color = iconTint,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 13.sp,
-                                        fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = iconTint.copy(alpha = 0.14f),
+                                        border = androidx.compose.foundation.BorderStroke(0.5.dp, iconTint.copy(alpha = 0.4f))
+                                    ) {
+                                        Text(
+                                            item.number,
+                                            color = iconTint,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 13.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
-                                Spacer(Modifier.width(6.dp))
-                                // Bet format: =>> amount
+                                AppTableCellDivider(height = 18.dp)
+                                // Bet amount
                                 Text(
-                                    "=>> ${fmt(item.amount)}",
+                                    fmt(item.amount),
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                                     color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f),
+                                    modifier = Modifier.weight(1f).padding(end = 4.dp),
                                     textAlign = TextAlign.End
                                 )
+                                AppTableCellDivider(height = 18.dp)
                                 // Payout
                                 Text(
                                     "${fmt(item.payout)} Ks",
                                     fontWeight = FontWeight.ExtraBold,
                                     fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
+                                    style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                                     color = iconTint,
-                                    modifier = Modifier.weight(1.1f),
+                                    modifier = Modifier.weight(1.1f).padding(start = 4.dp),
                                     textAlign = TextAlign.End
                                 )
                             }
                             if (index < details.lastIndex) {
-                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f), thickness = 1.dp)
+                                HorizontalDivider(color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.55f), thickness = 1.dp)
                             }
                         }
                     }

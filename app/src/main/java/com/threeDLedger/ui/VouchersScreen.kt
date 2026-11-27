@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.threeDLedger.ui.components.AppTableCellDivider
 import com.threeDLedger.ui.components.tactileCardSurface
 import com.threeDLedger.ui.theme.rememberResponsiveDimens
 
@@ -139,6 +140,7 @@ fun VouchersScreen(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .animateItem()
                         .padding(bottom = 12.dp)
                         .tactileCardSurface(
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
@@ -171,20 +173,33 @@ fun VouchersScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 7.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            "စဉ်   ဂဏန်း:",
+                                            "စဉ်",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.5.sp,
+                                            fontSize = 13.sp,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.width(32.dp),
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
+                                        AppTableCellDivider(height = 16.dp)
+                                        Text(
+                                            "ဂဏန်း",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.width(68.dp),
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        AppTableCellDivider(height = 16.dp)
                                         Text(
                                             "ထိုးငွေ ပမာဏ",
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 13.5.sp,
+                                            fontSize = 13.sp,
+                                            textAlign = TextAlign.End,
+                                            modifier = Modifier.weight(1f),
                                             color = MaterialTheme.colorScheme.onPrimaryContainer
                                         )
                                     }
@@ -194,6 +209,10 @@ fun VouchersScreen(
                                     color = com.threeDLedger.ui.theme.themeEmeraldBorder(),
                                     thickness = 1.25.dp
                                 )
+                                HorizontalDivider(
+                                    color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.25f),
+                                    thickness = 0.75.dp
+                                )
 
                                 // Solid rows — straight index & number columns, distinct lines
                                 voucherWithBets.bets.forEachIndexed { idx, bet ->
@@ -201,49 +220,41 @@ fun VouchersScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .background(if (idx % 2 == 0) com.threeDLedger.ui.theme.themeTableRowOdd() else com.threeDLedger.ui.theme.themeTableRowEven())
-                                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                            .padding(horizontal = 12.dp, vertical = 8.5.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        // Left: Index & Number — index column fixed width so every row's key runs straight top to bottom
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        ) {
-                                            Text(
-                                                "${idx + 1}.",
-                                                fontSize = 13.sp,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                fontFamily = FontFamily.Monospace,
-                                                textAlign = TextAlign.Center,
-                                                fontWeight = FontWeight.SemiBold,
-                                                modifier = Modifier.width(30.dp),
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                bet.number,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 18.sp,
-                                                fontFamily = FontFamily.Monospace,
-                                                letterSpacing = 1.5.sp,
-                                                maxLines = 1,
-                                                softWrap = false
-                                            )
-                                        }
+                                        Text(
+                                            "${idx + 1}.",
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontFamily = FontFamily.Monospace,
+                                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                            textAlign = TextAlign.Center,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.width(32.dp),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        AppTableCellDivider(height = 20.dp)
+                                        Text(
+                                            bet.number,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 18.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                            letterSpacing = 1.5.sp,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.width(68.dp),
+                                            maxLines = 1,
+                                            softWrap = false
+                                        )
+                                        AppTableCellDivider(height = 20.dp)
 
-                                        // Dominant cell divider between number & amount columns
-                                        Surface(
-                                            modifier = Modifier
-                                                .width(1.dp)
-                                                .height(20.dp),
-                                            color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.6f)
-                                        ) {}
-
-                                        // Right: Amount & Ks (never wraps)
+                                        // Right: Amount & Ks (tabular, right-aligned, never wraps)
                                         Row(
+                                            modifier = Modifier.weight(1f),
+                                            horizontalArrangement = Arrangement.End,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
@@ -252,6 +263,8 @@ fun VouchersScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 16.5.sp,
                                                 fontFamily = FontFamily.Monospace,
+                                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                                textAlign = TextAlign.End,
                                                 maxLines = 1,
                                                 softWrap = false
                                             )

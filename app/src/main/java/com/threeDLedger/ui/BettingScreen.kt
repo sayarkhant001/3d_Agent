@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.threeDLedger.ui.components.AnimatedNumberText
+import com.threeDLedger.ui.components.AppTableCellDivider
 import com.threeDLedger.ui.components.pressScale
 import com.threeDLedger.ui.components.pulseEffect
 import com.threeDLedger.ui.components.FitText
@@ -1597,7 +1599,7 @@ fun BettingScreen(
                 .background(MaterialTheme.colorScheme.surface, androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
                 .border(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder(), androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
         ) {
-            // ── Header — unified emerald band (VouchersScreen pattern) ────────
+            // ── Header — aligned accounting ledger band ──────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1605,25 +1607,37 @@ fun BettingScreen(
                         com.threeDLedger.ui.theme.themeEmeraldContainer(),
                         shape = androidx.compose.foundation.shape.RoundedCornerShape(topStart = 9.dp, topEnd = 9.dp)
                     )
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(start = 10.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "စဉ်   ဂဏန်း",
+                    "စဉ်",
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                    modifier = Modifier.weight(1f)
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(28.dp)
                 )
+                Spacer(Modifier.width(4.dp))
+                AppTableCellDivider(height = 16.dp)
+                Text(
+                    "ဂဏန်း",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(62.dp)
+                )
+                AppTableCellDivider(height = 16.dp)
                 Text(
                     "ထိုးငွေ ပမာဏ",
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.width(96.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp)
                 )
                 if (pendingBets.isNotEmpty()) {
                     IconButton(
@@ -1645,6 +1659,10 @@ fun BettingScreen(
             HorizontalDivider(
                 color = com.threeDLedger.ui.theme.themeEmeraldBorder(),
                 thickness = 1.25.dp
+            )
+            HorizontalDivider(
+                color = com.threeDLedger.ui.theme.themeGold().copy(alpha = 0.25f),
+                thickness = 0.75.dp
             )
 
             // ── Rows ──────────────────────────────────────────────────────────
@@ -1674,61 +1692,68 @@ fun BettingScreen(
                 ) {
                     items(pendingBets.size) { i ->
                         val bet = pendingBets[i]
+                        val rowBg = if (i % 2 == 0) {
+                            com.threeDLedger.ui.theme.themeTableRowOdd()
+                        } else {
+                            com.threeDLedger.ui.theme.themeTableRowEven()
+                        }
 
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(start = 10.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+                                .background(rowBg)
+                                .padding(start = 10.dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Row number — fixed width, centred: key runs straight top to bottom
+                            // Row number — fixed width, centred, tabular numerals
                             Text(
                                 "${i + 1}.",
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                modifier = Modifier.width(26.dp),
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                modifier = Modifier.width(28.dp),
                                 textAlign = TextAlign.Center,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(4.dp))
+                            AppTableCellDivider(height = 22.dp)
 
-                            // Number — large bold emerald
+                            // Number — centered, large bold emerald
                             Text(
                                 bet.number,
-                                fontSize = 20.sp,
-                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 19.5.sp,
+                                fontWeight = FontWeight.Black,
                                 color = primaryBlue,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                letterSpacing = 2.sp,
-                                modifier = Modifier.width(52.dp)
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                letterSpacing = 1.5.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(62.dp)
                             )
 
-                            // Equals sign
-                            Text(
-                                "=",
-                                fontSize = 16.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
+                            AppTableCellDivider(height = 22.dp)
 
-                            // Amount — right-aligned, large, high contrast
+                            // Amount — right-aligned, tabular monospace
                             Text(
                                 "%,d".format(bet.amount).padStart(amtWidthB),
-                                fontSize = 19.sp,
-                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                                 textAlign = TextAlign.End,
-                                modifier = Modifier.weight(1f)
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 6.dp)
                             )
 
                             // "Ks" suffix
                             Text(
                                 " Ks",
-                                fontSize = 13.sp,
+                                fontSize = 12.5.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                             )
@@ -1748,7 +1773,7 @@ fun BettingScreen(
                         }
                         if (i < pendingBets.lastIndex)
                             HorizontalDivider(
-                                color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f),
+                                color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f),
                                 thickness = 1.dp
                             )
                     }
@@ -2003,15 +2028,13 @@ fun BettingScreen(
                             totalAmount >= 1_000_000   -> 11.5.sp
                             else                       -> 12.5.sp
                         }
-                        Text(
-                            "= %,d Ks".format(totalAmount),
+                        AnimatedNumberText(
+                            value = totalAmount.toLong(),
+                            formatter = { "= %,d Ks".format(it) },
                             fontWeight = FontWeight.Black,
                             fontSize = amountFontSize,
-                            lineHeight = 15.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            fontFamily = FontFamily.Monospace,
-                            maxLines = 1,
-                            softWrap = false
+                            fontFamily = FontFamily.Monospace
                         )
                     }
                 }

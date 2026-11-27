@@ -1,5 +1,11 @@
 package com.threeDLedger.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -76,7 +82,31 @@ fun AppNavigation(
     NavHost(
         navController = navController,
         startDestination = startDestination,
-        modifier = modifier
+        modifier = modifier,
+        enterTransition = {
+            slideInHorizontally(
+                initialOffsetX = { (it * 0.14f).toInt() },
+                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing))
+        },
+        exitTransition = {
+            slideOutHorizontally(
+                targetOffsetX = { -(it * 0.08f).toInt() },
+                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+            ) + fadeOut(animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing))
+        },
+        popEnterTransition = {
+            slideInHorizontally(
+                initialOffsetX = { -(it * 0.12f).toInt() },
+                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 150, easing = FastOutSlowInEasing))
+        },
+        popExitTransition = {
+            slideOutHorizontally(
+                targetOffsetX = { (it * 0.16f).toInt() },
+                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+            ) + fadeOut(animationSpec = tween(durationMillis = 120, easing = FastOutSlowInEasing))
+        }
     ) {
         composable<ActivationRoute> {
             ActivationScreen(

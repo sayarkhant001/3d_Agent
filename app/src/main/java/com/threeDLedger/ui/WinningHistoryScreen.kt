@@ -183,6 +183,7 @@ fun WinningHistoryScreen(
                 ) {
                     items(filteredList, key = { "history_${it.id}_${it.drawDate}" }) { item ->
                         ThreeDHistoryCard(
+                            modifier = Modifier.animateItem(),
                             history = item,
                             onCopy = {
                                 val tutNums = com.threeDLedger.logic.TutCalculator.calculate(item.winningNumber).allTut.sorted()
@@ -208,7 +209,8 @@ fun WinningHistoryScreen(
 @Composable
 fun ThreeDHistoryCard(
     history: ThreeDWinningHistory,
-    onCopy: () -> Unit
+    onCopy: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val emeraldPrimary = themeEmerald()
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -222,7 +224,7 @@ fun ThreeDHistoryCard(
     }
 
     Surface(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .tactileCardSurface(
                 shape = RoundedCornerShape(16.dp),
