@@ -35,6 +35,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.threeDLedger.ui.components.tactileCardSurface
 import com.threeDLedger.utils.GitHubUpdater
 import kotlinx.coroutines.launch
 
@@ -422,57 +423,140 @@ private fun SoundSettingsCard() {
     val context = LocalContext.current
     val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(context) }
     var soundEnabled by remember { mutableStateOf(soundManager.isSoundEnabled()) }
+    var volumeLevel by remember { mutableIntStateOf(soundManager.getSoundVolumeLevel()) }
+    val volumeLabels = listOf("တိုး", "ပုံမှန်", "ကျယ်")
 
     SettingsCard {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable {
-                    val newState = !soundEnabled
-                    soundEnabled = newState
-                    soundManager.setSoundEnabled(newState)
-                    if (newState) soundManager.playClick()
-                }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(EmeraldPrimary),
-                contentAlignment = Alignment.Center
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val newState = !soundEnabled
+                        soundEnabled = newState
+                        soundManager.setSoundEnabled(newState)
+                        if (newState) soundManager.playSoftTap()
+                    }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.VolumeUp, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(EmeraldPrimary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.VolumeUp, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "အသံ ဖွင့်/ပိတ်",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "ခလုတ်၊ ကော်ပီ နှင့် အတည်ပြု အသံစနစ်",
+                        fontSize = 13.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = soundEnabled,
+                    onCheckedChange = { isChecked ->
+                        soundEnabled = isChecked
+                        soundManager.setSoundEnabled(isChecked)
+                        if (isChecked) soundManager.playSoftTap()
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = EmeraldPrimary,
+                        uncheckedThumbColor = Color.White,
+                        uncheckedTrackColor = Color(0xFFCBD5E1)
+                    )
+                )
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    "အသံ ဖွင့်/ပိတ်",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.5.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    "ခလုတ်နှိပ်သည့်အခါ အသံထွက်မည်",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+
+            if (soundEnabled) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "အသံ ပမာဏ",
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            volumeLabels.forEachIndexed { idx, label ->
+                                val selected = volumeLevel == idx
+                                Surface(
+                                    onClick = {
+                                        volumeLevel = idx
+                                        soundManager.setSoundVolumeLevel(idx)
+                                        soundManager.playClick()
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.heightIn(min = 38.dp)
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text(
+                        "အသံ နမူနာ စမ်းသပ်ရန် :",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            "ခလုတ်သံ" to { soundManager.playClick() },
+                            "ကော်ပီ" to { soundManager.playCopy() },
+                            "အောင်မြင်" to { soundManager.playSuccess() },
+                            "သတိပေး" to { soundManager.playError() }
+                        ).forEach { (lbl, trigger) ->
+                            OutlinedButton(
+                                onClick = trigger,
+                                shape = RoundedCornerShape(10.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 42.dp)
+                            ) {
+                                Text(lbl, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
+                        }
+                    }
+                }
             }
-            Switch(
-                checked = soundEnabled,
-                onCheckedChange = { isChecked ->
-                    soundEnabled = isChecked
-                    soundManager.setSoundEnabled(isChecked)
-                    if (isChecked) soundManager.playClick()
-                },
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
-                    checkedTrackColor = EmeraldPrimary,
-                    uncheckedThumbColor = Color.White,
-                    uncheckedTrackColor = Color(0xFFCBD5E1)
-                )
-            )
         }
     }
 }
@@ -480,9 +564,9 @@ private fun SoundSettingsCard() {
 @Composable
 private fun SettingsSectionHeader(title: String, icon: ImageVector, headerColor: Color = MaterialTheme.colorScheme.primary) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
-        Icon(icon, null, tint = headerColor, modifier = Modifier.size(15.dp))
+        Icon(icon, null, tint = headerColor, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = headerColor, letterSpacing = 0.8.sp)
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = headerColor, letterSpacing = 0.6.sp)
         Spacer(Modifier.width(8.dp))
         HorizontalDivider(modifier = Modifier.weight(1f), color = headerColor.copy(alpha = 0.25f), thickness = 1.dp)
     }
@@ -490,9 +574,15 @@ private fun SettingsSectionHeader(title: String, icon: ImageVector, headerColor:
 
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(2.dp), content = content)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tactileCardSurface(shape = RoundedCornerShape(16.dp), elevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent
+    ) {
+        Column(modifier = Modifier.fillMaxWidth(), content = content)
+    }
 }
 
 @Composable

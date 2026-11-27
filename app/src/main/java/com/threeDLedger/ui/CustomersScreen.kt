@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.threeDLedger.ui.components.tactileCardSurface
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Customer
@@ -355,14 +356,18 @@ fun CustomerCard(
     onBetsTap    : () -> Unit,
     onAddBetTap  : () -> Unit
 ) {
-    Card(
+    val cardCtx = androidx.compose.ui.platform.LocalContext.current
+    val cardSound = remember { com.threeDLedger.logic.SoundManager.getInstance(cardCtx) }
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onBetsTap),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .tactileCardSurface(shape = RoundedCornerShape(16.dp), elevation = 3.dp)
+            .clickable {
+                cardSound.playSoftTap()
+                onBetsTap()
+            },
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent
     ) {
         Column(
             modifier = Modifier

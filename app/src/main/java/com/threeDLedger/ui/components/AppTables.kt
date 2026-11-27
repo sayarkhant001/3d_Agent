@@ -20,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -30,32 +32,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.threeDLedger.ui.theme.themeEmeraldBorder
 import com.threeDLedger.ui.theme.themeEmeraldContainer
+import com.threeDLedger.ui.theme.themeGold
 import com.threeDLedger.ui.theme.themeTableBorder
+import com.threeDLedger.ui.theme.themeTableRowEven
+import com.threeDLedger.ui.theme.themeTableRowOdd
 
 /**
- * ── UNIFIED TABLE LANGUAGE ───────────────────────────────────────────────────
- * Every number/amount table in the app follows one visual contract:
- *   1. Solid background — no zebra stripes, one clean colour per table body.
- *   2. Distinct borders — outer border + solid header band + straight lines
- *      dividing every row, visible left to right.
- *   3. Straight columns — the index (စဉ်) key runs straight top to bottom in a
- *      fixed-width centred column; numbers sit in their own centred column;
- *      amounts right-align against the same edge with "Ks" suffix.
- * Use AppTableShell + AppTableHeader + AppTableBodyRow + AppTableLine for new
- * tables, or apply the same recipe when editing existing screens.
+ * ── UNIFIED LEDGER TABLE LANGUAGE ──────────────────────────────────────────────
+ * Every number/amount table follows one crisp accounting ledger contract:
+ *   1. Embossed outer frame + double emerald/gold ledger header rule.
+ *   2. Gentle alternating warm-paper row depth so senior eyes never lose a row.
+ *   3. Straight monospace columns — fixed index, centred bold 3D number,
+ *      and right-aligned amount.
  */
 
-/** Solid table container with a distinct outer border. */
+/** Embossed table container with a crisp outer border and soft elevation. */
 @Composable
 fun AppTableShell(
     modifier: Modifier = Modifier,
     borderColor: Color = themeTableBorder(),
     borderWidth: Dp = 1.5.dp,
-    corner: Dp = 12.dp,
+    corner: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.shadow(2.dp, RoundedCornerShape(corner), clip = false),
         shape = RoundedCornerShape(corner),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(borderWidth, borderColor)
@@ -64,7 +65,7 @@ fun AppTableShell(
     }
 }
 
-/** Solid header band with a distinct bottom border separating it from rows. */
+/** Brushed header band with a classic double-rule emerald + burnished-gold accent. */
 @Composable
 fun AppTableHeader(
     modifier: Modifier = Modifier,
@@ -74,27 +75,36 @@ fun AppTableHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(themeEmeraldContainer())
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            themeEmeraldContainer(),
+                            themeEmeraldContainer().copy(alpha = 0.78f)
+                        )
+                    )
+                )
+                .padding(horizontal = 12.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content
         )
         HorizontalDivider(color = themeEmeraldBorder(), thickness = 1.25.dp)
+        HorizontalDivider(color = themeGold().copy(alpha = 0.25f), thickness = 0.75.dp)
     }
 }
 
-/** One solid table row: plain background, centre-aligned vertically. */
+/** Ledger row with ultra-gentle alternating paper warmth for effortless row tracking. */
 @Composable
 fun AppTableBodyRow(
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 12.dp,
     verticalPadding: Dp = 7.dp,
+    isAlternate: Boolean = false,
     content: @Composable RowScope.() -> Unit
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(if (isAlternate) themeTableRowEven() else themeTableRowOdd())
             .padding(horizontal = horizontalPadding, vertical = verticalPadding),
         verticalAlignment = Alignment.CenterVertically,
         content = content

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.ThreeDWinningHistory
 import com.threeDLedger.logic.NumberGenerator
+import com.threeDLedger.ui.components.tactileCardSurface
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.threeDLedger.ui.theme.themeEmerald
@@ -44,6 +45,7 @@ fun WinningHistoryScreen(
     val isFetching by viewModel.isFetchingHistory.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
+    val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(context) }
     var searchQuery by remember { mutableStateOf("") }
 
     val emeraldPrimary = themeEmerald()
@@ -191,6 +193,7 @@ fun WinningHistoryScreen(
                                     firstPrize6D = item.firstPrize6D,
                                     tutNumbers = tutNums
                                 )
+                                soundManager.playCopy()
                                 clipboardManager.setText(AnnotatedString(text))
                                 android.widget.Toast.makeText(context, "ပေါက်ဂဏန်း (${item.winningNumber}) ကော်ပီ ကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                             }
@@ -218,12 +221,16 @@ fun ThreeDHistoryCard(
         }
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .tactileCardSurface(
+                shape = RoundedCornerShape(16.dp),
+                elevation = 3.dp,
+                accentBorder = emeraldPrimary.copy(alpha = 0.55f)
+            ),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, emeraldPrimary.copy(alpha = 0.35f)),
-        elevation = CardDefaults.cardElevation(2.dp)
+        color = Color.Transparent
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // Header Row: Date & Copy Button

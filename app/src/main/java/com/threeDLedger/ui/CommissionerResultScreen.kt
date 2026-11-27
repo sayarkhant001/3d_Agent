@@ -464,6 +464,7 @@ fun CommissionerResultScreen(
                 ) {
                     OutlinedButton(
                         onClick = {
+                            com.threeDLedger.logic.SoundManager.getInstance(context).playCopy()
                             context.startActivity(Intent.createChooser(
                                 Intent(Intent.ACTION_SEND).apply {
                                     putExtra(Intent.EXTRA_TEXT, buildClipText(s, batchNumber, winningNumber, footerText))

@@ -20,6 +20,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -29,14 +30,14 @@ import androidx.compose.ui.unit.dp
 import com.threeDLedger.logic.SoundManager
 import com.threeDLedger.ui.theme.themeButtonBorder
 import com.threeDLedger.ui.theme.themePrimaryGradient
+import com.threeDLedger.ui.theme.themeSurfaceCardGradient
 
 /**
  * App-wide signature buttons.
  * ────────────────────────────────────────────────────────────────────────
- * PrimaryGradientButton — the dominant CTA: rich emerald gradient face,
- * strong 1.5dp brand border, tactile press-scale animation and click sound.
- * SecondaryOutlineButton — tonal companion with a dominant border for
- * less-prominent actions.
+ * PrimaryGradientButton — dominant CTA: rich multi-stop emerald gradient face,
+ * satin specular top sheen, strong beveled border, press-scale animation & click sound.
+ * SecondaryOutlineButton — embossed tonal companion for secondary actions.
  */
 @Composable
 fun PrimaryGradientButton(
@@ -52,10 +53,10 @@ fun PrimaryGradientButton(
     val borderColor = themeButtonBorder()
 
     val background = if (enabled) {
-        Brush.horizontalGradient(themePrimaryGradient())
+        Brush.verticalGradient(themePrimaryGradient())
     } else {
         val disabled = MaterialTheme.colorScheme.surfaceVariant
-        Brush.horizontalGradient(listOf(disabled, disabled))
+        Brush.verticalGradient(listOf(disabled, disabled))
     }
 
     Box(
@@ -63,11 +64,30 @@ fun PrimaryGradientButton(
             .shadow(elevation = if (enabled) 5.dp else 0.dp, shape = shape)
             .clip(shape)
             .background(background)
+            .drawBehind {
+                if (enabled) {
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
+                            startY = 0f,
+                            endY = size.height * 0.45f
+                        )
+                    )
+                }
+            }
             .border(
-                BorderStroke(1.5.dp, borderColor.copy(alpha = if (enabled) 1f else 0.35f)),
+                BorderStroke(
+                    width = 1.4.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = if (enabled) 0.40f else 0.1f),
+                            borderColor.copy(alpha = if (enabled) 1f else 0.35f)
+                        )
+                    )
+                ),
                 shape
             )
-            .pressScale(interactionSource)
+            .pressScale(interactionSource = interactionSource)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -103,20 +123,27 @@ fun SecondaryOutlineButton(
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val borderColor = themeButtonBorder()
+    val cardBg = if (enabled) {
+        Brush.verticalGradient(
+            listOf(
+                MaterialTheme.colorScheme.secondaryContainer,
+                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.88f)
+            )
+        )
+    } else {
+        Brush.verticalGradient(themeSurfaceCardGradient())
+    }
 
     Box(
         modifier = modifier
             .shadow(elevation = if (enabled) 3.dp else 0.dp, shape = shape)
             .clip(shape)
-            .background(
-                if (enabled) MaterialTheme.colorScheme.secondaryContainer
-                else MaterialTheme.colorScheme.surfaceVariant
-            )
+            .background(cardBg)
             .border(
                 BorderStroke(1.25.dp, borderColor.copy(alpha = if (enabled) 0.85f else 0.3f)),
                 shape
             )
-            .pressScale(interactionSource)
+            .pressScale(interactionSource = interactionSource)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

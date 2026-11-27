@@ -33,6 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -2468,9 +2469,9 @@ fun TactileKeypadButton(
     text: String,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    bgColor: Color = if (isSystemInDarkTheme()) KeypadDigitBgDark else Color.White,
-    contentColor: Color = if (bgColor == Color.White) KeypadDigitText else Color.White,
-    bevelColor: Color = if (bgColor == Color.White) Color(0xFFE2E8F0) else if (bgColor == KeypadDigitBgDark) Color(0xFF14201B) else bgColor.copy(alpha = 0.85f),
+    bgColor: Color = if (isSystemInDarkTheme()) KeypadDigitBgDark else Color(0xFFFFFEFA),
+    contentColor: Color = if (bgColor.red > 0.85f && bgColor.green > 0.85f) KeypadDigitText else Color.White,
+    bevelColor: Color = if (bgColor.red > 0.85f && bgColor.green > 0.85f) Color(0xFFE7DFCF) else if (bgColor == KeypadDigitBgDark) Color(0xFF142031) else bgColor.copy(alpha = 0.84f),
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -2482,19 +2483,22 @@ fun TactileKeypadButton(
         com.threeDLedger.logic.SoundManager.getInstance(soundContext)
     }
 
-    val offsetY = if (isPressed) 1.5.dp else 0.dp
-    val elevation = if (isPressed) 1.dp else 2.dp
+    val offsetY = if (isPressed) 2.dp else 0.dp
+    val elevation = if (isPressed) 1.dp else 3.dp
     val rDimens = rememberResponsiveDimens()
     val buttonHeight = if (rDimens.isCompact) 52.dp else 56.dp
+    val isLightFace = bgColor.red > 0.85f && bgColor.green > 0.85f
+    val topSpecular = if (isLightFace) Color.White else Color.White.copy(alpha = if (isPressed) 0.12f else 0.36f)
+    val bottomLip = if (isLightFace) Color(0xFFC7BDA5) else Color.Black.copy(alpha = 0.35f)
 
     Box(
         modifier = modifier
-            .pressScale(interactionSource = interactionSource, pressedScale = 0.93f)
+            .pressScale(interactionSource = interactionSource, pressedScale = 0.94f)
             .height(buttonHeight)
-            .padding(horizontal = 1.dp, vertical = 0.5.dp)
+            .padding(horizontal = 1.dp, vertical = 1.dp)
             .offset(y = offsetY)
-            .shadow(elevation, RoundedCornerShape(8.dp))
-            .clip(RoundedCornerShape(8.dp))
+            .shadow(elevation, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp))
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
@@ -2503,22 +2507,43 @@ fun TactileKeypadButton(
                     )
                 )
             )
+            .drawBehind {
+                // Crisp top ceramic specular lip
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = if (isPressed) 0.05f else (if (isLightFace) 0.65f else 0.18f)),
+                            Color.Transparent
+                        ),
+                        startY = 0f,
+                        endY = size.height * 0.36f
+                    )
+                )
+                // Grounded keycap bottom drop lip
+                drawRect(
+                    color = bottomLip,
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 2.5.dp.toPx()),
+                    size = androidx.compose.ui.geometry.Size(size.width, 2.5.dp.toPx())
+                )
+            }
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = if (isPressed) 0.1f else 0.45f),
-                        Color.Black.copy(alpha = 0.16f)
-                    )
+                    colors = listOf(topSpecular, bottomLip)
                 ),
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(10.dp)
             )
             .clickable(
                 interactionSource = interactionSource,
-                indication = ripple(color = Color.White.copy(alpha = 0.3f)),
+                indication = ripple(color = if (isLightFace) EmeraldPrimary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.3f)),
                 onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    soundManager.playClick()
+                    when {
+                        text.all { it.isDigit() } -> soundManager.playDigitClick(text)
+                        text == "ဖျက်" || text == "ရှင်း" -> soundManager.playDeleteTap()
+                        text == "R" || text == "ထွိုင်" -> soundManager.playSoftTap()
+                        else -> soundManager.playClick()
+                    }
                     onClick()
                 }
             ),

@@ -5,6 +5,7 @@ import { auth, db } from './firebase';
 import './index.css';
 
 import { calculateTutNumbers } from './tutLogic';
+import { soundFx, isSoundEnabled, setSoundEnabled } from './soundFx';
 import {
   buildResellerList,
   computeResellerKeyCounts,
@@ -82,6 +83,7 @@ function App() {
   const [generatedKey, setGeneratedKey] = useState(null);
   const [bulkGeneratedKeys, setBulkGeneratedKeys] = useState([]);
   const [toast, setToast] = useState(null);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
   const [copiedId, setCopiedId] = useState(null);
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -218,6 +220,11 @@ function App() {
 
   const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
+    if (type === 'error') {
+      soundFx.playError();
+    } else if (message !== 'Copied to clipboard!') {
+      soundFx.playSuccess();
+    }
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
@@ -752,6 +759,7 @@ function App() {
 
   const copyToClipboard = (text, id = null) => {
     if (!text) return;
+    soundFx.playCopy();
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).catch(() => {
         fallbackCopyText(text);
@@ -1131,6 +1139,19 @@ function App() {
           </span>
         </div>
         <div className="header-right">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => {
+              const next = !soundOn;
+              setSoundOn(next);
+              setSoundEnabled(next);
+              if (next) soundFx.playClick();
+            }}
+            title={soundOn ? 'Mute UI sound effects' : 'Enable UI sound effects'}
+          >
+            {soundOn ? '🔊 Sound On' : '🔇 Sound Off'}
+          </button>
           <span className="user-info">👤 {user.email}</span>
           <button className="btn btn-outline btn-sm" onClick={handleLogout}>Logout</button>
         </div>

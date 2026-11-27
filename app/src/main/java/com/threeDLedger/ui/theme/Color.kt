@@ -124,21 +124,43 @@ fun themeGoldDeep(): Color = if (isSystemInDarkTheme()) Color(0xFFFBBF24) else C
 @Composable
 fun themeWinRed(): Color = if (isSystemInDarkTheme()) Color(0xFFF87171) else Color(0xFFDC2626)
 
-// ── Rich Gradient & Dominant Border Tokens (theme refresh) ───────────────────
-val PrimaryGradientLight = listOf(Color(0xFF065F46), Color(0xFF047857), Color(0xFF0A9D6E))
-val PrimaryGradientDark  = listOf(Color(0xFF059669), Color(0xFF10B981), Color(0xFF34D399))
+// ── Rich Gradient & Dominant Border Tokens (Refined Surface Composition) ──────
+val PrimaryGradientLight = listOf(Color(0xFF065F46), Color(0xFF047857), Color(0xFF059669))
+val PrimaryGradientDark  = listOf(Color(0xFF047857), Color(0xFF059669), Color(0xFF10B981))
+val GoldGradientLight    = listOf(Color(0xFFB45309), Color(0xFFD97706), Color(0xFFF59E0B))
+val GoldGradientDark     = listOf(Color(0xFFD97706), Color(0xFFF59E0B), Color(0xFFFBBF24))
 
 @Composable
 fun themePrimaryGradient(): List<Color> =
     if (isSystemInDarkTheme()) PrimaryGradientDark else PrimaryGradientLight
 
+@Composable
+fun themeGoldGradient(): List<Color> =
+    if (isSystemInDarkTheme()) GoldGradientDark else GoldGradientLight
+
+@Composable
+fun themeSurfaceCardGradient(): List<Color> =
+    if (isSystemInDarkTheme()) {
+        listOf(Color(0xFF1F2D42), Color(0xFF172233))
+    } else {
+        listOf(Color(0xFFFFFFFF), Color(0xFFFAF5EA))
+    }
+
+@Composable
+fun themeTableRowOdd(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF1A2639) else Color(0xFFFFFFFF)
+
+@Composable
+fun themeTableRowEven(): Color =
+    if (isSystemInDarkTheme()) Color(0xFF152031) else Color(0xFFFAF6EC)
+
 // Dominant button border — deep emerald in light mode, glowing mint in dark
 @Composable
-fun themeButtonBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF34D399) else Color(0xFF065F46)
+fun themeButtonBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF34D399) else Color(0xFF064E3B)
 
-// Dominant table-cell border — clearly visible slate separators for data tables
+// Dominant table-cell border — clearly visible warm-slate separators for data tables
 @Composable
-fun themeTableBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF64748B) else Color(0xFF94A3B8)
+fun themeTableBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF475569) else Color(0xFFBFB49C)
 
 // Dark-aware container/border tints for banners, badges & callouts.
 // Light mode keeps the soft pastel containers; dark mode swaps to the deep
@@ -150,12 +172,12 @@ fun themeEmeraldContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF064E3B
 fun themeAmberContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF78350F) else Color(0xFFFEF3C7)
 
 @Composable
-fun themeCreamContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF78350F) else Color(0xFFFFFBEB)
+fun themeCreamContainer(): Color = if (isSystemInDarkTheme()) Color(0xFF422006) else Color(0xFFFFFBEB)
 
 @Composable
-fun themeEmeraldBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF10B981) else Color(0xFFA7F3D0)
+fun themeEmeraldBorder(): Color = if (isSystemInDarkTheme()) Color(0xFF10B981) else Color(0xFF86EFAC)
 
 @Composable
-fun themeAmberBorder(): Color = if (isSystemInDarkTheme()) Color(0xFFF59E0B) else Color(0xFFFDE68A)
+fun themeAmberBorder(): Color = if (isSystemInDarkTheme()) Color(0xFFF59E0B) else Color(0xFFFCD34D)
 
 

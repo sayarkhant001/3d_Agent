@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.threeDLedger.ui.components.pressScale
 import com.threeDLedger.ui.components.FitText
+import com.threeDLedger.ui.components.ledgerCanvasTexture
+import com.threeDLedger.ui.components.metallicHeroSurface
+import com.threeDLedger.ui.components.tactileCardSurface
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -280,7 +283,12 @@ fun HomeScreen(
             )
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .ledgerCanvasTexture(isDark),
+            contentAlignment = Alignment.TopCenter
+        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -379,13 +387,16 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // ── 2. Batch Summary Overview (Collapsible breakdown) ──────────────
-                Card(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(2.dp, RoundedCornerShape(16.dp)),
+                        .tactileCardSurface(
+                            shape = RoundedCornerShape(16.dp),
+                            elevation = 3.dp,
+                            accentBorder = EmeraldPrimary.copy(alpha = 0.45f)
+                        ),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, EmeraldPrimary.copy(alpha = 0.25f))
+                    color = Color.Transparent
                 ) {
                     Column(
                         modifier = Modifier
@@ -575,26 +586,33 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // ── Hero Action Card: "ထိုးကြေး စာရင်းသွင်းမည်" (Direct Betting Entry) ────
-                Card(
+                val heroInteraction = remember { MutableInteractionSource() }
+                val heroSoundCtx = androidx.compose.ui.platform.LocalContext.current
+                val heroSound = remember { com.threeDLedger.logic.SoundManager.getInstance(heroSoundCtx) }
+                Surface(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        heroSound.playSoftTap()
                         onNavigateToBetting()
                     },
+                    interactionSource = heroInteraction,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(6.dp, RoundedCornerShape(20.dp)),
+                        .pressScale(interactionSource = heroInteraction, pressedScale = 0.97f),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = EmeraldPrimary)
+                    color = Color.Transparent
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = com.threeDLedger.ui.theme.themePrimaryGradient()
-                                )
+                            .metallicHeroSurface(
+                                shape = RoundedCornerShape(20.dp),
+                                gradientColors = com.threeDLedger.ui.theme.themePrimaryGradient(),
+                                borderTopColor = Color(0xFFFDE68A).copy(alpha = 0.65f),
+                                borderBottomColor = Color(0xFF022C22).copy(alpha = 0.65f),
+                                elevation = 7.dp
                             )
-                            .padding(horizontal = 18.dp, vertical = 14.dp)
+                            .padding(horizontal = 18.dp, vertical = 16.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -805,17 +823,17 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // ── Settings & Preferences Navigation Card ───────────────────
-                Card(
+                Surface(
                     onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        heroSound.playSoftTap()
                         onNavigateToSettings()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .shadow(2.dp, RoundedCornerShape(18.dp)),
+                        .tactileCardSurface(shape = RoundedCornerShape(18.dp), elevation = 3.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    color = Color.Transparent
                 ) {
                     Row(
                         modifier = Modifier
@@ -1019,20 +1037,19 @@ fun MenuCard(
     val soundManager = remember {
         com.threeDLedger.logic.SoundManager.getInstance(soundContext)
     }
-    Card(
+    Surface(
         onClick = {
-            soundManager.playClick()
+            soundManager.playSoftTap()
             onClick()
         },
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = if (rDimens.isCompact) 120.dp else 132.dp)
-            .shadow(2.dp, RoundedCornerShape(20.dp))
+            .heightIn(min = if (rDimens.isCompact) 124.dp else 136.dp)
+            .tactileCardSurface(shape = RoundedCornerShape(20.dp), elevation = 3.dp)
             .pressScale(interactionSource = interactionSource),
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        color = Color.Transparent
     ) {
         Column(
             modifier = Modifier

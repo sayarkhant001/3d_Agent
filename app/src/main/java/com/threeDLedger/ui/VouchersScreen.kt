@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
+import com.threeDLedger.ui.components.tactileCardSurface
 import com.threeDLedger.ui.theme.rememberResponsiveDimens
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +63,7 @@ fun VouchersScreen(
 
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
+    val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(context) }
 
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
 
@@ -126,12 +129,16 @@ fun VouchersScreen(
             items(filteredVouchers) { voucherWithBets ->
                 val customerName = vouchers.find { it.voucher.id == voucherWithBets.voucher.id }?.customer?.name ?: "Unknown"
                 
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .tactileCardSurface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+                            elevation = 3.dp
+                        ),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    color = Color.Transparent
                 ) {
                     Column(modifier = Modifier.padding(dimens.responsiveDp(10.dp, 14.dp, 16.dp))) {
                         Text("ဘောင်ချာအမှတ်: ${voucherWithBets.voucher.id} (အကြိမ်: ${voucherWithBets.voucher.batchNumber})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = dimens.responsiveSp(12.5.sp, 13.5.sp, 14.5.sp))
@@ -188,8 +195,8 @@ fun VouchersScreen(
                                     Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(MaterialTheme.colorScheme.surface)
-                                            .padding(horizontal = 14.dp, vertical = 7.dp),
+                                            .background(if (idx % 2 == 0) com.threeDLedger.ui.theme.themeTableRowOdd() else com.threeDLedger.ui.theme.themeTableRowEven())
+                                            .padding(horizontal = 14.dp, vertical = 8.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
@@ -296,7 +303,8 @@ fun VouchersScreen(
                                 val coroutineScope = rememberCoroutineScope()
                                 IconButton(
                                     onClick = {
-                                        coroutineScope.launch { 
+                                        soundManager.playClick()
+                                        coroutineScope.launch {
                                             val prefs = context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
                                             val paperSize = prefs.getString("paperSize", "58mm") ?: "58mm"
                                             val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
@@ -319,6 +327,7 @@ fun VouchersScreen(
                                 }
                                 IconButton(
                                     onClick = {
+                                        soundManager.playCopy()
                                         val sendIntent: Intent = Intent().apply {
                                             action = Intent.ACTION_SEND
                                             putExtra(Intent.EXTRA_TEXT, textToCopy)
@@ -333,6 +342,7 @@ fun VouchersScreen(
                                 }
                                 IconButton(
                                     onClick = {
+                                        soundManager.playCopy()
                                         clipboardManager.setText(AnnotatedString(textToCopy))
                                         android.widget.Toast.makeText(context, "ဘောင်ချာ ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                                     },

@@ -384,7 +384,7 @@ fun WinnerScreen(
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val soundManager = remember { com.threeDLedger.logic.SoundManager.getInstance(context) }
     androidx.compose.runtime.LaunchedEffect(isDeclared) {
-        if (isDeclared) soundManager.playSuccess()
+        if (isDeclared) soundManager.playWinnerFanfare()
     }
     androidx.compose.runtime.LaunchedEffect(fetchStatus) {
         if (fetchStatus == "error") soundManager.playError()
@@ -815,6 +815,7 @@ fun DineSettlementCard(
                                 footerText = footerText
                             )
                         )
+                        com.threeDLedger.logic.SoundManager.getInstance(context).playCopy()
                         clipboardManager.setText(AnnotatedString(text))
                         android.widget.Toast.makeText(context, "${settlement.dineName} ရှင်းတမ်း ကော်ပီကူးယူပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                     },

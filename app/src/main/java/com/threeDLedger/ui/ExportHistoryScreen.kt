@@ -963,6 +963,7 @@ fun UpperAgentSettlementDialog(
             ) {
                 OutlinedButton(
                     onClick = {
+                        com.threeDLedger.logic.SoundManager.getInstance(context).playCopy()
                         val slip = buildSlip()
                         val sendIntent = Intent().apply {
                             action = Intent.ACTION_SEND

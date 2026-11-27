@@ -697,6 +697,7 @@ fun OverflowScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
+                                com.threeDLedger.logic.SoundManager.getInstance(context).playCopy()
                                 clipboardManager.setText(AnnotatedString(voucherText))
                                 android.widget.Toast.makeText(context, "ဘောင်ချာ အမှတ် #${snapshot.voucherSerial} ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                             },
@@ -1004,6 +1005,7 @@ fun OverflowScreen(
                                         totalAmount = items.sumOf { it.second },
                                         footerText = footerText
                                     )
+                                    com.threeDLedger.logic.SoundManager.getInstance(context).playCopy()
                                     clipboardManager.setText(AnnotatedString(keptText))
                                     android.widget.Toast.makeText(context, "ဘရိတ်အတွင်း ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                                 }
@@ -1108,6 +1110,7 @@ fun OverflowScreen(
                                         totalAmount = totalOverflow,
                                         footerText = footerText
                                     )
+                                    com.threeDLedger.logic.SoundManager.getInstance(context).playCopy()
                                     clipboardManager.setText(AnnotatedString(overflowText))
                                     android.widget.Toast.makeText(context, "ကျော်ကွက် ကော်ပီ ကူးပြီးပါပြီ", android.widget.Toast.LENGTH_SHORT).show()
                                 }
