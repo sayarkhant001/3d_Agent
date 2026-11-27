@@ -818,6 +818,18 @@ function App() {
     return buildResellerList(resellers, keyEntries);
   }, [resellers, keyEntries]);
 
+  const resellerTotals = useMemo(() => {
+    return allResellerList.reduce(
+      (acc, r) => {
+        acc.due += r.total_due || 0;
+        acc.paid += r.total_paid || 0;
+        acc.commission += r.total_commission || 0;
+        return acc;
+      },
+      { due: 0, paid: 0, commission: 0 }
+    );
+  }, [allResellerList]);
+
   // Key counts breakdown per reseller
   const resellerKeyCounts = useMemo(() => {
     return computeResellerKeyCounts(keyEntries);
@@ -1368,7 +1380,7 @@ function App() {
                   <span className="financial-card-icon">💸</span>
                 </div>
                 <div className="financial-card-amount due">
-                  {allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
+                  {resellerTotals.due.toLocaleString()} Ks
                 </div>
                 <div className="financial-card-hint">
                   Unsettled dues pending collection from resellers
@@ -1402,7 +1414,7 @@ function App() {
                   <span className="financial-card-icon">💳</span>
                 </div>
                 <div className="financial-card-amount paid">
-                  {allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
+                  {resellerTotals.paid.toLocaleString()} Ks
                 </div>
                 <div className="financial-card-hint">
                   Lifetime confirmed payments deposited
@@ -1415,7 +1427,7 @@ function App() {
                   <span className="financial-card-icon">🎁</span>
                 </div>
                 <div className="financial-card-amount comm">
-                  {allResellerList.reduce((sum, r) => sum + (r.total_commission || 0), 0).toLocaleString()} Ks
+                  {resellerTotals.commission.toLocaleString()} Ks
                 </div>
                 <div className="financial-card-hint">
                   Total commission credited across all agents
@@ -1668,10 +1680,10 @@ function App() {
                   👥 {allResellerList.length} Resellers
                 </span>
                 <span className="status-badge" style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#f87171', fontWeight: 700 }}>
-                  📌 Due: {allResellerList.reduce((sum, r) => sum + (r.total_due || 0), 0).toLocaleString()} Ks
+                  📌 Due: {resellerTotals.due.toLocaleString()} Ks
                 </span>
                 <span className="status-badge" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', fontWeight: 700 }}>
-                  💵 Paid: {allResellerList.reduce((sum, r) => sum + (r.total_paid || 0), 0).toLocaleString()} Ks
+                  💵 Paid: {resellerTotals.paid.toLocaleString()} Ks
                 </span>
                 {resellerViewMode === 'sections' && (
                   <div style={{ display: 'flex', gap: 6, marginLeft: 6 }}>

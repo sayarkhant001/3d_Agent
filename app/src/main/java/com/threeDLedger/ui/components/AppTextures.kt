@@ -1,14 +1,13 @@
 package com.threeDLedger.ui.components
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -17,129 +16,109 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Lightweight, GPU-friendly Canvas & Material Texture Modifiers for 3D Ledger.
- * Zero bitmap overhead: renders subtle radial ambient glow, warm accounting-ledger
- * dot micro-texture, and satin beveled rim lighting across light & dark modes.
+ * Lightweight GPU-Cached Texture Modifiers for 3D Ledger.
+ * Optimized for smooth 60/120fps on any Android device:
+ * - Uses `drawWithCache` so gradients & brushes allocate ONCE per size change (zero per-frame GC churn).
+ * - Avoids loop-heavy canvas dot grids and expensive offscreen shadow blurs inside lazy lists.
  */
 
 /**
- * Subtle warm paper / velvet obsidian ambient canvas background with a faint
- * accounting-ledger dot grid texture so large screens feel crafted and calm.
+ * Ambient emerald & warm gold corner radiance cached in GPU command buffer.
  */
+@Composable
 fun Modifier.ledgerCanvasTexture(
     isDarkOverride: Boolean? = null
-): Modifier = composed {
+): Modifier {
     val isDark = isDarkOverride ?: isSystemInDarkTheme()
     val emeraldGlow = if (isDark) Color(0xFF10B981).copy(alpha = 0.08f) else Color(0xFF047857).copy(alpha = 0.045f)
     val goldGlow = if (isDark) Color(0xFFF59E0B).copy(alpha = 0.06f) else Color(0xFFD97706).copy(alpha = 0.045f)
-    val dotColor = if (isDark) Color(0xFF94A3B8).copy(alpha = 0.065f) else Color(0xFF8C7A5B).copy(alpha = 0.07f)
 
-    this.drawBehind {
-        // 1. Soft top-left emerald radiance
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(emeraldGlow, Color.Transparent),
-                center = Offset(size.width * 0.12f, size.height * 0.06f),
-                radius = (size.maxDimension * 0.55f).coerceAtLeast(1f)
-            ),
-            radius = (size.maxDimension * 0.55f).coerceAtLeast(1f),
-            center = Offset(size.width * 0.12f, size.height * 0.06f)
-        )
-        // 2. Soft bottom-right burnished gold warmth
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(goldGlow, Color.Transparent),
-                center = Offset(size.width * 0.88f, size.height * 0.86f),
-                radius = (size.maxDimension * 0.52f).coerceAtLeast(1f)
-            ),
-            radius = (size.maxDimension * 0.52f).coerceAtLeast(1f),
-            center = Offset(size.width * 0.88f, size.height * 0.86f)
+    return this.drawWithCache {
+        val radiusTop = (size.maxDimension * 0.55f).coerceAtLeast(1f)
+        val centerTop = Offset(size.width * 0.12f, size.height * 0.06f)
+        val topBrush = Brush.radialGradient(
+            colors = listOf(emeraldGlow, Color.Transparent),
+            center = centerTop,
+            radius = radiusTop
         )
 
-        // 3. Delicate wide-spaced ledger dot matrix (uncluttered, zero noise)
-        val stepPx = 22.dp.toPx()
-        if (stepPx >= 8f && size.width > 0f && size.height > 0f) {
-            var y = stepPx * 0.6f
-            while (y < size.height) {
-                var x = stepPx * 0.6f
-                while (x < size.width) {
-                    drawCircle(
-                        color = dotColor,
-                        radius = 1.dp.toPx(),
-                        center = Offset(x, y)
-                    )
-                    x += stepPx
-                }
-                y += stepPx
-            }
+        val radiusBottom = (size.maxDimension * 0.52f).coerceAtLeast(1f)
+        val centerBottom = Offset(size.width * 0.88f, size.height * 0.86f)
+        val bottomBrush = Brush.radialGradient(
+            colors = listOf(goldGlow, Color.Transparent),
+            center = centerBottom,
+            radius = radiusBottom
+        )
+
+        onDrawBehind {
+            drawCircle(brush = topBrush, radius = radiusTop, center = centerTop)
+            drawCircle(brush = bottomBrush, radius = radiusBottom, center = centerBottom)
         }
     }
 }
 
 /**
- * Embossed satin card texture: subtle warm diagonal card sheen + bright top
- * rim bevel + grounded shadow edge for superior visual separation.
+ * Embossed satin card surface with cached gradient & zero-blur beveled border.
+ * Safe and silky-smooth inside LazyColumn scrolling lists on low-RAM phones.
  */
+@Composable
 fun Modifier.tactileCardSurface(
     shape: Shape,
-    elevation: Dp = 3.dp,
+    elevation: Dp = 0.dp,
     accentBorder: Color? = null,
     isDarkOverride: Boolean? = null
-): Modifier = composed {
+): Modifier {
     val isDark = isDarkOverride ?: isSystemInDarkTheme()
-    val faceColors = if (isDark) {
-        listOf(Color(0xFF1F2D42), Color(0xFF172233))
-    } else {
-        listOf(Color(0xFFFFFFFF), Color(0xFFFAF5EA))
+    val bgBrush = remember(isDark) {
+        val faceColors = if (isDark) {
+            listOf(Color(0xFF1F2D42), Color(0xFF172233))
+        } else {
+            listOf(Color(0xFFFFFFFF), Color(0xFFFAF5EA))
+        }
+        Brush.verticalGradient(faceColors)
     }
-    val topRim = accentBorder?.copy(alpha = 0.55f)
-        ?: if (isDark) Color.White.copy(alpha = 0.14f) else Color(0xFFFFFFFF)
-    val bottomRim = accentBorder?.copy(alpha = 0.35f)
-        ?: if (isDark) Color(0xFF334155) else Color(0xFFD5CBB4)
+    val borderBrush = remember(isDark, accentBorder) {
+        val topRim = accentBorder?.copy(alpha = 0.55f)
+            ?: if (isDark) Color.White.copy(alpha = 0.15f) else Color(0xFFFFFFFF)
+        val bottomRim = accentBorder?.copy(alpha = 0.40f)
+            ?: if (isDark) Color(0xFF334155) else Color(0xFFD0C5AC)
+        Brush.verticalGradient(listOf(topRim, bottomRim))
+    }
 
-    this
-        .shadow(elevation = elevation, shape = shape, clip = false)
+    return this
         .clip(shape)
-        .background(Brush.verticalGradient(faceColors))
-        .border(
-            BorderStroke(
-                width = 1.1.dp,
-                brush = Brush.verticalGradient(listOf(topRim, bottomRim))
-            ),
-            shape = shape
-        )
+        .background(bgBrush)
+        .border(width = 1.1.dp, brush = borderBrush, shape = shape)
 }
 
 /**
  * Brushed metallic emerald & gold bevel surface for Hero actions & summary strips.
  */
+@Composable
 fun Modifier.metallicHeroSurface(
     shape: Shape,
     gradientColors: List<Color>,
     borderTopColor: Color = Color(0xFFFDE68A).copy(alpha = 0.55f),
     borderBottomColor: Color = Color(0xFF022C22).copy(alpha = 0.65f),
-    elevation: Dp = 6.dp
-): Modifier = this
-    .shadow(elevation = elevation, shape = shape, clip = false)
-    .clip(shape)
-    .background(Brush.linearGradient(colors = gradientColors))
-    .drawBehind {
-        // Subtle silk-metallic diagonal highlight band across upper edge
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.16f),
-                    Color.Transparent
-                ),
+    elevation: Dp = 0.dp
+): Modifier {
+    val heroBrush = remember(gradientColors) { Brush.linearGradient(colors = gradientColors) }
+    val rimBrush = remember(borderTopColor, borderBottomColor) {
+        Brush.verticalGradient(listOf(borderTopColor, borderBottomColor))
+    }
+
+    return this
+        .clip(shape)
+        .background(heroBrush)
+        .drawWithCache {
+            val sheen = Brush.verticalGradient(
+                colors = listOf(Color.White.copy(alpha = 0.16f), Color.Transparent),
                 startY = 0f,
                 endY = size.height * 0.48f
             )
-        )
-    }
-    .border(
-        BorderStroke(
-            width = 1.25.dp,
-            brush = Brush.verticalGradient(listOf(borderTopColor, borderBottomColor))
-        ),
-        shape = shape
-    )
+            onDrawBehind {
+                drawRect(brush = sheen)
+            }
+        }
+        .border(width = 1.25.dp, brush = rimBrush, shape = shape)
+}

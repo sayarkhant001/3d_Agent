@@ -186,7 +186,7 @@ fun ExportHistoryScreen(
                             label = { Text("အားလုံး (${exportRecords.size})") }
                         )
                     }
-                    items(batches) { batch ->
+                    items(batches, key = { it }) { batch ->
                         val count = exportRecords.count { it.record.batchNumber == batch }
                         FilterChip(
                             selected = selectedBatchFilter == batch,

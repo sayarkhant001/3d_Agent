@@ -719,7 +719,7 @@ fun HomeScreen(
                                     LazyRow(
                                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                items(bannedNumbers) { bn ->
+                                items(bannedNumbers, key = { it.number }) { bn ->
                                     val isFullBan = bn.amountLimit <= 0
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),

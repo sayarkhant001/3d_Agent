@@ -1,5 +1,5 @@
 # -----------------------------------------------------------------------------
-# 3D LEDGER ANTI-REVERSE ENGINEERING & R8 COMPILATION HARDENING RULES
+# 3D LEDGER R8 OPTIMIZATION & HARDENING RULES
 # -----------------------------------------------------------------------------
 
 # 1. Obfuscation & Package Flattening
@@ -9,7 +9,6 @@
 -renamesourcefileattribute ""
 
 # 2. Strip Debug Information and Source File metadata
-# Drops LineNumberTable and LocalVariableTable to prevent decompilers from reconstructing variable names
 -keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
 
 # 3. Strip All Debug Logging in Production
@@ -21,63 +20,56 @@
     public static int w(...);
 }
 
-# 4. Entry Points (Activities, Services, Application)
+# 4. Entry Points (Activities, Services)
 -keep public class com.threeDLedger.MainActivity { *; }
 -keep public class com.threeDLedger.logic.LotteryMessagingService { *; }
+-keepclassmembers class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
 
-# 5. Serialization & Network Models (Preserve JSON field names for Moshi/Retrofit)
+# 5. Serialization & Network Models (Preserve JSON field names for Moshi/Retrofit/Serialization)
 -keepclassmembers class com.threeDLedger.network.** {
     <fields>;
 }
 -keep class com.threeDLedger.network.** { *; }
 -dontwarn com.threeDLedger.network.**
 
-# 6. Room Database & Local Entities
--keep class androidx.room.** { *; }
--dontwarn androidx.room.**
+-keep,includedescriptorclasses class com.threeDLedger.**$$serializer { *; }
+-keepclassmembers class com.threeDLedger.** {
+    *** Companion;
+}
+-keep @kotlinx.serialization.Serializable class com.threeDLedger.** { *; }
+
+# 6. Room Database & Local Entities (Room AAR bundles its own consumer rules)
 -keep class * extends androidx.room.RoomDatabase { *; }
 -keep class com.threeDLedger.data.** { *; }
 -keepclassmembers class com.threeDLedger.data.** {
     <fields>;
 }
 
-# 7. Jetpack Compose
--keep class androidx.compose.** { *; }
+# 7. Compose & Libraries (Use AAR consumer rules so R8 strips unused icons/classes!)
 -dontwarn androidx.compose.**
-
-# 8. Retrofit / OkHttp / Okio / Moshi
+-dontwarn androidx.room.**
 -dontwarn okhttp3.**
 -dontwarn okio.**
--keep class retrofit2.** { *; }
 -dontwarn retrofit2.**
--keep class com.squareup.moshi.** { *; }
 -dontwarn com.squareup.moshi.**
--keep class kotlin.reflect.jvm.internal.** { *; }
 -dontwarn kotlin.reflect.jvm.internal.**
+-dontwarn kotlinx.coroutines.**
+-dontwarn com.google.firebase.**
+
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
 -keep class kotlin.Metadata { *; }
 -keepclassmembers class * {
     @com.squareup.moshi.Json <fields>;
     @com.squareup.moshi.JsonClass <fields>;
 }
 
-# 9. Kotlin Coroutines
--keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
--keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
--keep class kotlinx.coroutines.android.AndroidExceptionPreHandler { *; }
--dontwarn kotlinx.coroutines.**
-
-# 10. Firebase & Google Services
--keep class com.google.firebase.** { *; }
--dontwarn com.google.firebase.**
--keep class com.google.firebase.messaging.** { *; }
--keep class com.google.firebase.database.** { *; }
-
-# 11. Anti-Reverse Engineering & Output Stripping
+# 8. Output & Debug Stripping
 -assumenosideeffects class java.lang.System {
     public static void println(...);
     public static void print(...);
 }
--flattenpackagehierarchy 'com.threeDLedger.obf'
--optimizationpasses 5
-
-# -----------------------------------------------------------------------------
+-optimizationpasses 3

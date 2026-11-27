@@ -801,7 +801,7 @@ fun BannedNumbersDialog(viewModel: MainViewModel, onDismiss: () -> Unit) {
                     }
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(bannedNumbers) { banned ->
+                        items(bannedNumbers, key = { it.id }) { banned ->
                             val currentBet = activeGrossMap[banned.number] ?: 0
                             Row(
                                 modifier = Modifier

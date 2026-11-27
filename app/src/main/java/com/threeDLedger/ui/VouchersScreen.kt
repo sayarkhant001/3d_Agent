@@ -52,14 +52,21 @@ fun VouchersScreen(
     val footerText by viewModel.voucherFooterText.collectAsStateWithLifecycle()
     val currentBatch by viewModel.currentBatch.collectAsStateWithLifecycle()
     
-    val filteredVouchers = (if (initialCustomerId != null) {
-        allVouchersWithBets.filter { it.voucher.customerId == initialCustomerId && it.voucher.batchNumber == currentBatch }
-    } else {
-        allVouchersWithBets.filter { it.voucher.batchNumber == currentBatch }
-    }).filter {
-        !it.voucher.isArchived &&
-            !com.threeDLedger.logic.TutCalculator.isOverflowMarker(it.voucher.remark)
+    val filteredVouchers = remember(allVouchersWithBets, initialCustomerId, currentBatch) {
+        (if (initialCustomerId != null) {
+            allVouchersWithBets.filter { it.voucher.customerId == initialCustomerId && it.voucher.batchNumber == currentBatch }
+        } else {
+            allVouchersWithBets.filter { it.voucher.batchNumber == currentBatch }
+        }).filter {
+            !it.voucher.isArchived &&
+                !com.threeDLedger.logic.TutCalculator.isOverflowMarker(it.voucher.remark)
+        }
     }
+    val customerNameByVoucherId = remember(vouchers) {
+        vouchers.associate { it.voucher.id to it.customer.name }
+    }
+    val displayDateFmt = remember { SimpleDateFormat("yyyy.MM.dd/HH:mm:ss", java.util.Locale.ENGLISH) }
+    val printDateFmt = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", java.util.Locale.ENGLISH) }
 
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
@@ -126,16 +133,15 @@ fun VouchersScreen(
                 .padding(horizontal = dimens.responsiveDp(8.dp, 12.dp, 16.dp)),
             contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)
         ) {
-            items(filteredVouchers) { voucherWithBets ->
-                val customerName = vouchers.find { it.voucher.id == voucherWithBets.voucher.id }?.customer?.name ?: "Unknown"
+            items(filteredVouchers, key = { it.voucher.id }) { voucherWithBets ->
+                val customerName = customerNameByVoucherId[voucherWithBets.voucher.id] ?: "Unknown"
                 
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 12.dp)
                         .tactileCardSurface(
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
-                            elevation = 3.dp
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
                         ),
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
                     color = Color.Transparent
@@ -144,7 +150,7 @@ fun VouchersScreen(
                         Text("ဘောင်ချာအမှတ်: ${voucherWithBets.voucher.id} (အကြိမ်: ${voucherWithBets.voucher.batchNumber})", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = dimens.responsiveSp(12.5.sp, 13.5.sp, 14.5.sp))
                         Text("အမည်: $customerName", fontSize = dimens.responsiveSp(12.sp, 13.sp, 14.sp))
                         
-                        val dateString = SimpleDateFormat("yyyy.MM.dd/HH:mm:ss").format(Date(voucherWithBets.voucher.timestamp))
+                        val dateString = displayDateFmt.format(Date(voucherWithBets.voucher.timestamp))
                         Text("အချိန်: $dateString", style = MaterialTheme.typography.bodySmall, fontSize = dimens.responsiveSp(10.5.sp, 11.5.sp, 12.sp))
                         
                         Spacer(modifier = Modifier.height(8.dp))
@@ -154,8 +160,7 @@ fun VouchersScreen(
                             modifier = Modifier.fillMaxWidth(),
                             shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surface,
-                            border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder()),
-                            shadowElevation = 1.dp
+                            border = BorderStroke(1.5.dp, com.threeDLedger.ui.theme.themeTableBorder())
                         ) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 // Table Header
@@ -310,7 +315,7 @@ fun VouchersScreen(
                                             val voucherData = com.threeDLedger.logic.BluetoothPrinter.VoucherData(
                                                 batchNumber = voucherWithBets.voucher.batchNumber,
                                                 voucherId = voucherWithBets.voucher.id,
-                                                date = SimpleDateFormat("dd/MM/yyyy HH:mm").format(Date(voucherWithBets.voucher.timestamp)),
+                                                date = printDateFmt.format(Date(voucherWithBets.voucher.timestamp)),
                                                 customerName = customerName,
                                                 remark = voucherWithBets.voucher.remark,
                                                 bets = voucherWithBets.bets.map { it.number to it.amount },

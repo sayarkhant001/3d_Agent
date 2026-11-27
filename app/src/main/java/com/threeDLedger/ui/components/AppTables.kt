@@ -56,7 +56,7 @@ fun AppTableShell(
     content: @Composable ColumnScope.() -> Unit
 ) {
     Surface(
-        modifier = modifier.shadow(2.dp, RoundedCornerShape(corner), clip = false),
+        modifier = modifier,
         shape = RoundedCornerShape(corner),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(borderWidth, borderColor)

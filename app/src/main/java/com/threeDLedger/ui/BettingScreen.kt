@@ -33,7 +33,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -2449,9 +2449,7 @@ fun BettingScreen(
                             subtitle = "ထည့်မည်",
                             bgColor = KeypadSubmitBg,
                             bevelColor = Color(0xFF022C22),
-                            modifier = Modifier.weight(1f).then(
-                                if (pendingBets.isNotEmpty()) Modifier.pulseEffect() else Modifier
-                            )
+                            modifier = Modifier.weight(1f)
                         ) { submit() }
                     }
                 }
@@ -2483,13 +2481,18 @@ fun TactileKeypadButton(
         com.threeDLedger.logic.SoundManager.getInstance(soundContext)
     }
 
-    val offsetY = if (isPressed) 2.dp else 0.dp
-    val elevation = if (isPressed) 1.dp else 3.dp
+    val offsetY = if (isPressed) 1.5.dp else 0.dp
     val rDimens = rememberResponsiveDimens()
     val buttonHeight = if (rDimens.isCompact) 52.dp else 56.dp
     val isLightFace = bgColor.red > 0.85f && bgColor.green > 0.85f
     val topSpecular = if (isLightFace) Color.White else Color.White.copy(alpha = if (isPressed) 0.12f else 0.36f)
     val bottomLip = if (isLightFace) Color(0xFFC7BDA5) else Color.Black.copy(alpha = 0.35f)
+    val faceBrush = remember(bgColor, bevelColor) {
+        Brush.verticalGradient(colors = listOf(bgColor, bevelColor))
+    }
+    val borderBrush = remember(topSpecular, bottomLip) {
+        Brush.verticalGradient(colors = listOf(topSpecular, bottomLip))
+    }
 
     Box(
         modifier = modifier
@@ -2497,40 +2500,32 @@ fun TactileKeypadButton(
             .height(buttonHeight)
             .padding(horizontal = 1.dp, vertical = 1.dp)
             .offset(y = offsetY)
-            .shadow(elevation, RoundedCornerShape(10.dp))
             .clip(RoundedCornerShape(10.dp))
-            .background(
-                Brush.verticalGradient(
+            .background(faceBrush)
+            .drawWithCache {
+                val topSheen = Brush.verticalGradient(
                     colors = listOf(
-                        bgColor,
-                        bevelColor
+                        Color.White.copy(alpha = if (isLightFace) 0.65f else 0.18f),
+                        Color.Transparent
+                    ),
+                    startY = 0f,
+                    endY = size.height * 0.36f
+                )
+                val lipHeight = 2.5.dp.toPx()
+                onDrawBehind {
+                    if (!isPressed) {
+                        drawRect(brush = topSheen)
+                    }
+                    drawRect(
+                        color = bottomLip,
+                        topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - lipHeight),
+                        size = androidx.compose.ui.geometry.Size(size.width, lipHeight)
                     )
-                )
-            )
-            .drawBehind {
-                // Crisp top ceramic specular lip
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.White.copy(alpha = if (isPressed) 0.05f else (if (isLightFace) 0.65f else 0.18f)),
-                            Color.Transparent
-                        ),
-                        startY = 0f,
-                        endY = size.height * 0.36f
-                    )
-                )
-                // Grounded keycap bottom drop lip
-                drawRect(
-                    color = bottomLip,
-                    topLeft = androidx.compose.ui.geometry.Offset(0f, size.height - 2.5.dp.toPx()),
-                    size = androidx.compose.ui.geometry.Size(size.width, 2.5.dp.toPx())
-                )
+                }
             }
             .border(
                 width = 1.dp,
-                brush = Brush.verticalGradient(
-                    colors = listOf(topSpecular, bottomLip)
-                ),
+                brush = borderBrush,
                 shape = RoundedCornerShape(10.dp)
             )
             .clickable(

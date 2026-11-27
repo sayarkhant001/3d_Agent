@@ -99,7 +99,7 @@ fun ArchiveScreen(
                     ArchiveTotalsBar(batches)
                 }
                 // One card per batch
-                items(batches) { batch ->
+                items(batches, key = { it.batchNumber }) { batch ->
                     ArchiveBatchCard(
                         batch = batch,
                         onViewResult = { onNavigateToBatchResult(batch.batchNumber) }

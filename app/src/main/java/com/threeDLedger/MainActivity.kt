@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,7 +30,7 @@ class MainActivity : ComponentActivity() {
         val repository = LotteryRepository(database.lotteryDao())
         
         setContent {
-            val prefs = getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE)
+            val prefs = remember { getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
             val viewModel: MainViewModel = viewModel(factory = MainViewModelFactory(repository, prefs))
             val fontScaleIndex by viewModel.fontScaleIndex.collectAsStateWithLifecycle()
             val currentFontScale = viewModel.fontScales.getOrElse(fontScaleIndex) { 1.0f }

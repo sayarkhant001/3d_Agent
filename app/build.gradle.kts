@@ -22,6 +22,7 @@ android {
     val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 137
     versionCode = runNumber
     versionName = "1.0.$runNumber"
+    resourceConfigurations += listOf("en", "my")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

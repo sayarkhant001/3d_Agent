@@ -56,16 +56,18 @@ fun CustomersScreen(
     // Pre-compute per-customer totals once for active batch (excluding overflow vouchers)
     val customerTotals by remember(customers, allVWB, currentBatch) {
         derivedStateOf {
-            customers.associate { c ->
-                val cv = allVWB.filter { 
+            val grouped = allVWB.asSequence()
+                .filter {
                     it.voucher.batchNumber == currentBatch &&
-                    it.voucher.customerId == c.id && 
                     !it.voucher.isArchived &&
-                    !it.voucher.remark.contains("တင်ကွက်") && 
+                    !it.voucher.remark.contains("တင်ကွက်") &&
                     !it.voucher.remark.contains("overflow", ignoreCase = true) &&
                     !it.voucher.remark.contains("upper", ignoreCase = true) &&
                     !it.voucher.remark.contains("အထက်ဒိုင်")
                 }
+                .groupBy { it.voucher.customerId }
+            customers.associate { c ->
+                val cv = grouped[c.id].orEmpty()
                 val total = cv.sumOf { it.voucher.totalAmount }
                 val rate  = if (c.commissionRate > 1.0) c.commissionRate / 100.0 else c.commissionRate
                 val cut   = (total * rate).toInt()
@@ -73,6 +75,21 @@ fun CustomersScreen(
                 val net   = total - cut - paid.toInt()
                 c.id to Triple(total, cut, net)
             }
+        }
+    }
+    val voucherCountByCustomer by remember(allVWB, currentBatch) {
+        derivedStateOf {
+            allVWB.asSequence()
+                .filter {
+                    it.voucher.batchNumber == currentBatch &&
+                    !it.voucher.isArchived &&
+                    !it.voucher.remark.contains("တင်ကွက်") &&
+                    !it.voucher.remark.contains("overflow", ignoreCase = true) &&
+                    !it.voucher.remark.contains("upper", ignoreCase = true) &&
+                    !it.voucher.remark.contains("အထက်ဒိုင်")
+                }
+                .groupingBy { it.voucher.customerId }
+                .eachCount()
         }
     }
 
@@ -311,13 +328,7 @@ fun CustomersScreen(
                                 val (total, cut, net) = customerTotals[customer.id]
                                     ?: Triple(0, 0, 0)
                                 val commPct = if (customer.commissionRate > 1.0) customer.commissionRate.toInt() else (customer.commissionRate * 100).toInt()
-                                val voucherCount = allVWB.count {
-                                    it.voucher.batchNumber == currentBatch &&
-                                    it.voucher.customerId == customer.id &&
-                                    !it.voucher.isArchived &&
-                                    !it.voucher.remark.contains("တင်ကွက်") &&
-                                    !it.voucher.remark.contains("overflow", ignoreCase = true)
-                                }
+                                val voucherCount = voucherCountByCustomer[customer.id] ?: 0
 
                                 AnimatedEntrance(index = index) {
                                     CustomerCard(

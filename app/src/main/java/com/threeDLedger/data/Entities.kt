@@ -21,7 +21,9 @@ data class Customer(
     indices = [
         Index(value = ["customerId"]),
         Index(value = ["batchNumber"]),
-        Index(value = ["isArchived"])
+        Index(value = ["isArchived"]),
+        Index(value = ["isArchived", "timestamp"]),
+        Index(value = ["batchNumber", "timestamp"])
     ]
 )
 @Serializable
@@ -62,7 +64,13 @@ data class Dine(
     val tuwtMultiplier: Int = 10
 )
 
-@Entity(tableName = "export_records")
+@Entity(
+    tableName = "export_records",
+    indices = [
+        Index(value = ["batchNumber"]),
+        Index(value = ["isArchived", "timestamp"])
+    ]
+)
 data class ExportRecord(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val batchNumber: Int,
