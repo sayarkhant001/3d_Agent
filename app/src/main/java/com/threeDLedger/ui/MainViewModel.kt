@@ -901,6 +901,9 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
         try {
             val list = repository.winningHistory3D.first()
             val defaultHistory = listOf(
+                ThreeDWinningHistory(drawDate = "16/11/2026", drawDateFormatted = "၁၆ နိုဝင်ဘာ ၂၀၂၆", winningNumber = "654", firstPrize6D = "645654"),
+                ThreeDWinningHistory(drawDate = "01/11/2026", drawDateFormatted = "၁ နိုဝင်ဘာ ၂၀၂၆", winningNumber = "224", firstPrize6D = "423224"),
+                ThreeDWinningHistory(drawDate = "16/10/2026", drawDateFormatted = "၁၆ အောက်တိုဘာ ၂၀၂၆", winningNumber = "781", firstPrize6D = "011781"),
                 ThreeDWinningHistory(drawDate = "01/10/2026", drawDateFormatted = "၁ အောက်တိုဘာ ၂၀၂၆", winningNumber = "701", firstPrize6D = "402701"),
                 ThreeDWinningHistory(drawDate = "16/09/2026", drawDateFormatted = "၁၆ စက်တင်ဘာ ၂၀၂၆", winningNumber = "640", firstPrize6D = "360640"),
                 ThreeDWinningHistory(drawDate = "01/09/2026", drawDateFormatted = "၁ စက်တင်ဘာ ၂၀၂၆", winningNumber = "341", firstPrize6D = "199341"),
@@ -1044,10 +1047,11 @@ private val VM_NUMBER_CHUNKS_REGEX     = Regex("[.,/+\\-_:]+")
             if (conn.responseCode != 200) return null
             val body = conn.inputStream.bufferedReader().use { it.readText() }
             val json = org.json.JSONObject(body)
-            val threeD = json.optString("threeD", "").trim()
+            val dataObj = json.optJSONObject("data") ?: json
+            val threeD = dataObj.optString("threeD", "").trim()
             if (threeD.length != 3 || !threeD.all { it.isDigit() }) return null
-            val firstPrize = json.optString("firstPrize", "").trim()
-            val rawDate = json.optString("date", "").trim()
+            val firstPrize = dataObj.optString("firstPrize", "").trim()
+            val rawDate = dataObj.optString("date", "").trim()
             val (ddMmYyyy, formattedMm) = normalizeWorkerDateToMyanmar(rawDate)
             if (ddMmYyyy.isBlank()) return null
             ThreeDWinningHistory(

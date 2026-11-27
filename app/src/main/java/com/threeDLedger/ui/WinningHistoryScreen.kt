@@ -34,6 +34,7 @@ import com.threeDLedger.ui.components.tactileCardSurface
 import java.text.SimpleDateFormat
 import java.util.Locale
 import com.threeDLedger.ui.theme.themeEmerald
+import com.threeDLedger.ui.theme.themeEmeraldContainer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -284,24 +285,12 @@ fun ThreeDHistoryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "အတည်ပြု ပေါက်ဂဏန်း",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (history.firstPrize6D.isNotBlank()) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = "ပထမဆု (၆ လုံး): ${history.firstPrize6D}",
-                            fontSize = 13.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Medium,
-                            color = emeraldPrimary
-                        )
-                    }
-                }
+                Text(
+                    text = "အတည်ပြု ပေါက်ဂဏန်း",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 // 3 Digit Blocks
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -326,32 +315,77 @@ fun ThreeDHistoryCard(
                 }
             }
 
-            // Permutations & Tut Numbers (အလှည့် / တွတ် ၇ ကွက်)
+            // Permutations & Tut Numbers — grid table
             if (tutNumbers.isNotEmpty()) {
+                val sorted = remember(tutNumbers) { tutNumbers.sorted() }
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(0.6.dp, emeraldPrimary.copy(alpha = 0.25f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Text(
-                            text = "အလှည့် (တွတ်): ",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = tutNumbers.joinToString(", "),
-                            fontSize = 14.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            color = emeraldPrimary,
-                            lineHeight = 19.sp,
-                            modifier = Modifier.weight(1f)
-                        )
+                    Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        // Section label
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "အလှည့် (တွတ်)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = emeraldPrimary
+                            )
+                            Text(
+                                text = "${sorted.size} ကွက်",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        HorizontalDivider(thickness = 0.5.dp, color = emeraldPrimary.copy(alpha = 0.2f))
+                        Spacer(Modifier.height(6.dp))
+                        // Grid — 5 columns
+                        val cols = 5
+                        val rows = (sorted.size + cols - 1) / cols
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            for (r in 0 until rows) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    for (c in 0 until cols) {
+                                        val idx = r * cols + c
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            if (idx < sorted.size) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = emeraldLight.copy(alpha = if ((r % 2 == 0) == (c % 2 == 0)) 1f else 0.6f),
+                                                    border = BorderStroke(0.5.dp, emeraldPrimary.copy(alpha = 0.3f))
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(vertical = 5.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = sorted[idx],
+                                                            fontSize = 13.sp,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = emeraldDark
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
