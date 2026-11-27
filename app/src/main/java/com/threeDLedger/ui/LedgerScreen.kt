@@ -278,7 +278,7 @@ fun LedgerScreen(
                     )
                     AppTableCellDivider(height = 16.dp)
                     Text(
-                        "ထိုးငွေ ပမာဏ",
+                        "ထိုးကြေး",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.5.sp,

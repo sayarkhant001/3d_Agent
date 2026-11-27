@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.threeDLedger.data.Customer
 import com.threeDLedger.ui.theme.*
+import com.threeDLedger.ui.components.AppTableCellDivider
 import com.threeDLedger.ui.components.FitText
 import com.threeDLedger.ui.components.AnimatedEntrance
 
@@ -1113,32 +1114,39 @@ fun AgentNumbersView(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         "စဉ်",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.width(34.dp)
                     )
+                    AppTableCellDivider(height = 16.dp)
                     Text(
                         "ဂဏန်း",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        modifier = Modifier.weight(1f)
+                        fontSize = 13.5.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(68.dp)
                     )
+                    AppTableCellDivider(height = 16.dp)
                     Text(
-                        "ထိုးငွေ ပမာဏ",
+                        "ထိုးကြေး",
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        textAlign = TextAlign.End
+                        fontSize = 13.5.sp,
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
+            HorizontalDivider(color = themeEmeraldBorder(), thickness = 1.25.dp)
+            HorizontalDivider(color = themeGold().copy(alpha = 0.25f), thickness = 0.75.dp)
 
             if (numberTotals.isEmpty()) {
                 Box(
@@ -1153,12 +1161,17 @@ fun AgentNumbersView(
                 }
             } else {
                 LazyColumn(modifier = Modifier.weight(1f)) {
-                    itemsIndexed(numberTotals) { idx, (number, amount) ->
+                    itemsIndexed(
+                        items = numberTotals,
+                        key = { _, (number, _) -> number }
+                    ) { idx, (number, amount) ->
+                        val rowBg = if (idx % 2 == 0) themeTableRowOdd() else themeTableRowEven()
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.surface)
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                .animateItem()
+                                .background(rowBg)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // Straight index column — same width & centring every row, top to bottom
@@ -1168,9 +1181,11 @@ fun AgentNumbersView(
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 fontFamily = FontFamily.Monospace,
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.width(34.dp)
                             )
+                            AppTableCellDivider(height = 20.dp)
                             // Number column
                             Text(
                                 number,
@@ -1178,9 +1193,12 @@ fun AgentNumbersView(
                                 fontWeight = FontWeight.Black,
                                 fontSize = 18.sp,
                                 fontFamily = FontFamily.Monospace,
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
                                 letterSpacing = 1.5.sp,
-                                modifier = Modifier.weight(1f)
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.width(68.dp)
                             )
+                            AppTableCellDivider(height = 20.dp)
                             // Amount column — right-aligned on the same edge for every row
                             Text(
                                 "%,d".format(amount),
@@ -1188,7 +1206,9 @@ fun AgentNumbersView(
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 17.sp,
                                 fontFamily = FontFamily.Monospace,
-                                textAlign = TextAlign.End
+                                style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.weight(1f).padding(start = 8.dp)
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
@@ -1199,7 +1219,7 @@ fun AgentNumbersView(
                             )
                         }
                         HorizontalDivider(
-                            color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.45f),
+                            color = com.threeDLedger.ui.theme.themeTableBorder().copy(alpha = 0.5f),
                             thickness = 1.dp
                         )
                     }

@@ -1630,7 +1630,7 @@ fun BettingScreen(
                 )
                 AppTableCellDivider(height = 16.dp)
                 Text(
-                    "ထိုးငွေ ပမာဏ",
+                    "ထိုးကြေး",
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,

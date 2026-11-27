@@ -195,7 +195,7 @@ fun VouchersScreen(
                                         )
                                         AppTableCellDivider(height = 16.dp)
                                         Text(
-                                            "ထိုးငွေ ပမာဏ",
+                                            "ထိုးကြေး",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
                                             textAlign = TextAlign.End,
