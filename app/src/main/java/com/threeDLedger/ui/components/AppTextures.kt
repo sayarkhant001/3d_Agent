@@ -71,17 +71,17 @@ fun Modifier.tactileCardSurface(
     val isDark = isDarkOverride ?: isSystemInDarkTheme()
     val bgBrush = remember(isDark) {
         val faceColors = if (isDark) {
-            listOf(Color(0xFF1F2D42), Color(0xFF172233))
+            listOf(Color(0xFF111827), Color(0xFF0D1520))
         } else {
-            listOf(Color(0xFFFFFFFF), Color(0xFFFAF5EA))
+            listOf(Color(0xFFFFFBF0), Color(0xFFF5EDD8))
         }
         Brush.verticalGradient(faceColors)
     }
     val borderBrush = remember(isDark, accentBorder) {
-        val topRim = accentBorder?.copy(alpha = 0.55f)
-            ?: if (isDark) Color.White.copy(alpha = 0.15f) else Color(0xFFFFFFFF)
-        val bottomRim = accentBorder?.copy(alpha = 0.40f)
-            ?: if (isDark) Color(0xFF334155) else Color(0xFFD0C5AC)
+        val topRim = accentBorder?.copy(alpha = 0.65f)
+            ?: if (isDark) Color.White.copy(alpha = 0.18f) else Color(0xFFFFFFFF)
+        val bottomRim = accentBorder?.copy(alpha = 0.45f)
+            ?: if (isDark) Color(0xFF374151) else Color(0xFFC5AD84)
         Brush.verticalGradient(listOf(topRim, bottomRim))
     }
 

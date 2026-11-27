@@ -1,4 +1,4 @@
-package com.threeDLedger.ui.components
+﻿package com.threeDLedger.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,7 +21,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -52,7 +51,7 @@ import com.threeDLedger.ui.theme.themeTableRowOdd
 fun AppTableShell(
     modifier: Modifier = Modifier,
     borderColor: Color = themeTableBorder(),
-    borderWidth: Dp = 1.5.dp,
+    borderWidth: Dp = 1.75.dp,
     corner: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -60,6 +59,7 @@ fun AppTableShell(
         modifier = modifier,
         shape = RoundedCornerShape(corner),
         color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 2.dp,
         border = BorderStroke(borderWidth, borderColor)
     ) {
         Column(modifier = Modifier.fillMaxWidth(), content = content)
@@ -80,16 +80,16 @@ fun AppTableHeader(
                     Brush.verticalGradient(
                         listOf(
                             themeEmeraldContainer(),
-                            themeEmeraldContainer().copy(alpha = 0.78f)
+                            themeEmeraldContainer().copy(alpha = 0.72f)
                         )
                     )
                 )
-                .padding(horizontal = 12.dp, vertical = 9.dp),
+                .padding(horizontal = 12.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
             content = content
         )
-        HorizontalDivider(color = themeEmeraldBorder(), thickness = 1.25.dp)
-        HorizontalDivider(color = themeGold().copy(alpha = 0.25f), thickness = 0.75.dp)
+        HorizontalDivider(color = themeEmeraldBorder(), thickness = 1.5.dp)
+        HorizontalDivider(color = themeGold().copy(alpha = 0.30f), thickness = 0.75.dp)
     }
 }
 
@@ -98,7 +98,7 @@ fun AppTableHeader(
 fun AppTableBodyRow(
     modifier: Modifier = Modifier,
     horizontalPadding: Dp = 12.dp,
-    verticalPadding: Dp = 8.5.dp,
+    verticalPadding: Dp = 11.dp,
     isAlternate: Boolean = false,
     content: @Composable RowScope.() -> Unit
 ) {
@@ -158,13 +158,13 @@ fun AppTableIndexText(
     index: Int,
     modifier: Modifier = Modifier,
     width: Dp = 36.dp,
-    fontSize: TextUnit = 13.5.sp
+    fontSize: TextUnit = 14.sp
 ) {
     Text(
         "$index.",
         textAlign = TextAlign.Center,
         fontSize = fontSize,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         fontFamily = FontFamily.Monospace,
         style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -177,7 +177,7 @@ fun AppTableIndexText(
 fun AppTableNumberText(
     number: String,
     modifier: Modifier = Modifier,
-    fontSize: TextUnit = 18.sp,
+    fontSize: TextUnit = 19.sp,
     color: Color = MaterialTheme.colorScheme.primary
 ) {
     Text(
@@ -187,14 +187,14 @@ fun AppTableNumberText(
         fontWeight = FontWeight.Black,
         fontFamily = FontFamily.Monospace,
         style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-        letterSpacing = 1.5.sp,
+        letterSpacing = 2.sp,
         color = color,
         maxLines = 1,
         modifier = modifier
     )
 }
 
-/** Amount cell — right-aligned on the same edge for every row, with "Ks". */
+/** Amount cell — right-aligned, tabular numerals, no "Ks" label (copy buttons handle formatting). */
 @Composable
 fun AppTableAmountText(
     amount: Long,
@@ -202,28 +202,16 @@ fun AppTableAmountText(
     fontSize: TextUnit = 17.sp,
     color: Color = MaterialTheme.colorScheme.onSurface
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End
-    ) {
-        Text(
-            "%,d".format(amount),
-            textAlign = TextAlign.End,
-            fontSize = fontSize,
-            fontWeight = FontWeight.ExtraBold,
-            fontFamily = FontFamily.Monospace,
-            style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
-            color = color,
-            maxLines = 1
-        )
-        Spacer(Modifier.width(3.dp))
-        Text(
-            "Ks",
-            fontSize = (fontSize.value - 3.5f).coerceAtLeast(11f).sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
+    Text(
+        "%,d".format(amount),
+        textAlign = TextAlign.End,
+        fontSize = fontSize,
+        fontWeight = FontWeight.ExtraBold,
+        fontFamily = FontFamily.Monospace,
+        style = LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
+        color = color,
+        maxLines = 1,
+        modifier = modifier
+    )
 }
+

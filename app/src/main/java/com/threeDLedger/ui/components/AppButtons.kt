@@ -45,7 +45,7 @@ fun PrimaryGradientButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     shape: Shape = RoundedCornerShape(14.dp),
-    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 15.dp),
     content: @Composable RowScope.() -> Unit
 ) {
     val context = LocalContext.current
